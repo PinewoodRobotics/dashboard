@@ -1,6 +1,7 @@
 "use client";
 
 import { useIntakeSpeedNetworkTable } from "@/lib/hooks/useIntakeSpeedNetworkTable";
+import { AimTrimSection } from "./AimTrimSection";
 import { CustomSlider } from "./CustomSlider";
 import { colScroll } from "../../settings/constants";
 
@@ -47,6 +48,8 @@ export function IntakeSpeedPanel() {
         >
           Reset
         </button>
+
+        <AimTrimSection />
       </div>
     </div>
   );
