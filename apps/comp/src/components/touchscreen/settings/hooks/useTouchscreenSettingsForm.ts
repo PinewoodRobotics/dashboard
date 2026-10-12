@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { DEFAULT_RECONNECT_TIMEOUT_SECONDS } from "@pwrup/shared-core/settings-schema";
 import { ntSelectedPathTopics, useSettings } from "@/lib/settings";
 
 export function useTouchscreenSettingsForm() {
   const { settings, setSettings, resetDefaults } = useSettings();
+  const savedReconnectTimeoutSeconds = settings.reconnectTimeoutSeconds ?? DEFAULT_RECONNECT_TIMEOUT_SECONDS;
 
   const [host, setHost] = useState(settings.host);
   const [port, setPort] = useState(String(settings.port));
@@ -10,7 +12,7 @@ export function useTouchscreenSettingsForm() {
   const [ntPort, setNtPort] = useState(String(settings.networkTables.port));
   const [sharedTable, setSharedTable] = useState(settings.networkTables.sharedTable);
   const [selectedPathTopic, setSelectedPathTopic] = useState(settings.networkTables.selectedPathTopic);
-  const [reconnectTimeoutSeconds, setReconnectTimeoutSeconds] = useState(settings.reconnectTimeoutSeconds);
+  const [reconnectTimeoutSeconds, setReconnectTimeoutSeconds] = useState(savedReconnectTimeoutSeconds);
 
   useEffect(() => {
     setHost(settings.host);
@@ -19,7 +21,7 @@ export function useTouchscreenSettingsForm() {
     setNtPort(String(settings.networkTables.port));
     setSharedTable(settings.networkTables.sharedTable);
     setSelectedPathTopic(settings.networkTables.selectedPathTopic);
-    setReconnectTimeoutSeconds(settings.reconnectTimeoutSeconds);
+    setReconnectTimeoutSeconds(savedReconnectTimeoutSeconds);
   }, [
     settings.host,
     settings.port,
@@ -27,7 +29,7 @@ export function useTouchscreenSettingsForm() {
     settings.networkTables.port,
     settings.networkTables.sharedTable,
     settings.networkTables.selectedPathTopic,
-    settings.reconnectTimeoutSeconds,
+    savedReconnectTimeoutSeconds,
   ]);
 
   const nextHost = host.trim();
@@ -52,7 +54,7 @@ export function useTouchscreenSettingsForm() {
     Math.round(nextNtPort) !== settings.networkTables.port ||
     nextSharedTable !== settings.networkTables.sharedTable ||
     nextSelectedPathTopic !== settings.networkTables.selectedPathTopic ||
-    Math.round(reconnectTimeoutSeconds) !== settings.reconnectTimeoutSeconds;
+    Math.round(reconnectTimeoutSeconds) !== savedReconnectTimeoutSeconds;
 
   const saveEnabled = canSave && hasChanges;
 
