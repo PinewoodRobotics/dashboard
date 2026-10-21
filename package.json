@@ -25,5 +25,13 @@
     "start:debug": "pnpm --filter @pwrup/debug start",
     "build:all": "pnpm -r --filter @pwrup/admin --filter @pwrup/comp --filter @pwrup/debug build",
     "dist:all": "pnpm -r --filter @pwrup/admin --filter @pwrup/comp --filter @pwrup/debug dist"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp": "0.35.5"
+    }
+  },
+  "overrides": {
+    "sharp": "0.35.5"
   }
 }
