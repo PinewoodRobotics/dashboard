@@ -64,7 +64,7 @@
     "@types/three": "^0.183.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^37.5.1",
+    "electron": "44.9.1",
     "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "15.5.28",
