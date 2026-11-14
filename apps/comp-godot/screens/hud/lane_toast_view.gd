@@ -16,7 +16,7 @@ const FADE_S := 0.25
 
 var on := false
 var _font: Font
-var _box := StyleBoxFlat.new()
+var _box := PwBox.new()
 var _icon: Texture2D
 
 
@@ -42,7 +42,7 @@ func color() -> Color:
 
 func show_state(value: bool) -> void:
 	on = value
-	_icon = Icons.texture(Tokens.LANE_ICON, ICON_PX, color())
+	_icon = Icons.texture(Tokens.LANE_ICON, ICON_PX)
 	var tw := _font.get_string_size(text(), HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_PX).x
 	size = Vector2(maxf(MIN_W, ceilf(PAD.x * 2 + ICON_PX + GAP + tw)), PAD.y * 2 + ICON_PX)
 	queue_redraw()
@@ -62,9 +62,10 @@ func set_progress(progress: float) -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
 	draw_style_box(_box, Rect2(Vector2.ZERO, size))
 	if _icon != null:
-		draw_texture(_icon, Vector2(PAD.x, PAD.y))
+		draw_texture(_icon, Vector2(PAD.x, PAD.y), color())
 	var cy := size.y / 2.0
 	var baseline := cy - (_font.get_ascent(TEXT_PX) + _font.get_descent(TEXT_PX)) / 2.0 + _font.get_ascent(TEXT_PX)
-	_font.draw_string(get_canvas_item(), Vector2(PAD.x + ICON_PX + GAP, baseline), text(), HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_PX, color())
+	UiDraw.text(self, _font, Vector2(PAD.x + ICON_PX + GAP, baseline), text(), TEXT_PX, color())

@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://dmn2pjlpgauy4"
-path="res://.godot/imported/Inter-Variable.ttf-f9d467e8d205bb431b8437b237ecb26b.fontdata"
+uid="uid://cmdlppf22c2kb"
+path="res://.godot/imported/Inter-700.ttf-6addb0ccf03379e5da721fbdc1d5f8e5.fontdata"
 
 [deps]
 
-source_file="res://ui/fonts/Inter-Variable.ttf"
-dest_files=["res://.godot/imported/Inter-Variable.ttf-f9d467e8d205bb431b8437b237ecb26b.fontdata"]
+source_file="res://ui/fonts/Inter-700.ttf"
+dest_files=["res://.godot/imported/Inter-700.ttf-6addb0ccf03379e5da721fbdc1d5f8e5.fontdata"]
 
 [params]
 
@@ -16,7 +16,7 @@ Rendering=null
 antialiasing=1
 generate_mipmaps=false
 disable_embedded_bitmaps=true
-multichannel_signed_distance_field=false
+multichannel_signed_distance_field=true
 msdf_pixel_range=8
 msdf_size=48
 allow_system_fallback=true

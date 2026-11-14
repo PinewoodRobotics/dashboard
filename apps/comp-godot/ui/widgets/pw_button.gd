@@ -83,16 +83,14 @@ func _colors() -> Dictionary:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
 	var c := _colors()
 	var a := 0.5 if disabled else 1.0
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = c["bg"]
-	sb.border_color = c["border"]
-	sb.set_border_width_all(2 if variant == Style.OUTLINE else (Tokens.BORDER if variant == Style.ACCENT else 0))
-	sb.set_corner_radius_all(int(radius))
-	sb.bg_color.a *= a
-	sb.border_color.a *= a
-	draw_style_box(sb, Rect2(Vector2.ZERO, size))
+	var bg: Color = c["bg"]
+	var border: Color = c["border"]
+	bg.a *= a
+	border.a *= a
+	UiDraw.box(get_canvas_item(), Rect2(Vector2.ZERO, size), bg, radius, 2 if variant == Style.OUTLINE else (Tokens.BORDER if variant == Style.ACCENT else 0), border)
 	var font := Tokens.inter(500)
 	var col: Color = c["text"]
 	col.a *= a
@@ -102,8 +100,8 @@ func _draw() -> void:
 	var tw := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	var x := (size.x - tw - icon_w) * 0.5
 	if icon_name != "":
-		var tex := Icons.texture(icon_name, font_size, Color(col.r, col.g, col.b))
+		var tex := Icons.texture(icon_name, font_size)
 		if tex != null:
-			draw_texture(tex, Vector2(x, (size.y - font_size) * 0.5).round(), Color(1, 1, 1, a))
+			draw_texture(tex, Vector2(x, (size.y - font_size) * 0.5).round(), col)
 	var baseline := (size.y + font.get_ascent(font_size) - font.get_descent(font_size)) * 0.5
-	draw_string(font, Vector2(x + icon_w, baseline).round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, col)
+	UiDraw.text(self, font, Vector2(x + icon_w, baseline).round(), text, font_size, col)

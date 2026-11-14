@@ -59,7 +59,7 @@ static func hscroll() -> ScrollContainer:
 
 
 static func _style_bar(bar: ScrollBar) -> void:
-	var grab := StyleBoxFlat.new()
+	var grab := PwBox.new()
 	grab.bg_color = Tokens.ACCENT
 	grab.set_content_margin_all(2.5)
 	var track := StyleBoxEmpty.new()
@@ -78,7 +78,7 @@ static func full(c: Control) -> Control:
 ## A 420 px settings column (SettingsColumn.tsx): 32 px padding, 24 px title, 28 px gap.
 static func column(title: String, border_right: bool = true, pad: int = 32, gap: int = 28) -> Dictionary:
 	var panel := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = Color(0, 0, 0, 0)
 	sb.border_color = Tokens.HAIRLINE
 	sb.border_width_right = 2 if border_right else 0

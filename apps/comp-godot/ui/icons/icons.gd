@@ -2,19 +2,13 @@ class_name Icons
 extends RefCounted
 
 ## Lucide icons from ui/icons/lucide.json (tools/icons/build_icons.mjs),
-## rasterized at the exact pixel size and color they are drawn at, and cached.
-## Up to ATLAS_MAX_PX every icon of one size and color shares an atlas, so
-## neighbouring icons batch into one canvas draw call.
+## rasterized white at the exact pixel size they are drawn at and tinted by the
+## draw color. Textures come from the UiDraw atlas, so icons batch with shapes.
 
 const SOURCE := "res://ui/icons/lucide.json"
 
-const ATLAS_MAX_PX := 64
-const ATLAS_COLS := 8
-const ATLAS_PAD := 2
-
 static var _svgs := {}
 static var _cache := {}
-static var _atlases := {}
 
 
 static func _load() -> void:
@@ -62,34 +56,12 @@ static func image(name: String, px: int, color: Color) -> Image:
 	return img
 
 
-static func texture(name: String, px: int, color: Color) -> Texture2D:
-	var key := "%s|%d|%s" % [name, px, color.to_html(true)]
-	if px <= ATLAS_MAX_PX and not _cache.has(key) and has(name):
-		var atlas := _atlas(px, color)
-		var i := names().find(name)
-		var cell := px + ATLAS_PAD
-		var at := AtlasTexture.new()
-		at.atlas = atlas
-		at.region = Rect2((i % ATLAS_COLS) * cell, (i / ATLAS_COLS) * cell, px, px)
-		_cache[key] = at
+static func texture(name: String, px: int) -> Texture2D:
+	var key := "%s|%d" % [name, px]
 	if not _cache.has(key):
-		var img := image(name, px, color)
-		_cache[key] = ImageTexture.create_from_image(img) if img != null else null
+		var tex := UiDraw.icon_texture(name, px)
+		if tex == null and has(name):
+			var img := image(name, px, Color.WHITE)
+			tex = ImageTexture.create_from_image(img) if img != null else null
+		_cache[key] = tex
 	return _cache[key]
-
-
-static func _atlas(px: int, color: Color) -> ImageTexture:
-	var key := "%d|%s" % [px, color.to_html(true)]
-	if not _atlases.has(key):
-		var all := names()
-		var cell := px + ATLAS_PAD
-		var rows := ceili(float(all.size()) / ATLAS_COLS)
-		var sheet := Image.create_empty(ATLAS_COLS * cell, rows * cell, false, Image.FORMAT_RGBA8)
-		for i in all.size():
-			var img := image(all[i], px, color)
-			if img == null:
-				continue
-			img.convert(Image.FORMAT_RGBA8)
-			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i((i % ATLAS_COLS) * cell, (i / ATLAS_COLS) * cell))
-		_atlases[key] = ImageTexture.create_from_image(sheet)
-	return _atlases[key]

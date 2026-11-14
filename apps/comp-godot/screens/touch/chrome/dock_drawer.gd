@@ -62,8 +62,8 @@ func item(id: String) -> TabIcon:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Tokens.SCRIM)
+	UiDraw.rect(get_canvas_item(), Rect2(Vector2.ZERO, size), Tokens.SCRIM)
 	var b := float(Tokens.BORDER)
-	draw_rect(Rect2(0, 0, size.x, b), Tokens.ACCENT)
-	draw_rect(Rect2(0, 0, b, size.y), Tokens.ACCENT)
-	draw_rect(Rect2(size.x - b, 0, b, size.y), Tokens.ACCENT)
+	UiDraw.rect(get_canvas_item(), Rect2(0, 0, size.x, b), Tokens.ACCENT)
+	UiDraw.rect(get_canvas_item(), Rect2(0, 0, b, size.y), Tokens.ACCENT)
+	UiDraw.rect(get_canvas_item(), Rect2(size.x - b, 0, b, size.y), Tokens.ACCENT)

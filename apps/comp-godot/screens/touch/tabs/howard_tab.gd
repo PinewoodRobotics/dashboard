@@ -28,7 +28,7 @@ static func pick_other(current: int, count: int, gen: RandomNumberGenerator) -> 
 
 func _ready() -> void:
 	entries = load_entries()
-	var bg := ColorRect.new()
+	var bg := PwRect.new()
 	bg.color = Tokens.PANEL
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(UiKit.full(bg))
@@ -46,7 +46,7 @@ func _ready() -> void:
 	left.add_child(more)
 	row.add_child(left)
 	var frame := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = Tokens.ZINC_950
 	sb.set_corner_radius_all(12)
 	sb.set_content_margin_all(8)

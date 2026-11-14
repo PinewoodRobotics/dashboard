@@ -30,6 +30,7 @@ var kiosk: KioskController
 
 func _ready() -> void:
 	_args = CliArgs.parse(OS.get_cmdline_user_args())
+	get_tree().node_added.connect(_on_node_added)
 	screen = WindowManager.parse_screen(_args)
 	var root := get_window()
 	WindowManager.setup_root(root, screen, _args.has("design_size"))
@@ -64,6 +65,11 @@ func _ready() -> void:
 		host.add_child(touch)
 
 	Dev.attach(self)
+
+
+func _on_node_added(n: Node) -> void:
+	if n is Label:
+		UiDraw.layer_label.call_deferred(n)
 
 
 func _setup_kiosk() -> void:

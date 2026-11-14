@@ -25,6 +25,6 @@ func move_to(canvas_pos: Vector2) -> void:
 
 
 func _draw() -> void:
-	var tex := Icons.texture(icon_name, Tokens.ICON, Color.WHITE)
+	var tex := Icons.texture(icon_name, Tokens.ICON)
 	if tex != null:
 		draw_texture(tex, Vector2.ZERO, Color(1, 1, 1, 0.8))

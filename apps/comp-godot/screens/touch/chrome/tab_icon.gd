@@ -70,6 +70,6 @@ func _gui_input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	var col := Tokens.ACCENT if active else Tokens.TEXT
-	var tex := Icons.texture(icon_name, Tokens.ICON, col)
+	var tex := Icons.texture(icon_name, Tokens.ICON)
 	if tex != null:
-		draw_texture(tex, ((size - Vector2(Tokens.ICON, Tokens.ICON)) * 0.5).round(), Color(1, 1, 1, 0.3 if faded else 1.0))
+		draw_texture(tex, ((size - Vector2(Tokens.ICON, Tokens.ICON)) * 0.5).round(), Color(col, 0.3 if faded else 1.0))

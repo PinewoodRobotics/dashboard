@@ -124,4 +124,4 @@ func _draw() -> void:
 		return
 	var h := maxf(24.0, size.y * size.y / total)
 	var y := (size.y - h) * scroll_offset / max_scroll()
-	draw_rect(Rect2(size.x - BAR_W, y, BAR_W, h), Tokens.ACCENT)
+	UiDraw.rect(get_canvas_item(), Rect2(size.x - BAR_W, y, BAR_W, h), Tokens.ACCENT)

@@ -147,35 +147,37 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
+	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	if label != "":
-		draw_string(Tokens.inter(500), Vector2(0, 24), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 1, 1, a))
+		UiDraw.text(self, Tokens.inter(500), Vector2(0, 24), label, 24, Color(1, 1, 1, a))
 	var top := _cells_top()
 	for i in options.size():
 		var r := Rect2(i * STRIDE, top, CELL, CELL)
-		draw_rect(r, Color(Tokens.PANEL, a))
-		draw_rect(r.grow(-Tokens.BORDER * 0.5), Color(1, 1, 1, a), false, Tokens.BORDER)
+		UiDraw.rect(ci, r, Color(Tokens.PANEL, a))
+		UiDraw.frame(ci, r, Color(1, 1, 1, a), Tokens.BORDER)
 		_draw_option(options[i], r, Color(1, 1, 1, a))
 	var hl := Rect2(_hl.value, top, CELL, CELL)
-	draw_rect(hl, Color(Tokens.SELECTED_FILL, a))
-	draw_rect(hl.grow(-Tokens.BORDER * 0.5), Color(Tokens.ACCENT, a), false, Tokens.BORDER)
+	UiDraw.rect(ci, hl, Color(Tokens.SELECTED_FILL, a))
+	UiDraw.frame(ci, hl, Color(Tokens.ACCENT, a), Tokens.BORDER)
 	var shown := displayed_index()
 	if shown < options.size():
 		_draw_option(options[shown], hl, Color(Tokens.ACCENT, a))
 		var hint := str(options[shown].get("hint", ""))
 		if hint != "":
-			draw_string(Tokens.inter(400), Vector2(0, top + CELL + 24.0), hint, HORIZONTAL_ALIGNMENT_LEFT, maxf(size.x, 400.0), 16, Color(Tokens.ZINC_400, a))
+			UiDraw.text(self, Tokens.inter(400), Vector2(0, top + CELL + 24.0), hint, 16, Color(Tokens.ZINC_400, a), HORIZONTAL_ALIGNMENT_LEFT, maxf(size.x, 400.0))
 
 
 func _draw_option(opt: Dictionary, r: Rect2, col: Color) -> void:
 	var icon := str(opt.get("icon", ""))
 	if icon != "":
-		var tex := Icons.texture(icon, ICON_PX, Color(col.r, col.g, col.b))
+		var tex := Icons.texture(icon, ICON_PX)
 		if tex != null:
-			draw_texture(tex, (r.get_center() - Vector2(ICON_PX, ICON_PX) * 0.5).round(), Color(1, 1, 1, col.a))
+			draw_texture(tex, (r.get_center() - Vector2(ICON_PX, ICON_PX) * 0.5).round(), col)
 		return
 	var text := str(opt.get("text", ""))
 	var f := Tokens.inter(600)
 	var fs := 24
 	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	draw_string(f, Vector2(r.get_center().x - w * 0.5, r.get_center().y + (f.get_ascent(fs) - f.get_descent(fs)) * 0.5).round(), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	UiDraw.text(self, f, Vector2(r.get_center().x - w * 0.5, r.get_center().y + (f.get_ascent(fs) - f.get_descent(fs)) * 0.5).round(), text, fs, col)

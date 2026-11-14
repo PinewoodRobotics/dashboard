@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Perf budget, windowed, both screens at the design size, against the fake
 # robot playing an 8x match on a loop while the Auto tab preview plays:
-# - render scale 1.0, uncapped: <= 45 3D draw calls (summed over the rendering
-#   SubViewports) and <= 650k primitives in every frame, frame time p95 < 8 ms,
-#   at most 2 SubViewports rendering 3D. The engine-wide count also includes
-#   the 2D UI batches (font and icon texture switches, about 85 with the Auto
-#   tab open); it is held under 130 as a regression guard;
+# - render scale 1.0, uncapped, sampled over 10000 frames (a whole 8x match
+#   loop on the dev machine, pre-match HUD mirror included): <= 45 draw calls
+#   and <= 650k primitives in every frame, engine-wide (both windows' 2D plus
+#   every 3D SubViewport), frame time p95 < 8 ms, at most 2 SubViewports
+#   rendering 3D;
 # - render scale 0.5: every 3D viewport reports scale 0.5 and an offline
 #   fixture renders at half resolution (check_render_scale.py: the 3D image has
 #   lost the detail above half the pixel Nyquist frequency).
@@ -24,10 +24,11 @@ export PWRUP_SHARED_SETTINGS_PATH="$WORK/connection-settings.json"
 start_fake perf --match --loop --speed 8 --motion --alliance red
 status=0
 for scale in 1.0 0.5; do
+  frames=$([ "$scale" = 1.0 ] && echo 10000 || echo 900)
   printf '%s\n' '{}' >"$WORK/settings_$scale.json"
   if ! "$GODOT" --path "$APP" -- --screen=both --design-size --live --fixture=live_match_preview \
       --nt-host=127.0.0.1 --nt-port="$FAKE_PORT" --settings="$WORK/settings_$scale.json" \
-      --render-scale="$scale" --max-fps=0 --vsync=off --frames=60 --perf-frames=900 \
+      --render-scale="$scale" --max-fps=0 --vsync=off --frames=60 --perf-frames="$frames" \
       --screenshot="$OUT/live_$scale" >"$OUT/live_$scale.log" 2>&1; then
     echo "FAIL live run at render scale $scale:"; grep -E "DEV FAIL|ERROR|SCRIPT" "$OUT/live_$scale.log" || tail -5 "$OUT/live_$scale.log"
     status=1
@@ -61,13 +62,12 @@ for scale in ("1.0", "0.5"):
           f"scale {scale}: HUD minimap and preview draw 3D ({drawing}), scaling_3d_scale {views}")
     check(r["max_rendering_views"] <= 2, f"scale {scale}: at most 2 SubViewports render 3D ({r['max_rendering_views']})")
     print(f"     scale {scale}: {p['fps']:.0f} fps uncapped, p50 {p['frame_ms_p50']:.2f} ms, p95 {p['frame_ms_p95']:.2f} ms, "
-          f"max {p['max_draw_calls_3d']} 3D draw calls / {p['max_primitives_3d']} 3D primitives, "
-          f"engine-wide max {p['max_draw_calls']} draw calls / {p['max_primitives']} primitives, "
+          f"max {p['max_draw_calls']} draw calls ({p['max_draw_calls_3d']} 3D, 2D per window {p['max_canvas_draw_calls']}) / "
+          f"{p['max_primitives']} primitives, "
           f"phase {r['match']['phase']}, {p['adapter']}")
     if scale == "1.0":
-        check(p["max_draw_calls_3d"] <= 45, f"<= 45 3D draw calls per frame (max {p['max_draw_calls_3d']})")
-        check(p["max_primitives"] <= 650_000, f"<= 650k primitives per frame, 2D included (max {p['max_primitives']})")
-        check(p["max_draw_calls"] <= 130, f"<= 130 draw calls per frame with the 2D UI batches (max {p['max_draw_calls']})")
+        check(p["max_draw_calls"] <= 45, f"<= 45 draw calls per frame, 2D and 3D (max {p['max_draw_calls']})")
+        check(p["max_primitives"] <= 650_000, f"<= 650k primitives per frame, 2D and 3D (max {p['max_primitives']})")
         check(p["frame_ms_p95"] < 8.0, f"frame time p95 < 8 ms ({p['frame_ms_p95']:.2f} ms)")
 sys.exit(1 if fails else 0)
 PY

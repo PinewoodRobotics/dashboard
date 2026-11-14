@@ -133,7 +133,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
 | `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, restart persistence | 2 min |
 | `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring | 2 min |
-| `run_perf.sh` | perf budget with both windows, an 8x fake match and the preview playing; render scale 0.5 halves the 3D resolution | 1 min |
+| `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution | 2 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
 | `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
@@ -161,6 +161,25 @@ The script enforces the triangle, surface and size budgets and writes
 `models.manifest.json`; a unit test fails when the manifest's source hashes no
 longer match the raw files. Commit the GLBs, their `.import` files and the
 manifest. The rig and camera metadata are in `data/rig/`.
+
+## UI drawing and fonts
+
+The GL Compatibility renderer spends one draw call per polygon and one per run
+of rects that share a texture, so the UI never uses `StyleBoxFlat`,
+`ColorRect` or `draw_circle`. `ui/theme/ui_draw.gd` cuts every shape and
+lucide icon from one atlas (`PwBox` is the stylebox, `PwRect` the color rect),
+and puts text on a z slot per font above the shapes; stacked layers (overlays,
+dock, keyboard) step z by `UiDraw.LAYER_Z`. Custom `_draw()` code calls
+`UiDraw.begin(self)` first and draws text with `UiDraw.text`. `run_perf.sh`
+reports the 2D draw calls per window next to the 3D ones.
+
+The fonts are static Inter (300 to 700) and Roboto Mono (400, 500) weights cut
+from the upstream variable fonts with their overlaps removed, imported as MSDF
+so every size of a weight shares one glyph texture. To rebuild them:
+
+```sh
+apps/comp-godot/tools/fonts/build_fonts.sh /path/to/InterVariable.ttf /path/to/RobotoMono-VariableFont_wght.ttf
+```
 
 ## PathPlanner autos
 
@@ -200,9 +219,9 @@ cp tpl/templates/* ~/Library/Application\ Support/Godot/export_templates/4.7.2.s
 Export Templates dialog.) Then:
 
 ```sh
-tools/test/run_export.sh            # exports, checks the pck, runs the fixture suites from the macOS build
-# or just the export:
-mkdir -p build/windows && godot --headless --path apps/comp-godot --export-release "Windows Desktop" build/windows/PWRUP-Comp.exe
+apps/comp-godot/tools/test/run_export.sh   # exports, checks the pck, runs the fixture suites from the macOS build
+# or just the export (from the repo root; the export path is relative to the project):
+mkdir -p apps/comp-godot/build/windows && godot --headless --path apps/comp-godot --export-release "Windows Desktop" build/windows/PWRUP-Comp.exe
 cp apps/comp-godot/tools/windows/PWRUP-Comp.bat apps/comp-godot/build/windows/
 ```
 

@@ -46,7 +46,7 @@ func _ready() -> void:
 			controls.intake.reset())
 	body.add_child(reset)
 
-	var sep := ColorRect.new()
+	var sep := PwRect.new()
 	sep.color = Tokens.OUTLINE
 	sep.custom_minimum_size = Vector2(0, 2)
 	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -96,7 +96,7 @@ func _ready() -> void:
 
 func _readout_cell(caption: String) -> Control:
 	var cell := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = Color(0, 0, 0, 0)
 	sb.border_color = Tokens.HAIRLINE
 	sb.border_width_bottom = 1

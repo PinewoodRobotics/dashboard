@@ -15,7 +15,7 @@ var desc: Label
 var warning_row: HBoxContainer
 var warning: Label
 var current: Label
-var _style := StyleBoxFlat.new()
+var _style := PwBox.new()
 var _state := ""
 
 
@@ -23,7 +23,6 @@ func _init(p_name: String, display: String, file_name: String, description: Stri
 	auto_name = p_name
 	name = "Card_" + p_name.validate_node_name().replace(" ", "_")
 	custom_minimum_size = Vector2(0, HEIGHT)
-	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_style.bg_color = Tokens.CARD
 	_style.set_border_width_all(Tokens.BORDER)

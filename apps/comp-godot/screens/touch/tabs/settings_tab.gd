@@ -22,7 +22,7 @@ var timeout: PwSlider
 var save: PwButton
 var reset: PwButton
 var reconnect: PwButton
-var status_dot: ColorRect
+var status_dot: PwRect
 var status_label: Label
 var save_error: Label
 var preview_values := {}
@@ -40,7 +40,7 @@ func _ready() -> void:
 	var header := UiKit.hbox(16)
 	var title := UiKit.label("Connection Settings", 28, 600)
 	header.add_child(title)
-	status_dot = ColorRect.new()
+	status_dot = PwRect.new()
 	status_dot.custom_minimum_size = Vector2(14, 14)
 	status_dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	status_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE

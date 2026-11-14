@@ -131,44 +131,34 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
+	var ci := get_canvas_item()
 	var font := Tokens.inter(500)
 	var ty := track_y()
 	for s: Dictionary in spans:
 		var r := _lane_rect(s["lane"], s["t0"], s["t1"])
 		var col := AutoPathOverlay.kind_color(s)
-		var sb := StyleBoxFlat.new()
-		sb.set_corner_radius_all(4)
-		sb.bg_color = Color(col, 0.85) if s["runs"] else Color(col, 0.18)
-		sb.border_color = col
-		sb.set_border_width_all(0 if s["runs"] else 1)
-		draw_style_box(sb, r)
+		UiDraw.box(ci, r, Color(col, 0.85) if s["runs"] else Color(col, 0.18), 4.0, 0 if s["runs"] else 1, col)
 		var label: String = short_name(s["name"]) + ("  (" + s["note"] + ")" if s["note"] != "" else "")
 		var text_col: Color = Color.BLACK if s["runs"] else Tokens.ZINC_300
 		var max_w := r.size.x - 10.0
 		if max_w > 24.0:
-			draw_string(font, Vector2(r.position.x + 6.0, r.position.y + LANE_H * 0.5 + LABEL_PX * 0.36), label,
-				HORIZONTAL_ALIGNMENT_LEFT, max_w, LABEL_PX, text_col, TextServer.JUSTIFICATION_NONE, TextServer.DIRECTION_AUTO, TextServer.ORIENTATION_HORIZONTAL)
+			UiDraw.text(self, font, Vector2(r.position.x + 6.0, r.position.y + LANE_H * 0.5 + LABEL_PX * 0.36), label, LABEL_PX, text_col, HORIZONTAL_ALIGNMENT_LEFT, max_w)
 	var x0 := track_x0()
 	var x1 := track_x1()
-	draw_rect(Rect2(x0, ty - TRACK_H * 0.5, x1 - x0, TRACK_H), Tokens.ZINC_800)
+	UiDraw.rect(ci, Rect2(x0, ty - TRACK_H * 0.5, x1 - x0, TRACK_H), Tokens.ZINC_800)
 	for pr: Array in path_ranges:
-		draw_rect(Rect2(t_to_x(pr[0]), ty - TRACK_H * 0.5, t_to_x(pr[1]) - t_to_x(pr[0]), TRACK_H), Tokens.ZINC_700)
+		UiDraw.rect(ci, Rect2(t_to_x(pr[0]), ty - TRACK_H * 0.5, t_to_x(pr[1]) - t_to_x(pr[0]), TRACK_H), Tokens.ZINC_700)
 	var t := clock.t if clock != null else 0.0
-	draw_rect(Rect2(x0, ty - TRACK_H * 0.5, t_to_x(t) - x0, TRACK_H), Color(Tokens.ACCENT, 0.9))
+	UiDraw.rect(ci, Rect2(x0, ty - TRACK_H * 0.5, t_to_x(t) - x0, TRACK_H), Color(Tokens.ACCENT, 0.9))
 	for k: Dictionary in ticks:
 		var x := t_to_x(k["t0"])
 		var col := AutoPathOverlay.kind_color(k)
-		draw_line(Vector2(x, ty - TICK_HALF), Vector2(x, ty + TICK_HALF), col, 3.0)
-		var d := PackedVector2Array([Vector2(x, ty - TICK_HALF - DIAMOND * 2), Vector2(x + DIAMOND, ty - TICK_HALF - DIAMOND),
-			Vector2(x, ty - TICK_HALF), Vector2(x - DIAMOND, ty - TICK_HALF - DIAMOND)])
-		if k["runs"]:
-			draw_colored_polygon(d, col)
-		else:
-			d.append(d[0])
-			draw_polyline(d, col, 2.0)
+		UiDraw.rect(ci, Rect2(x - 1.5, ty - TICK_HALF, 3.0, TICK_HALF * 2.0), col)
+		UiDraw.diamond(ci, Vector2(x, ty - TICK_HALF - DIAMOND), int(DIAMOND), col, 0.0 if k["runs"] else 2.0)
 	var kx := t_to_x(t)
-	draw_circle(Vector2(kx, ty), KNOB_R, Color.WHITE)
-	draw_circle(Vector2(kx, ty), KNOB_R - 3.0, Tokens.ACCENT if clock != null and clock.playing else Tokens.ZINC_400)
+	UiDraw.circle(ci, Vector2(kx, ty), KNOB_R, Color.WHITE)
+	UiDraw.circle(ci, Vector2(kx, ty), KNOB_R - 3.0, Tokens.ACCENT if clock != null and clock.playing else Tokens.ZINC_400)
 
 
 func report() -> Dictionary:

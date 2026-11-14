@@ -48,7 +48,6 @@ func _ready() -> void:
 		controls = get_node_or_null("/root/Controls") as ControlsService
 	if autos == null:
 		autos = get_node_or_null("/root/Autos") as AutosService
-	clip_contents = true
 
 	_list_pane = Control.new()
 	_list_pane.name = "ListPane"
@@ -140,11 +139,9 @@ func _build_detail() -> Control:
 	detail_title = UiKit.label("", 34, 600)
 	detail_title.name = "DetailTitle"
 	detail_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	detail_title.clip_text = true
 	detail_title.custom_minimum_size.x = DETAIL_LEFT_W
 	left.add_child(detail_title)
 	detail_file = UiKit.label("", 16, 400, Tokens.ZINC_500)
-	detail_file.clip_text = true
 	detail_file.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	detail_file.custom_minimum_size.x = DETAIL_LEFT_W
 	left.add_child(detail_file)
@@ -163,7 +160,6 @@ func _build_detail() -> Control:
 	left.add_child(warn_row)
 	detail_robot = UiKit.label("", 18, 400, Tokens.ZINC_400)
 	detail_robot.name = "DetailRobot"
-	detail_robot.clip_text = true
 	detail_robot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	detail_robot.custom_minimum_size.x = DETAIL_LEFT_W
 	left.add_child(detail_robot)
@@ -191,7 +187,7 @@ func _build_detail() -> Control:
 func _build_banner() -> Control:
 	var b := PanelContainer.new()
 	b.name = "LockBanner"
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = AMBER_BG
 	sb.border_color = AMBER_LINE
 	sb.border_width_bottom = 1
@@ -210,8 +206,9 @@ func _build_banner() -> Control:
 func _build_popup() -> Control:
 	var root := Control.new()
 	root.name = "ConflictPopup"
+	root.z_index = UiDraw.LAYER_Z
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
-	var scrim := ColorRect.new()
+	var scrim := PwRect.new()
 	scrim.color = Color(0, 0, 0, 0.7)
 	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(UiKit.full(scrim))
@@ -220,7 +217,7 @@ func _build_popup() -> Control:
 	root.add_child(UiKit.full(center))
 	var box := PanelContainer.new()
 	box.name = "Box"
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = Color("#1f1f1f")
 	sb.border_color = Color(ROSE, 0.7)
 	sb.set_border_width_all(2)

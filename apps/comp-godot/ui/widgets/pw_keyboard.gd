@@ -232,15 +232,17 @@ func _input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
 	if not visible:
 		return
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
+	var ci := get_canvas_item()
+	UiDraw.rect(ci, Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 	var r := sheet_rect()
-	draw_rect(r, Color(0.04, 0.04, 0.04, 0.98))
-	draw_rect(Rect2(r.position, Vector2(r.size.x, Tokens.BORDER)), Tokens.ACCENT)
+	UiDraw.rect(ci, r, Color(0.04, 0.04, 0.04, 0.98))
+	UiDraw.rect(ci, Rect2(r.position, Vector2(r.size.x, Tokens.BORDER)), Tokens.ACCENT)
 	if target == null:
 		return
 	var f := Tokens.inter(500)
-	draw_string(Tokens.label_font(), r.position + Vector2(PAD + 4.0, PAD + 16.0), target.label.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tokens.ZINC_400)
+	UiDraw.text(self, Tokens.label_font(), r.position + Vector2(PAD + 4.0, PAD + 16.0), target.label.to_upper(), 12, Tokens.ZINC_400)
 	var shown := target.text if target.text != "" else target.placeholder
-	draw_string(f, r.position + Vector2(PAD + 4.0, PAD + 46.0), shown, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - PAD * 2.0, 26, Tokens.TEXT if target.text != "" else Tokens.ZINC_500)
+	UiDraw.text(self, f, r.position + Vector2(PAD + 4.0, PAD + 46.0), shown, 26, Tokens.TEXT if target.text != "" else Tokens.ZINC_500, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - PAD * 2.0)

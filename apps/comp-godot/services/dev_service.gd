@@ -397,6 +397,10 @@ func _sample_perf(frames: int) -> Dictionary:
 	var frame_times: Array[float] = []
 	var max_draw_3d := 0
 	var max_prims_3d := 0
+	var windows := _windows()
+	var max_canvas := {}
+	for key: String in windows:
+		max_canvas[key] = 0
 	var last := Time.get_ticks_usec()
 	var start := last
 	for i in frames:
@@ -413,6 +417,9 @@ func _sample_perf(frames: int) -> Dictionary:
 			var vrid := v.viewport.get_viewport_rid()
 			d3 += RenderingServer.viewport_get_render_info(vrid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
 			p3 += RenderingServer.viewport_get_render_info(vrid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME)
+		for key: String in windows:
+			var wrid := (windows[key] as Window).get_viewport_rid()
+			max_canvas[key] = maxi(max_canvas[key], RenderingServer.viewport_get_render_info(wrid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_CANVAS, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME))
 		max_draw_3d = maxi(max_draw_3d, d3)
 		max_prims_3d = maxi(max_prims_3d, p3)
 		max_draw = maxi(max_draw, d)
@@ -441,6 +448,7 @@ func _sample_perf(frames: int) -> Dictionary:
 		"max_primitives": max_prims,
 		"max_objects": max_objects,
 		"max_draw_calls_3d": max_draw_3d,
+		"max_canvas_draw_calls": max_canvas,
 		"max_primitives_3d": max_prims_3d,
 		"avg_draw_calls": float(sum_draw) / frames,
 		"avg_primitives": float(sum_prims) / frames,

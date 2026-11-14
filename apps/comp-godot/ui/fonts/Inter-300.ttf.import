@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://rtfy078jg7xi"
-path="res://.godot/imported/RobotoMono-Variable.ttf-ff22e5a401622b7bda4765099a48ca21.fontdata"
+uid="uid://djwmfo6npnwmi"
+path="res://.godot/imported/Inter-300.ttf-1c9ae305247c46dbefc392c976ddab71.fontdata"
 
 [deps]
 
-source_file="res://ui/fonts/RobotoMono-Variable.ttf"
-dest_files=["res://.godot/imported/RobotoMono-Variable.ttf-ff22e5a401622b7bda4765099a48ca21.fontdata"]
+source_file="res://ui/fonts/Inter-300.ttf"
+dest_files=["res://.godot/imported/Inter-300.ttf-1c9ae305247c46dbefc392c976ddab71.fontdata"]
 
 [params]
 
@@ -16,7 +16,7 @@ Rendering=null
 antialiasing=1
 generate_mipmaps=false
 disable_embedded_bitmaps=true
-multichannel_signed_distance_field=false
+multichannel_signed_distance_field=true
 msdf_pixel_range=8
 msdf_size=48
 allow_system_fallback=true

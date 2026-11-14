@@ -100,7 +100,7 @@ func show_drop_marker(on: bool, before_id: String = "") -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color.BLACK)
+	UiDraw.rect(get_canvas_item(), Rect2(Vector2.ZERO, size), Color.BLACK)
 	if not drop_marker_on:
 		return
 	var y := PAD_Y + CELL_H
@@ -109,4 +109,4 @@ func _draw() -> void:
 		y = it.position.y
 	elif not items.is_empty():
 		y = items[items.size() - 1].position.y + items[items.size() - 1].size.y
-	draw_rect(Rect2(14, y - 2, size.x - 28, 4), Tokens.ACCENT)
+	UiDraw.rect(get_canvas_item(), Rect2(14, y - 2, size.x - 28, 4), Tokens.ACCENT)

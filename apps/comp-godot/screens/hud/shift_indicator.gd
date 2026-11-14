@@ -41,7 +41,8 @@ func set_aim(aim: MatchEnums.Aim) -> void:
 	if key == _icon_key:
 		return
 	_icon_key = key
-	icon_rect.texture = Icons.texture(spec["icon"], HudLayout.ICON_PX, spec["color"])
+	icon_rect.texture = Icons.texture(spec["icon"], HudLayout.ICON_PX)
+	icon_rect.self_modulate = spec["color"]
 
 
 func set_seconds(t: float, color: Color) -> void:

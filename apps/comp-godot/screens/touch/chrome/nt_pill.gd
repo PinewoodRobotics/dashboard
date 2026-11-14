@@ -17,7 +17,7 @@ func _ready() -> void:
 		nt = get_node_or_null("/root/NT") as NtService
 	name = "NtPill"
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = Color(0, 0, 0, 0.85)
 	sb.border_color = Color(Tokens.ERROR, 0.4)
 	sb.set_border_width_all(1)
@@ -32,7 +32,7 @@ func _ready() -> void:
 	dot.custom_minimum_size = Vector2(12, 12)
 	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dot.draw.connect(func() -> void: dot.draw_circle(Vector2(6, 6), 6, Tokens.ERROR))
+	dot.draw.connect(func() -> void: UiDraw.circle(dot.get_canvas_item(), Vector2(6, 6), 6, Tokens.ERROR))
 	row.add_child(dot)
 	row.add_child(UiKit.label("NT Disconnected", 14, 500, Tokens.ERROR_TEXT))
 	add_child(row)

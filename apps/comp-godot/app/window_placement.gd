@@ -1,8 +1,7 @@
 class_name WindowPlacement
 extends RefCounted
 
-## Where each window goes, as a pure function of the screen list (port of the
-## Electron tiling in apps/comp/electron/main.cjs, with overrides):
+## Where each window goes, as a pure function of the screen list:
 ## - an override screen index from the settings or the CLI wins when it exists;
 ## - otherwise the HUD takes the display that is exactly 1920x1080 and the
 ##   touchscreen the one that is exactly 1920x515, borderless fullscreen;

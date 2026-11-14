@@ -57,7 +57,7 @@ for must in ("res://ui/icons/lucide.json", "res://data/autos/index.json", "res:/
 for model in ("robot", "field"):
     check(f"res://assets/models/{model}.glb.import" in files, f"{model}.glb import remap")
     check(has(f"res://.godot/imported/{model}.glb-", ".scn"), f"{model}.glb imported scene")
-for font in ("Inter-Variable", "RobotoMono-Variable"):
+for font in [f"Inter-{w}" for w in (300, 400, 500, 600, 700)] + ["RobotoMono-400", "RobotoMono-500"]:
     check(has(f"res://.godot/imported/{font}.ttf-", ".fontdata"), f"{font} font data")
 howard = [n for n in files if n.startswith("res://.godot/imported/") and n.endswith(".ctex")]
 check(len(howard) >= 6, f"Howard textures ({len(howard)})")

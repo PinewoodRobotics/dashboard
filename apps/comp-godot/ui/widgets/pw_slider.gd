@@ -192,30 +192,32 @@ func _end_drag() -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
+	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	var accent := Tokens.ACCENT if dragging else Tokens.TEXT
 	if _label_h() > 0.0:
 		var f := Tokens.inter(500)
 		var base := float(label_size)
-		draw_string(f, Vector2(0, base), label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color(1, 1, 1, a))
+		UiDraw.text(self, f, Vector2(0, base), label, label_size, Color(1, 1, 1, a))
 		if value_label != "":
 			var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size).x
 			var vs := maxi(12, int(label_size * 0.75))
-			draw_string(Tokens.inter(400), Vector2(lw + 12.0, base), value_label.replace("{v}", formatted()), HORIZONTAL_ALIGNMENT_LEFT, size.x - lw - 12.0, vs, Color(1, 1, 1, 0.7 * a))
+			UiDraw.text(self, Tokens.inter(400), Vector2(lw + 12.0, base), value_label.replace("{v}", formatted()), vs, Color(1, 1, 1, 0.7 * a), HORIZONTAL_ALIGNMENT_LEFT, size.x - lw - 12.0)
 	var bar := bar_rect()
 	var bg := Tokens.SELECTED_FILL if dragging else Tokens.PANEL
-	draw_rect(bar, Color(bg, a))
+	UiDraw.rect(ci, bar, Color(bg, a))
 	var inner := bar.grow(-Tokens.BORDER)
 	var fw := inner.size.x * _fill.value
 	var fill_rect := Rect2(inner.end.x - fw, inner.position.y, fw, inner.size.y) if reversed else Rect2(inner.position, Vector2(fw, inner.size.y))
-	draw_rect(fill_rect, Color(accent, a))
+	UiDraw.rect(ci, fill_rect, Color(accent, a))
 	for s: float in snap_points:
 		var fr := value_fraction(s, min_value, max_value)
 		if fr <= 0.0 or fr >= 1.0 or is_equal_approx(s, value):
 			continue
 		var x := inner.end.x - inner.size.x * fr if reversed else inner.position.x + inner.size.x * fr
 		var inside := fill_rect.has_point(Vector2(x, inner.get_center().y))
-		draw_circle(Vector2(x, inner.get_center().y), DOT * 0.5, Color(Tokens.PANEL if inside else accent, a))
-	draw_rect(bar.grow(-Tokens.BORDER * 0.5), Color(accent, a), false, Tokens.BORDER)
+		UiDraw.circle(ci, Vector2(x, inner.get_center().y), DOT * 0.5, Color(Tokens.PANEL if inside else accent, a))
+	UiDraw.frame(ci, bar, Color(accent, a), Tokens.BORDER)
 	if not hints.is_empty():
-		draw_string(Tokens.inter(400), Vector2(0, bar.end.y + 24.0), hint_for(value, hints), HORIZONTAL_ALIGNMENT_LEFT, size.x, 16, Color(Tokens.ZINC_400, a))
+		UiDraw.text(self, Tokens.inter(400), Vector2(0, bar.end.y + 24.0), hint_for(value, hints), 16, Color(Tokens.ZINC_400, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)

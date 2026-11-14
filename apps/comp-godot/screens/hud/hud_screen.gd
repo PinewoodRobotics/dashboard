@@ -7,7 +7,7 @@ extends Control
 ## frame; nothing here talks to NT.
 
 var match_service: MatchService
-var header: ColorRect
+var header: PwRect
 var timer: SegmentText
 var shift: ShiftIndicator
 var buffer_line: SegmentText
@@ -30,7 +30,7 @@ class AutoLabel:
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sb := StyleBoxFlat.new()
+		var sb := PwBox.new()
 		sb.bg_color = Color(0, 0, 0, 0.72)
 		sb.set_corner_radius_all(12)
 		sb.content_margin_left = 18
@@ -42,7 +42,7 @@ class AutoLabel:
 		row.add_child(icon)
 		row.add_child(kind)
 		row.add_child(title)
-		time.add_theme_font_override("font", Tokens.mono(500))
+		time.add_theme_font_override("font", Tokens.inter_tabular(500))
 		row.add_child(time)
 		add_child(row)
 
@@ -63,12 +63,6 @@ func _ready() -> void:
 	theme = ThemeBuilder.build()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg := ColorRect.new()
-	bg.color = Tokens.BG
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-
 	minimap = MinimapView.new()
 	minimap.name = "Minimap"
 	minimap.position = HudLayout.MINIMAP.position
@@ -91,7 +85,7 @@ func _ready() -> void:
 	buffer_line.visible = false
 	add_child(buffer_line)
 
-	header = ColorRect.new()
+	header = PwRect.new()
 	header.name = "Header"
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.position = HudLayout.HEADER.position

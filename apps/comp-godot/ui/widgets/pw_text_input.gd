@@ -107,18 +107,20 @@ func open_keyboard() -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
+	var ci := get_canvas_item()
 	if label != "":
-		draw_string(Tokens.label_font(), Vector2(0, 14), label.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Tokens.TEXT)
+		UiDraw.text(self, Tokens.label_font(), Vector2(0, 14), label.to_upper(), 12, Tokens.TEXT)
 	var r := field_rect()
 	var border := Tokens.ERROR if invalid else (Tokens.ACCENT if editing else Tokens.TEXT)
-	draw_rect(r, Tokens.FOCUS_FILL if editing else Color.BLACK)
-	draw_rect(r.grow(-Tokens.BORDER * 0.5), border, false, Tokens.BORDER)
+	UiDraw.rect(ci, r, Tokens.FOCUS_FILL if editing else Color.BLACK)
+	UiDraw.frame(ci, r, border, Tokens.BORDER)
 	var f := Tokens.inter(300)
 	var fs := 24
 	var base := r.position.y + (r.size.y + f.get_ascent(fs) - f.get_descent(fs)) * 0.5
 	var shown := text if text != "" else placeholder
 	var col := Tokens.TEXT if text != "" else Tokens.ZINC_500
-	draw_string(f, Vector2(r.position.x + 20.0, base), shown, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 40.0, fs, col)
+	UiDraw.text(self, f, Vector2(r.position.x + 20.0, base), shown, fs, col, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 40.0)
 	if editing:
 		var cx := r.position.x + 20.0 + (f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x if text != "" else 0.0) + 2.0
-		draw_rect(Rect2(cx, r.get_center().y - 16, 2, 32), Tokens.ACCENT)
+		UiDraw.rect(ci, Rect2(cx, r.get_center().y - 16, 2, 32), Tokens.ACCENT)

@@ -22,7 +22,6 @@ var factory: Callable
 func _ready() -> void:
 	name = "RightDrawer"
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	clip_contents = true
 	for i in TabDefs.PANELS.size():
 		var id: String = TabDefs.PANELS[i]
 		var it := TabIcon.new(TabDefs.PANEL_INFO[id]["icon"], "", id)
@@ -74,6 +73,6 @@ func panel(id: String) -> Control:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color.BLACK if not state.is_driver_base() else Tokens.SCRIM)
+	UiDraw.rect(get_canvas_item(), Rect2(Vector2.ZERO, size), Color.BLACK if not state.is_driver_base() else Tokens.SCRIM)
 	if is_expanded():
-		draw_rect(Rect2(0, 0, Tokens.BORDER, size.y), Tokens.ACCENT)
+		UiDraw.rect(get_canvas_item(), Rect2(0, 0, Tokens.BORDER, size.y), Tokens.ACCENT)

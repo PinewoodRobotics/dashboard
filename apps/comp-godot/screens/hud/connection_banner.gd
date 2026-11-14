@@ -19,7 +19,7 @@ const TEXTS := {
 
 var kind := MatchModel.Banner.NONE
 var _font: Font
-var _box := StyleBoxFlat.new()
+var _box := PwBox.new()
 
 
 func _init() -> void:
@@ -57,13 +57,14 @@ func set_kind(k: MatchModel.Banner) -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
 	if kind == MatchModel.Banner.NONE:
 		return
 	draw_style_box(_box, Rect2(Vector2.ZERO, size))
 	var cy := size.y / 2.0
-	draw_circle(Vector2(1 + PAD.x + DOT / 2.0, cy), DOT / 2.0, Tokens.ERROR, true, -1.0, true)
+	UiDraw.circle(get_canvas_item(), Vector2(1 + PAD.x + DOT / 2.0, cy), DOT / 2.0, Tokens.ERROR)
 	var x := 1 + PAD.x + DOT + GAP
 	var baseline := cy - (_font.get_ascent(TEXT_PX) + _font.get_descent(TEXT_PX)) / 2.0 + _font.get_ascent(TEXT_PX)
 	for ch in text():
-		_font.draw_string(get_canvas_item(), Vector2(x, baseline), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_PX, Tokens.ERROR_TEXT)
+		UiDraw.text(self, _font, Vector2(x, baseline), ch, TEXT_PX, Tokens.ERROR_TEXT)
 		x += _font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_PX).x + TRACKING

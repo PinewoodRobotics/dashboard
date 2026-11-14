@@ -28,6 +28,6 @@ func _init(name_: String = "", size_px: int = 48, tint: Color = Color.WHITE) -> 
 func _draw() -> void:
 	if icon_name == "":
 		return
-	var tex := Icons.texture(icon_name, px, Color(color.r, color.g, color.b, 1.0))
+	var tex := Icons.texture(icon_name, px)
 	if tex != null:
-		draw_texture(tex, ((size - Vector2(px, px)) * 0.5).round(), Color(1, 1, 1, color.a))
+		draw_texture(tex, ((size - Vector2(px, px)) * 0.5).round(), color)

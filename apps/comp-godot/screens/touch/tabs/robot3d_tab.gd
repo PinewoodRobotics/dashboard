@@ -28,7 +28,7 @@ func _ready() -> void:
 	row.add_child(view)
 
 	var side := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
+	var sb := PwBox.new()
 	sb.bg_color = Color(0, 0, 0, 0.4)
 	sb.set_corner_radius_all(8)
 	sb.set_content_margin_all(12)

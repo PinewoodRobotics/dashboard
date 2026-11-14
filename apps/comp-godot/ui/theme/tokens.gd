@@ -67,28 +67,45 @@ const DOCK_PAD := 10
 const DOCK_CELL := 64
 const DOCK_GAP := 12
 
-const INTER_PATH := "res://ui/fonts/Inter-Variable.ttf"
-const MONO_PATH := "res://ui/fonts/RobotoMono-Variable.ttf"
+const INTER_WEIGHTS := [300, 400, 500, 600, 700]
+const MONO_WEIGHTS := [400, 500]
 
 static var _fonts := {}
 
 
-static func _font(path: String, weight: int) -> FontVariation:
-	var key := "%s@%d" % [path, weight]
+## Static weights (tools/fonts/build_fonts.sh), imported as MSDF so every size
+## of a weight shares one glyph texture. text_z gives each texture its own z
+## slot, so UiDraw batches all text of one font in a layer together.
+static func _font(family: String, weights: Array, weight: int, z_base: int) -> FontVariation:
+	var w: int = weights[0]
+	for candidate: int in weights:
+		if absi(candidate - weight) < absi(w - weight):
+			w = candidate
+	var key := "%s@%d" % [family, w]
 	if not _fonts.has(key):
 		var fv := FontVariation.new()
-		fv.base_font = load(path) as FontFile
-		fv.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): weight}
+		fv.base_font = load("res://ui/fonts/%s-%d.ttf" % [family, w]) as FontFile
+		fv.set_meta(&"text_z", z_base + weights.find(w))
 		_fonts[key] = fv
 	return _fonts[key]
 
 
 static func inter(weight: int = 400) -> FontVariation:
-	return _font(INTER_PATH, weight)
+	return _font("Inter", INTER_WEIGHTS, weight, 1)
 
 
 static func mono(weight: int = 400) -> FontVariation:
-	return _font(MONO_PATH, weight)
+	return _font("RobotoMono", MONO_WEIGHTS, weight, 1 + INTER_WEIGHTS.size())
+
+
+## Inter with tabular figures, for numbers that tick without shifting.
+static func inter_tabular(weight: int = 400) -> FontVariation:
+	var key := "tnum@%d" % weight
+	if not _fonts.has(key):
+		var fv := inter(weight).duplicate() as FontVariation
+		fv.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("tnum"): 1}
+		_fonts[key] = fv
+	return _fonts[key]
 
 
 ## 12 px semibold labels with 0.2em tracking (settings field labels).

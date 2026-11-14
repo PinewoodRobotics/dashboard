@@ -8,12 +8,9 @@ extends Node
 const GROUP := "kiosk"
 const POLL_MS := 2000
 
-## key ("hud" | "touch") -> Window
 var windows := {}
 var screen_source: Callable = func() -> Array: return WindowPlacement.current_screens()
-## -> {"hud": index, "touch": index}
 var overrides_source: Callable = func() -> Dictionary: return {}
-## (key: String, window: Window, placement: Dictionary) -> void
 var applier: Callable = func(key: String, w: Window, p: Dictionary) -> void: WindowManager.apply_placement(key, w, p)
 var watch_screens := false
 var last_plan := {}

@@ -46,7 +46,7 @@ class Chip:
 	var text: Label
 	var color := Color.WHITE
 	var on := false
-	var _sb := StyleBoxFlat.new()
+	var _sb := PwBox.new()
 
 	func _init(icon_name: String, label: String, col: Color) -> void:
 		color = col
@@ -77,7 +77,11 @@ class Chip:
 
 func _init() -> void:
 	name = "AutoPreview"
-	var sb := StyleBoxFlat.new()
+	# This box and the 3D view (also z - 1) draw right after the overlay
+	# background (z - 2) instead of between the other shapes, which would
+	# split their draw call in two; the content goes back to z 0.
+	z_index = -1
+	var sb := PwBox.new()
 	sb.bg_color = Tokens.ZINC_950
 	sb.set_corner_radius_all(8)
 	sb.set_content_margin_all(10)
@@ -89,16 +93,17 @@ func _ready() -> void:
 	if autos == null:
 		autos = get_node_or_null("/root/Autos") as AutosService
 	var col := UiKit.vbox(6)
+	col.z_index = 1
 	add_child(col)
 
 	var stage := Control.new()
 	stage.name = "Stage"
 	stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stage.clip_contents = true
 	col.add_child(stage)
 	view = AutoPreviewView.new()
 	view.name = "PreviewView"
+	view.z_index = -1
 	view.autos = autos
 	stage.add_child(UiKit.full(view))
 
@@ -126,7 +131,7 @@ func _ready() -> void:
 
 	no_path = PanelContainer.new()
 	no_path.name = "NoPath"
-	var np_sb := StyleBoxFlat.new()
+	var np_sb := PwBox.new()
 	np_sb.bg_color = Color(0, 0, 0, 0.72)
 	np_sb.set_corner_radius_all(8)
 	np_sb.set_content_margin_all(12)
@@ -137,7 +142,7 @@ func _ready() -> void:
 
 	feed_box = PanelContainer.new()
 	feed_box.name = "FeedBox"
-	var fb_sb := StyleBoxFlat.new()
+	var fb_sb := PwBox.new()
 	fb_sb.bg_color = Color(0, 0, 0, 0.75)
 	fb_sb.set_corner_radius_all(6)
 	fb_sb.content_margin_left = 10
@@ -169,7 +174,7 @@ func _ready() -> void:
 	row.add_child(restart_button)
 	time_label = UiKit.label("00.00 / 00.00 s", 20, 500, Tokens.ZINC_300)
 	time_label.name = "Time"
-	time_label.add_theme_font_override("font", Tokens.mono(500))
+	time_label.add_theme_font_override("font", Tokens.inter_tabular(500))
 	time_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(time_label)

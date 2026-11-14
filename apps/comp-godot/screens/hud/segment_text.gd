@@ -77,9 +77,10 @@ func center_baseline() -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
 	var x := start_x()
 	for i in fonts.size():
-		fonts[i].draw_string(get_canvas_item(), Vector2(x, baseline), texts[i], HORIZONTAL_ALIGNMENT_LEFT, -1, sizes[i], color)
+		UiDraw.text(self, fonts[i], Vector2(x, baseline), texts[i], sizes[i], color)
 		x += run_width(i)
 
 

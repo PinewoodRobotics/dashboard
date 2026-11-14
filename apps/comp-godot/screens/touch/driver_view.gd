@@ -13,8 +13,7 @@ var bar: PresetBar
 
 class PresetBar:
 	extends Control
-	## The four 40 px round buttons, drawn in one pass (circles, then labels)
-	## so they cost two canvas draw calls instead of eight.
+	## The four 40 px round buttons, drawn in one pass.
 
 	var selected := 0
 	var view: DriverView
@@ -45,15 +44,16 @@ class PresetBar:
 			hit.accept_event()
 
 	func _draw() -> void:
+		UiDraw.begin(self)
 		for i in 4:
 			var c := Vector2(i * (BTN + GAP) + BTN * 0.5, BTN * 0.5)
-			draw_circle(c, BTN * 0.5, Color.WHITE if i == selected else Color(1, 1, 1, 0.1))
+			UiDraw.circle(get_canvas_item(), c, BTN * 0.5, Color.WHITE if i == selected else Color(1, 1, 1, 0.1))
 		var f := Tokens.inter(500)
 		for i in 4:
 			var t := str(i + 1)
 			var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 			var pos := Vector2(i * (BTN + GAP) + (BTN - w) * 0.5, (BTN + f.get_ascent(14) - f.get_descent(14)) * 0.5)
-			draw_string(f, pos.round(), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.BLACK if i == selected else Color(1, 1, 1, 0.6))
+			UiDraw.text(self, f, pos.round(), t, 14, Color.BLACK if i == selected else Color(1, 1, 1, 0.6))
 
 
 func _ready() -> void:
@@ -89,4 +89,4 @@ func set_rendering(on: bool) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color.BLACK)
+	UiDraw.rect(get_canvas_item(), Rect2(Vector2.ZERO, size), Color.BLACK)

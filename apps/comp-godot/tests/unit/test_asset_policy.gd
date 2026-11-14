@@ -31,7 +31,7 @@ func test_only_bundled_ofl_fonts() -> void:
 		if ["ttf", "otf", "ttc", "woff", "woff2"].has(f.get_extension().to_lower()):
 			fonts.append(f.get_file())
 	fonts.sort()
-	check_eq(fonts, PackedStringArray(["Inter-Variable.ttf", "RobotoMono-Variable.ttf"]))
+	check_eq(fonts, PackedStringArray(["Inter-300.ttf", "Inter-400.ttf", "Inter-500.ttf", "Inter-600.ttf", "Inter-700.ttf", "RobotoMono-400.ttf", "RobotoMono-500.ttf"]))
 	check(FileAccess.file_exists("res://ui/fonts/OFL-Inter.txt") and FileAccess.file_exists("res://ui/fonts/OFL-RobotoMono.txt"), "OFL license texts bundled")
 	check_eq((Tokens.mono().base_font as FontFile).get_font_name(), "Roboto Mono")
 	check_eq((Tokens.inter().base_font as FontFile).get_font_name(), "Inter")

@@ -50,7 +50,7 @@ func _ready() -> void:
 		state.rail = lay["rail"].duplicate()
 		state.dock = lay["dock"].duplicate()
 
-	var bg := ColorRect.new()
+	var bg := PwRect.new()
 	bg.color = Color.BLACK
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(UiKit.full(bg))
@@ -63,6 +63,7 @@ func _ready() -> void:
 
 	overlay_layer = Control.new()
 	overlay_layer.name = "Overlays"
+	overlay_layer.z_index = UiDraw.LAYER_Z
 	overlay_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(UiKit.full(overlay_layer))
 
@@ -78,6 +79,7 @@ func _ready() -> void:
 	add_child(dnd)
 
 	rail = LeftRail.new()
+	rail.z_index = UiDraw.LAYER_Z
 	rail.state = state
 	rail.dnd = dnd
 	rail.home_tapped.connect(state.dismiss_overlay)
@@ -85,6 +87,7 @@ func _ready() -> void:
 	add_child(rail)
 
 	drawer = RightDrawer.new()
+	drawer.z_index = UiDraw.LAYER_Z
 	drawer.state = state
 	drawer.factory = _make_panel
 	drawer.panel_tapped.connect(state.toggle_panel)
@@ -95,9 +98,11 @@ func _ready() -> void:
 	dock.state = state
 	dock.dnd = dnd
 	dock.visible = false
+	dock.z_index = 3 * UiDraw.LAYER_Z
 	add_child(dock)
 
 	ghost = DragGhost.new()
+	ghost.z_index = 4 * UiDraw.LAYER_Z
 	add_child(ghost)
 	dnd.rail = rail
 	dnd.dock = dock
@@ -105,10 +110,12 @@ func _ready() -> void:
 	dnd.tab_tapped.connect(state.switch_tab)
 
 	pill = NtPill.new()
+	pill.z_index = 4 * UiDraw.LAYER_Z
 	add_child(pill)
 
 	keyboard = PwKeyboard.new()
 	keyboard.name = "Keyboard"
+	keyboard.z_index = 5 * UiDraw.LAYER_Z
 	add_child(keyboard)
 
 	state.changed.connect(_on_state_changed)
@@ -205,11 +212,11 @@ func _on_state_changed() -> void:
 func _create_overlay(id: String) -> Dictionary:
 	var holder := Control.new()
 	holder.name = "Overlay_" + id
-	holder.clip_contents = true
 	holder.mouse_filter = Control.MOUSE_FILTER_STOP
-	var bg := ColorRect.new()
+	var bg := PwRect.new()
 	bg.color = Tokens.PANEL
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -2
 	holder.add_child(UiKit.full(bg))
 	var content := make_tab(id)
 	content.name = "Content"
@@ -249,6 +256,11 @@ func _place_overlay(entry: Dictionary) -> void:
 	var node: Control = entry["node"]
 	node.position = Vector2(r.position.x, (entry["y"] as UiAnim).value)
 	node.size = Vector2(r.size.x, H)
+	# The rail and drawer share the overlays' z, so their shapes batch with
+	# the overlay's; overlay text sits above them and must not spill under
+	# the open drawer.
+	if node.clip_contents != drawer.is_expanded():
+		node.clip_contents = drawer.is_expanded()
 
 
 func entry_done() -> bool:
@@ -299,6 +311,9 @@ func _layout() -> void:
 func _update_rendering() -> void:
 	var swiping_overlay := _swipe_target == "overlay" or _overlay_commit
 	var driver_visible := state.active_tab == "" or swiping_overlay or not overlays.has(state.active_tab)
+	# SubViewportContainer turns its viewport back on when it is shown, so
+	# visibility goes first.
+	driver.visible = swiping_overlay or not entry_done()
 	driver.set_rendering(driver_visible)
 	for id: String in overlays:
 		var content := tab_content(id)

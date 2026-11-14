@@ -132,11 +132,12 @@ func test_icons_follow_aim_mode() -> void:
 		var tex := hud.shift.icon_rect.texture
 		check(tex != null and tex.get_width() == 200 and tex.get_height() == 200, "aim %d icon 200 px" % aim)
 		var spec: Dictionary = Tokens.AIM_ICONS[aim]
-		var img := tex.get_image()
+		check_eq(hud.shift.icon_rect.self_modulate.to_html(false), spec["color"].to_html(false), "aim %d icon tint" % aim)
+		var img := UiDraw.atlas_image().get_region(Rect2i((tex as AtlasTexture).region))
 		var hits := 0
 		for y in range(0, 200, 4):
 			for x in range(0, 200, 4):
 				var c := img.get_pixel(x, y)
-				if c.a > 0.9 and absf(c.r - spec["color"].r) < 0.02 and absf(c.g - spec["color"].g) < 0.02 and absf(c.b - spec["color"].b) < 0.02:
+				if c.a > 0.9 and c.r > 0.98 and c.g > 0.98 and c.b > 0.98:
 					hits += 1
-		check(hits > 50, "aim %d icon drawn in %s (%d px)" % [aim, spec["color"].to_html(false), hits])
+		check(hits > 50, "aim %d icon glyph drawn white for tinting (%d px)" % [aim, hits])

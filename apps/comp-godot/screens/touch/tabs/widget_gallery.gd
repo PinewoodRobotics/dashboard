@@ -22,7 +22,7 @@ static func format_trim(deg: float) -> String:
 
 
 func _ready() -> void:
-	var bg := ColorRect.new()
+	var bg := PwRect.new()
 	bg.color = Tokens.PANEL
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(UiKit.full(bg))
