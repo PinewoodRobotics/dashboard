@@ -10,7 +10,11 @@ signal model_ready(key: String)
 const PATHS := {
 	"robot": "res://assets/models/robot.glb",
 	"field": "res://assets/models/field.glb",
+	"robot_lite": "res://assets/models/robot-lite.glb",
+	"field_lite": "res://assets/models/field-lite.glb",
 }
+## Loaded at startup; the lite variants load the first time a view asks.
+const STARTUP := ["robot", "field"]
 
 var scenes := {}
 var ready_msec := {}
@@ -21,8 +25,13 @@ var _waiters := {}
 
 
 func _ready() -> void:
-	for key: String in PATHS:
+	for key: String in STARTUP:
 		request(key)
+
+
+## "robot" or "field" in the variant the Visual settings ask for.
+static func key_for(base: String, lite: bool) -> String:
+	return base + "_lite" if lite else base
 
 
 func request(key: String) -> void:
@@ -59,7 +68,7 @@ func _process(_delta: float) -> void:
 ## null-material errors that the GL renderer does not have.
 func reload() -> void:
 	for key: String in PATHS:
-		if _pending.has(key):
+		if _pending.has(key) or not scenes.has(key):
 			continue
 		var scene := ResourceLoader.load(PATHS[key], "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
 		if scene == null:
@@ -84,7 +93,7 @@ func is_ready(key: String) -> bool:
 
 
 func all_ready() -> bool:
-	for key: String in PATHS:
+	for key: String in STARTUP:
 		if not scenes.has(key):
 			return false
 	return true

@@ -210,7 +210,8 @@ func _update_diag() -> void:
 		"Draw calls %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 		"Primitives %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
 		"3D views   %d rendering" % CadView.rendering_views(get_tree()).size(),
-		"3D scale   %sx, MSAA %s" % [str(settings.effective_visual()["render_scale"]), _msaa_text(int(settings.effective_visual()["msaa"]))],
+		"3D scale   %sx, MSAA %s%s" % [str(settings.effective_visual()["render_scale"]), _msaa_text(int(settings.effective_visual()["msaa"])),
+			", light models" if settings.effective_visual().get("models", "full") == "lite" else ""],
 		"Video mem  %.0f MB" % (rs.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0),
 	])
 	var perf := get_tree().get_first_node_in_group(PerfGovernor.GROUP) as PerfGovernor

@@ -134,7 +134,7 @@ func test_bumper_recolor_uses_a_private_material() -> void:
 
 func test_manifest_is_current() -> void:
 	var m := _manifest()
-	for key: String in ["robot", "field"]:
+	for key: String in ModelsService.PATHS:
 		var entry: Dictionary = m[key]
 		var out_path := "res://" + str(entry["output"])
 		check_eq(FileAccess.get_sha256(out_path), entry["output_sha256"], key + " GLB matches the manifest")
@@ -143,6 +143,23 @@ func test_manifest_is_current() -> void:
 			note("source %s not present; staleness check skipped" % src)
 			continue
 		check_eq(FileAccess.get_sha256(src), entry["source_sha256"], "%s source changed since the models were built: run tools/assets/build_models.mjs" % key)
+
+
+func test_light_robot_keeps_the_rig_nodes_and_rest_transforms() -> void:
+	var lite := (load(ModelsService.PATHS["robot_lite"]) as PackedScene).instantiate() as Node3D
+	var m := _manifest()
+	check_eq(m["robot_lite"]["rest_transforms"], m["robot"]["rest_transforms"])
+	check(int(m["robot_lite"]["triangles"]) * 4 < int(m["robot"]["triangles"]), "light robot is under a quarter of the triangles")
+	check(int(m["field_lite"]["triangles"]) * 4 < int(m["field"]["triangles"]), "light field is under a quarter of the triangles")
+	for name: String in REST:
+		var full := model.find_child(name, true, false) as Node3D
+		var n := lite.find_child(name, true, false) as Node3D
+		if not check(n != null, "light robot node %s" % name):
+			continue
+		check(n.transform.is_equal_approx(full.transform), name + " transform")
+	var rig := RobotRig.new(lite)
+	check(rig.bumper != null, "the rig finds the bumper in the light robot")
+	lite.free()
 
 
 func test_glbs_declare_no_extensions() -> void:

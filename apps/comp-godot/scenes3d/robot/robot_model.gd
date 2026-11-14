@@ -14,6 +14,7 @@ var _pending_alliance: Variant = null
 var dimmed := false
 
 
+var lite := false
 var _generation := 0
 var _models: ModelsService
 
@@ -21,24 +22,49 @@ var _models: ModelsService
 func _ready() -> void:
 	_models = get_node_or_null("/root/Models") as ModelsService
 	if _models != null:
-		_models.when_ready("robot", attach)
+		_models.when_ready(_key(), _attach_if_current.bind(_key()))
 		_models.model_ready.connect(_on_model_ready)
 
 
+func _key() -> String:
+	return ModelsService.key_for("robot", lite)
+
+
 func _on_model_ready(key: String) -> void:
-	if key == "robot" and model != null and int(_models.generation.get(key, 0)) != _generation:
-		var old := model
-		model = null
-		rig = null
-		old.free()
+	if key == _key() and model != null and int(_models.generation.get(key, 0)) != _generation:
+		_detach()
 		attach(_models.scenes[key])
+
+
+func _detach() -> void:
+	if model == null:
+		return
+	var old := model
+	model = null
+	rig = null
+	old.free()
+
+
+func _attach_if_current(scene: PackedScene, key: String) -> void:
+	if key == _key():
+		attach(scene)
+
+
+func set_lite(on: bool) -> void:
+	if on == lite:
+		return
+	lite = on
+	if _models == null or not is_inside_tree():
+		return
+	_detach()
+	_models.when_ready(_key(), _attach_if_current.bind(_key()))
 
 
 func attach(scene: PackedScene) -> void:
 	if model != null or not is_inside_tree():
 		return
 	if _models != null:
-		_generation = int(_models.generation.get("robot", 0))
+		_generation = int(_models.generation.get(_key(), 0))
 	model = scene.instantiate() as Node3D
 	cad_up.add_child(model)
 	rig = RobotRig.new(model)

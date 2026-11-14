@@ -20,6 +20,8 @@ var settings_service: SettingsService
 var with_field := false
 var field: Node3D
 var _field_generation := 0
+## Light robot and field meshes, set by auto quality through "models": "lite".
+var lite_models := false
 ## Dev/fixture camera: {position: Vector3, target: Vector3, up: Vector3}; empty = view's own camera.
 var camera_override := {}
 
@@ -53,26 +55,43 @@ func _ready() -> void:
 		apply_visual(settings_service.effective_visual())
 		settings_service.changed.connect(_on_settings_changed)
 	if with_field and models != null:
-		models.when_ready("field", _attach_field)
+		models.when_ready(_field_key(), _attach_field.bind(_field_key()))
 		models.model_ready.connect(_on_model_ready)
 	_setup()
 
 
+func _field_key() -> String:
+	return ModelsService.key_for("field", lite_models)
+
+
 func _on_model_ready(key: String) -> void:
-	if key == "field" and field != null and int(models.generation.get(key, 0)) != _field_generation:
+	if key == _field_key() and field != null and int(models.generation.get(key, 0)) != _field_generation:
 		field.free()
 		field = null
-		_attach_field(models.scenes[key])
+		_attach_field(models.scenes[key], key)
 
 
-func _attach_field(scene: PackedScene) -> void:
-	if field != null or not is_inside_tree():
+func _attach_field(scene: PackedScene, key: String) -> void:
+	if field != null or not is_inside_tree() or key != _field_key():
 		return
 	if models != null:
-		_field_generation = int(models.generation.get("field", 0))
+		_field_generation = int(models.generation.get(key, 0))
 	field = scene.instantiate() as Node3D
 	CadMaterials.apply(field)
 	viewport.add_child(field)
+
+
+func _set_lite_models(on: bool) -> void:
+	if on == lite_models:
+		return
+	lite_models = on
+	robot.set_lite(on)
+	if not with_field or models == null:
+		return
+	if field != null:
+		field.free()
+		field = null
+	models.when_ready(_field_key(), _attach_field.bind(_field_key()))
 
 
 func _on_settings_changed(section: String) -> void:
@@ -83,6 +102,7 @@ func _on_settings_changed(section: String) -> void:
 func apply_visual(v: Dictionary) -> void:
 	viewport.scaling_3d_scale = float(v.get("render_scale", 1.0))
 	viewport.msaa_3d = MSAA.get(int(v.get("msaa", 2)), Viewport.MSAA_2X)
+	_set_lite_models(str(v.get("models", "full")) == "lite")
 
 
 func set_rendering(on: bool) -> void:

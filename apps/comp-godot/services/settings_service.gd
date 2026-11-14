@@ -118,7 +118,13 @@ func effective_visual() -> Dictionary:
 	var v: Dictionary = data["visual"].duplicate()
 	v.merge(visual_overrides, true)
 	for k: String in perf_caps:
-		v[k] = minf(float(v[k]), float(perf_caps[k])) if k == "render_scale" else mini(int(v[k]), int(perf_caps[k]))
+		match k:
+			"render_scale":
+				v[k] = minf(float(v[k]), float(perf_caps[k]))
+			"msaa":
+				v[k] = mini(int(v[k]), int(perf_caps[k]))
+			_:
+				v[k] = perf_caps[k]
 	return v
 
 

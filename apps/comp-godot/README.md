@@ -83,12 +83,17 @@ at the top of `services/dev_service.gd` and `services/perf_governor.gd`.
 
 With Visual > Auto Quality on (the default), the dashboard watches the frame
 rate while a 3D view renders. When 3 s average below 92% of the frame cap, it
-turns MSAA off, then lowers the render scale to 0.75 and 0.5, until the cap
-holds. A step that does not raise the frame rate is undone and the fallback
-stops, because then the GPU is not the limit (a CPU limit, or two vsynced
-windows at half rate). The saved settings never change; Visual > Diagnostics
-shows the effective scale and the fallback's state, and changing a Visual
-setting starts it over. The log gets a frame rate line every minute.
+tries, one at a time until the cap holds: MSAA off, the light models
+(`robot-lite.glb` and `field-lite.glb`, about a fifth of the triangles: 580k
+primitives per frame drop to about 145k with the preview playing), render
+scale 0.75, then 0.5. A step that does not raise the frame rate is undone and
+the rest of that knob is skipped, so a GPU limited by vertices still gets the
+light models after MSAA off did nothing, and one limited by pixels still gets
+the lower render scale. If no step helps, the GPU is not the limit (a CPU
+limit, or two vsynced windows at half rate) and the fallback stops at full
+quality. The saved settings never change; Visual > Diagnostics shows the
+effective scale, MSAA and models and the fallback's state, and changing a
+Visual setting starts it over. The log gets a frame rate line every minute.
 
 ### Window placement
 
@@ -146,8 +151,9 @@ Electron dashboard installed as the fallback.
       on their displays, the longest auto previewing on a loop with the HUD
       mirroring it) with the native OpenGL driver and with ANGLE, about 40 s
       each, and opens `benchmark_native.txt` and `benchmark_angle.txt` from
-      `%APPDATA%\PWRUP\CompDashboard`: frame rate and p95 frame time per render
-      scale, the result at the 60 fps cap, and a recommended render scale. Use
+      `%APPDATA%\PWRUP\CompDashboard`: frame rate, p95 frame time and
+      primitives per render scale and with the light models, the result at the
+      60 fps cap, and a recommendation. Use
       the faster renderer (for ANGLE, `set PWRUP_ENGINE_ARGS=--rendering-driver
       opengl3_angle` before the launcher, or edit it) and set Visual > Render
       Scale to the recommendation. If no scale holds 60 fps, set the frame cap
@@ -175,7 +181,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
 | `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, restart persistence, the touch test | 2 min |
 | `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring, expand and touch orbit, start pose chips, robot-only autos, a user-folder export | 3 min |
-| `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution; the auto quality fallback under a simulated slow GPU; the driver-station benchmark end to end | 3 min |
+| `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution; the auto quality fallback under simulated fill-bound and vertex-bound GPUs (the second must switch every 3D view to the light models); the driver-station benchmark end to end | 3 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
 | `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
@@ -193,7 +199,9 @@ godot --path apps/comp-godot -- --screen=hud --design-size --fixture=hud_shift_w
 ## 3D models
 
 `assets/models/{robot,field}.glb` are simplified from the raw CAD exports in
-`apps/comp/cad-assets` (read in place). Rebuild after a CAD change:
+`apps/comp/cad-assets` (read in place), and so are the light variants
+`{robot,field}-lite.glb` that auto quality swaps in (same node names and rest
+transforms, so the joint rig drives either). Rebuild after a CAD change:
 
 ```sh
 cd apps/comp-godot/tools/assets && npm ci && node build_models.mjs

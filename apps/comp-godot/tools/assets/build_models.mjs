@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Builds assets/models/{robot,field}.glb and models.manifest.json from the raw
-// CAD exports in apps/comp/cad-assets (read in place, never modified).
+// Builds assets/models/{robot,field}.glb, their light variants
+// {robot,field}-lite.glb (what auto quality swaps in on a GPU that cannot hold
+// the frame rate) and models.manifest.json from the raw CAD exports in
+// apps/comp/cad-assets (read in place, never modified).
 //
 // Usage (from apps/comp-godot/tools/assets, after `npm ci`):
 //   node build_models.mjs                 build both models, exit 1 if a budget is exceeded
@@ -44,12 +46,33 @@ const ROBOT = {
   budget: { triangles: 220000, surfaces: 10, bytes: 9 * 1024 * 1024 },
 };
 
+const ROBOT_LITE = {
+  ...ROBOT,
+  output: 'robot-lite.glb',
+  simplify: {
+    FrameControl: { target: 24000, budget: 26000, error: 0.002, minPart: 0.04 },
+    IndexWristRControl: { target: 6000, budget: 7000, error: 0.001, minPart: 0.03 },
+    ClimberControlInner: { target: 5000, budget: 6000, error: 0.001, minPart: 0.03 },
+    ClimberControlOuter: { target: 3000, budget: 3500, error: 0.001, minPart: 0.03 },
+    TurretRControl: { target: 5000, budget: 6000, error: 0.0005, minPart: 0.02 },
+    TurretGearRControl: { target: 2500, budget: 3000, error: 0.0005, minPart: 0.02 },
+  },
+  budget: { triangles: 50000, surfaces: 10, bytes: 2 * 1024 * 1024 },
+};
+
 const FIELD = {
   source: 'field-2026.glb',
   output: 'field.glb',
   dropPrefix: 'GE-26900',
   simplify: { target: 110000, budget: 120000, error: 0.002, minPart: 0.03 },
   budget: { triangles: 120000, surfaces: 6, bytes: 5 * 1024 * 1024 },
+};
+
+const FIELD_LITE = {
+  ...FIELD,
+  output: 'field-lite.glb',
+  simplify: { target: 25000, budget: 28000, error: 0.006, minPart: 0.08 },
+  budget: { triangles: 28000, surfaces: 6, bytes: 1536 * 1024 },
 };
 
 const ERROR_GROWTH = 1.2;
@@ -373,7 +396,7 @@ async function writeGlb(io, doc) {
 }
 
 
-async function buildRobot(io) {
+async function buildRobot(io, ROBOT) {
   const srcPath = path.join(SRC_DIR, ROBOT.source);
   const src = await io.read(srcPath);
   await src.transform(dequantize());
@@ -434,7 +457,7 @@ async function buildRobot(io) {
 }
 
 
-async function buildField(io) {
+async function buildField(io, FIELD) {
   const srcPath = path.join(SRC_DIR, FIELD.source);
   const src = await io.read(srcPath);
   await src.transform(dequantize());
@@ -511,72 +534,68 @@ async function main() {
   await MeshoptSimplifier.ready;
   const io = await makeIO();
 
-  console.log('robot:');
-  const robot = await buildRobot(io);
-  console.log('field:');
-  const field = await buildField(io);
+  const specs = [
+    { key: 'robot', spec: ROBOT, build: buildRobot },
+    { key: 'robot_lite', spec: ROBOT_LITE, build: buildRobot },
+    { key: 'field', spec: FIELD, build: buildField },
+    { key: 'field_lite', spec: FIELD_LITE, build: buildField },
+  ];
+  const built = {};
+  for (const { key, spec, build } of specs) {
+    console.log(`${key}:`);
+    built[key] = await build(io, spec);
+  }
 
   const failures = [];
-  checkBudget('robot', robot, ROBOT.budget, failures);
-  checkBudget('field', field, FIELD.budget, failures);
-  for (const [name, a] of Object.entries(robot.anchors)) {
-    if (a.budget !== null && a.triangles > a.budget) failures.push(`robot ${name}: ${a.triangles} triangles > ${a.budget}`);
-  }
-  for (const [label, r] of [['robot', robot], ['field', field]]) {
+  for (const { key, spec } of specs) {
+    const r = built[key];
+    checkBudget(key, r, spec.budget, failures);
+    for (const [name, a] of Object.entries(r.anchors ?? {})) {
+      if (a.budget !== null && a.triangles > a.budget) failures.push(`${key} ${name}: ${a.triangles} triangles > ${a.budget}`);
+    }
     const json = JSON.parse(r.bytes.subarray(20, 20 + r.bytes.readUInt32LE(12)).toString('utf8'));
-    if ((json.extensionsRequired ?? []).length || (json.extensionsUsed ?? []).length) failures.push(`${label}: output declares extensions`);
+    if ((json.extensionsRequired ?? []).length || (json.extensionsUsed ?? []).length) failures.push(`${key}: output declares extensions`);
+    if (r.fuel_nodes_dropped !== undefined && r.fuel_nodes_dropped !== 456) failures.push(`${key}: expected 456 Fuel nodes, dropped ${r.fuel_nodes_dropped}`);
   }
-  if (field.fuel_nodes_dropped !== 456) failures.push(`field: expected 456 Fuel nodes, dropped ${field.fuel_nodes_dropped}`);
 
   const manifest = {
     version: 1,
     generator: GENERATOR,
     tools: Object.fromEntries(['@gltf-transform/core', '@gltf-transform/functions', 'draco3dgltf', 'meshoptimizer'].map((n) => [n, packageVersion(n)])),
-    robot: {
-      source: `apps/comp/cad-assets/${ROBOT.source}`,
-      source_sha256: robot.sha,
-      output: `assets/models/${ROBOT.output}`,
-      output_sha256: createHash('sha256').update(robot.bytes).digest('hex'),
-      bytes: robot.bytes.length,
-      triangles: robot.triangles,
-      surfaces: robot.surfaces,
-      budget: ROBOT.budget,
-      anchors: robot.anchors,
-      rest_transforms: robot.rest,
-    },
-    field: {
-      source: `apps/comp/cad-assets/${FIELD.source}`,
-      source_sha256: field.sha,
-      output: `assets/models/${FIELD.output}`,
-      output_sha256: createHash('sha256').update(field.bytes).digest('hex'),
-      bytes: field.bytes.length,
-      triangles: field.triangles,
-      surfaces: field.surfaces,
-      budget: FIELD.budget,
-      fuel_nodes_dropped: field.fuel_nodes_dropped,
-      parts_kept: field.parts_kept,
-      parts_dropped: field.parts_dropped,
-      error_mm: field.error_mm,
-    },
   };
+  for (const { key, spec } of specs) {
+    const r = built[key];
+    const entry = {
+      source: `apps/comp/cad-assets/${spec.source}`,
+      source_sha256: r.sha,
+      output: `assets/models/${spec.output}`,
+      output_sha256: createHash('sha256').update(r.bytes).digest('hex'),
+      bytes: r.bytes.length,
+      triangles: r.triangles,
+      surfaces: r.surfaces,
+      budget: spec.budget,
+    };
+    if (r.anchors) Object.assign(entry, { anchors: r.anchors, rest_transforms: r.rest });
+    else Object.assign(entry, { fuel_nodes_dropped: r.fuel_nodes_dropped, parts_kept: r.parts_kept, parts_dropped: r.parts_dropped, error_mm: r.error_mm });
+    manifest[key] = entry;
+  }
   const manifestText = JSON.stringify(manifest, null, 2) + '\n';
 
-  console.log(`robot: ${robot.triangles} tris, ${robot.surfaces} surfaces, ${(robot.bytes.length / 1048576).toFixed(2)} MiB`);
-  console.log(`field: ${field.triangles} tris, ${field.surfaces} surfaces, ${(field.bytes.length / 1048576).toFixed(2)} MiB`);
+  for (const { key } of specs) {
+    const r = built[key];
+    console.log(`${key}: ${r.triangles} tris, ${r.surfaces} surfaces, ${(r.bytes.length / 1048576).toFixed(2)} MiB`);
+  }
 
+  const outputs = [
+    ...specs.map(({ key, spec }) => [path.join(OUT_DIR, spec.output), built[key].bytes]),
+    [path.join(OUT_DIR, 'models.manifest.json'), manifestText],
+  ];
   if (check) {
     const same = (file, data) => existsSync(file) && Buffer.compare(readFileSync(file), Buffer.from(data)) === 0;
-    const stale = [
-      [path.join(OUT_DIR, ROBOT.output), robot.bytes],
-      [path.join(OUT_DIR, FIELD.output), field.bytes],
-      [path.join(OUT_DIR, 'models.manifest.json'), manifestText],
-    ].filter(([f, d]) => !same(f, d));
-    for (const [f] of stale) failures.push(`stale output: ${path.relative(APP, f)}`);
+    for (const [f] of outputs.filter(([f, d]) => !same(f, d))) failures.push(`stale output: ${path.relative(APP, f)}`);
   } else {
     mkdirSync(OUT_DIR, { recursive: true });
-    writeFileSync(path.join(OUT_DIR, ROBOT.output), robot.bytes);
-    writeFileSync(path.join(OUT_DIR, FIELD.output), field.bytes);
-    writeFileSync(path.join(OUT_DIR, 'models.manifest.json'), manifestText);
+    for (const [f, d] of outputs) writeFileSync(f, d);
   }
   if (refIdx >= 0) await writeReference(io, path.resolve(args[refIdx + 1]));
 
