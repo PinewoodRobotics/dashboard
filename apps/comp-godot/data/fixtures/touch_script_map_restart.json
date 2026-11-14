@@ -1,0 +1,6 @@
+{
+  "extends": "touch_base",
+  "input": [
+    {"expect": {"settings.map.mode": "driver", "settings.map.zoom": {"ge": 0.9}, "settings.map.angle": {"near": 0.06, "tol": 0.02}}}
+  ]
+}

@@ -4,9 +4,10 @@ extends Control
 ## Robot3DTab.tsx: an orbit view plus a 208 px column of joint debug sliders.
 ## A joint follows NT while its topic is live (slider disabled, "NT live") and
 ## the slider otherwise ("Manual fallback"). Manual values live in Telemetry,
-## in memory only.
+## in memory only. Topics are shown without the AdvantageKit outputs prefix.
 
-const COL_W := 208.0
+const COL_W := 240.0
+const TOPIC_PREFIX := "/AdvantageKit/RealOutputs/"
 
 var telemetry: TelemetryService
 var nt: NtService
@@ -34,15 +35,15 @@ func _ready() -> void:
 	side.add_theme_stylebox_override("panel", sb)
 	side.custom_minimum_size.x = COL_W
 	var scroll := UiKit.vscroll()
-	var col := UiKit.vbox(14)
+	var col := UiKit.vbox(12)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(UiKit.label("Joints", 20, 600))
-	col.add_child(UiKit.wrapped("NT-backed joints use live robot values when connected and fall back to sliders when not.", 12))
+	col.add_child(UiKit.wrapped("Live robot values while NT has them, these sliders otherwise.", 12))
 	for j in telemetry.rig.joints:
 		if j.link_source != "" or j.debug_label == "":
 			continue
 		col.add_child(_joint_row(j))
-	var reset_all := PwButton.new("Reset all", PwButton.Style.OUTLINE, Vector2(0, 44))
+	var reset_all := PwButton.new("Reset all", PwButton.Style.OUTLINE, Vector2(0, 40))
 	reset_all.name = "ResetAll"
 	reset_all.font_size = 18
 	reset_all.pressed.connect(reset_all_joints)
@@ -63,15 +64,19 @@ func _joint_row(j: RigSolver.Joint) -> Control:
 	slider.name = "Slider"
 	slider.value_changed.connect(func(v: float) -> void: telemetry.manual_joints[j.key] = v)
 	box.add_child(slider)
+	var line := UiKit.hbox(6)
 	var source := UiKit.wrapped("", 11, Tokens.ZINC_500)
 	source.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	source.name = "Source"
-	box.add_child(source)
-	var reset := PwButton.new("reset", PwButton.Style.OUTLINE, Vector2(0, 32))
+	source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.add_child(source)
+	var reset := PwButton.new("reset", PwButton.Style.OUTLINE, Vector2(56, 28))
 	reset.name = "Reset"
-	reset.font_size = 14
+	reset.font_size = 13
+	reset.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	reset.pressed.connect(reset_joint.bind(j.key))
-	box.add_child(reset)
+	line.add_child(reset)
+	box.add_child(line)
 	rows[j.key] = {"slider": slider, "source": source, "reset": reset, "joint": j}
 	return box
 
@@ -103,6 +108,6 @@ func _process(_delta: float) -> void:
 		(r["reset"] as PwButton).disabled = live
 		if live:
 			slider.set_value(float(telemetry.joint_targets.get(key, j.default_value)))
-		var text := ("NT live: " if live else "Manual fallback: ") + j.nt_topic
+		var text := ("NT live: " if live else "Manual fallback: ") + j.nt_topic.trim_prefix(TOPIC_PREFIX)
 		if (r["source"] as Label).text != text:
 			(r["source"] as Label).text = text

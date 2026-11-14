@@ -41,6 +41,9 @@ func move(pos: Vector2) -> void:
 	if gate.is_dragging():
 		ghost.move_to(pos)
 		last_target = target_at(pos)
+		var adds := source.zone == "dock" and not state.rail.has(source.tab_id)
+		var moves := source.zone == "rail"
+		rail.show_drop_marker(last_target["zone"] == "rail" and (adds or moves), last_target["id"])
 
 
 func release(pos: Vector2) -> void:
@@ -52,6 +55,7 @@ func release(pos: Vector2) -> void:
 	set_process(false)
 	ghost.visible = false
 	item.faded = false
+	rail.show_drop_marker(false)
 	if s == DragGate.State.DRAGGING:
 		drop(item.zone, item.tab_id, target_at(pos))
 	elif s == DragGate.State.PENDING:
@@ -61,6 +65,8 @@ func release(pos: Vector2) -> void:
 func cancel() -> void:
 	if source != null:
 		source.faded = false
+	if rail != null:
+		rail.show_drop_marker(false)
 	source = null
 	gate.end()
 	ghost.visible = false

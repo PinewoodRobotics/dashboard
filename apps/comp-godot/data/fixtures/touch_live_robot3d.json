@@ -1,0 +1,14 @@
+{
+  "touch": {"active_tab": "robot3d"},
+  "input": [
+    {"wait_ms": 300},
+    {"expect": {"robot3d.turret.disabled": true, "robot3d.turret.source": "NT live: Turret/PositionRot",
+      "robot3d.index_wrist.disabled": true, "robot3d.index_wrist.source": "NT live: IntakeSubsystem/WristPosition",
+      "robot3d.climber_inner.disabled": false, "robot3d.climber_inner.source": "Manual fallback: Climber/CurrentHeightMeters",
+      "touch.driver.rendering": false, "max_rendering_views": {"le": 1}}},
+    {"screenshot": "robot3d"},
+    {"tap": "LeftRail/Home"},
+    {"wait_ms": 400},
+    {"expect": {"state.active_tab": "", "touch.driver.rendering": true}}
+  ]
+}

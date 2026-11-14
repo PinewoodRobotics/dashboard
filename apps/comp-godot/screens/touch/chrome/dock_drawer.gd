@@ -23,6 +23,7 @@ static func panel_height() -> float:
 
 func rebuild() -> void:
 	for it in items:
+		remove_child(it)
 		it.queue_free()
 	items.clear()
 	var per_row := int((Tokens.DOCK_W - 2 * (Tokens.BORDER + Tokens.DOCK_PAD) + Tokens.DOCK_GAP) / (Tokens.DOCK_CELL + Tokens.DOCK_GAP))

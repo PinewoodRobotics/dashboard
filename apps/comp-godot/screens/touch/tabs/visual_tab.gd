@@ -47,7 +47,7 @@ func _ready() -> void:
 	reset.name = "Reset"
 	reset.pressed.connect(func() -> void: settings.reset("visual"))
 	header.add_child(reset)
-	root.add_child(UiKit.margin(header, 32, 20, 32, 0))
+	root.add_child(UiKit.margin(header, 32, 16, 32, 0))
 
 	var scroll := UiKit.hscroll()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -56,7 +56,7 @@ func _ready() -> void:
 	root.add_child(scroll)
 
 	var v := settings.visual()
-	var c1 := UiKit.column("Rendering")
+	var c1 := UiKit.column("Rendering", true, 24, 20)
 	render_scale = PwSlider.new().configure({"label": "Render Scale", "min_value": 0.0, "max_value": 1.0, "snap_points": AppSettings.RENDER_SCALES,
 		"value_label": "{v}x", "format_value": func(x: float) -> String: return str(x), "hints": SCALE_HINTS, "value": float(v["render_scale"])})
 	render_scale.name = "RenderScale"
@@ -66,13 +66,17 @@ func _ready() -> void:
 	msaa.name = "Msaa"
 	msaa.selected.connect(func(x: Variant) -> void: settings.set_visual({"msaa": x}))
 	c1["box"].add_child(msaa)
+	cols.add_child(c1["panel"])
+
+	var c4 := UiKit.column("Frame Rate", true, 24, 20)
 	fps = PwSelector.new().configure("Frame Cap", FPS_OPTIONS, v["fps_cap"])
 	fps.name = "FpsCap"
 	fps.selected.connect(func(x: Variant) -> void: settings.set_visual({"fps_cap": x}))
-	c1["box"].add_child(fps)
-	cols.add_child(c1["panel"])
+	c4["box"].add_child(fps)
+	c4["box"].add_child(UiKit.wrapped("Applies to both windows. A lower cap leaves GPU headroom on weak driver station laptops.", 16))
+	cols.add_child(c4["panel"])
 
-	var c2 := UiKit.column("Assets")
+	var c2 := UiKit.column("Assets", true, 24, 20)
 	c2["box"].add_child(UiKit.wrapped("Robot and field models are bundled with the app. Reload them from disk after replacing the files in assets/models.", 18))
 	reload = PwButton.new("Reload Models", PwButton.Style.DARK, Vector2(0, 64))
 	reload.name = "ReloadModels"
@@ -83,7 +87,7 @@ func _ready() -> void:
 	c2["box"].add_child(reload_status)
 	cols.add_child(c2["panel"])
 
-	var c3 := UiKit.column("Diagnostics", false)
+	var c3 := UiKit.column("Diagnostics", false, 24, 20)
 	diag = UiKit.label("", 16, 400, Tokens.ZINC_300)
 	diag.add_theme_font_override("font", Tokens.mono())
 	c3["box"].add_child(diag)
@@ -140,6 +144,6 @@ func _update_diag() -> void:
 	if nt != null:
 		var d := nt.diagnostics()
 		lines.append("NT         %s" % ("fixture" if nt.fixture_mode else nt.client.state_name()))
-		if d.has("rtt_us"):
+		if d.has("rtt_us") and not nt.fixture_mode:
 			lines.append("NT RTT     %.1f ms" % (float(d["rtt_us"]) / 1000.0))
 	diag.text = "\n".join(lines)

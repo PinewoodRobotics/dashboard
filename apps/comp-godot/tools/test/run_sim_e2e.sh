@@ -153,6 +153,11 @@ if [[ $SCREENSHOT == 1 ]]; then
   PWRUP_SHARED_SETTINGS_PATH="$FIR_SIM_DIR/no-shared-settings.json" \
     "$GODOT" --path "$APP" -- --screen=both --nt-host=127.0.0.1 --nt-port="$PORT" \
     --live --frames=60 --screenshot="$APP/.screenshots/sim_3d" || STATUS=1
+  printf '%s\n' '{}' >"$FIR_SIM_DIR/touch-settings.json"
+  PWRUP_SHARED_SETTINGS_PATH="$FIR_SIM_DIR/no-shared-settings.json" \
+    "$GODOT" --path "$APP" -- --screen=touch --design-size --nt-host=127.0.0.1 --nt-port="$PORT" \
+    --fixture=touch_live_robot3d --live --settings="$FIR_SIM_DIR/touch-settings.json" \
+    --frames=30 --screenshot="$APP/.screenshots/sim_touch" || STATUS=1
 fi
 set -e
 

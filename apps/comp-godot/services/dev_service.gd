@@ -223,6 +223,13 @@ func probe_state() -> Dictionary:
 				"host": g.host.text, "port": g.port.text, "presses": g.presses}
 		if content is HowardTab:
 			out["howard"] = {"index": (content as HowardTab).index}
+		if content is Robot3DTab:
+			var rows := {}
+			for key: String in (content as Robot3DTab).rows:
+				var r: Dictionary = (content as Robot3DTab).rows[key]
+				rows[key] = {"disabled": (r["slider"] as PwSlider).disabled, "value": (r["slider"] as PwSlider).value, "source": (r["source"] as Label).text}
+			out["robot3d"] = rows
+		out["telemetry"] = {"manual": Telemetry.manual_joints.duplicate(), "targets": Telemetry.joint_targets.duplicate()}
 		out["driver"] = {"preset": ts.orbit.cam.preset, "theta": ts.orbit.cam.theta, "phi": ts.orbit.cam.phi, "dist": ts.orbit.cam.dist}
 	var mm: MinimapView = _main.call("minimap") if _main != null else null
 	if mm != null:

@@ -1,0 +1,4 @@
+{"extends": "touch_base", "probes": [
+  {"name": "rail home accent", "window": "touch", "at": [18, 44, 48, 48], "kind": "color", "color": "#70cd35", "tol": 0.12, "min_fraction": 0.05},
+  {"name": "robot drawn", "window": "touch", "at": "robot", "half": 120, "kind": "nonblack", "min_fraction": 0.2},
+  {"name": "bumpers blue", "window": "touch", "at": "node:BumperPlane", "half": 140, "kind": "hue", "hue": "blue", "min_fraction": 0.05}]}

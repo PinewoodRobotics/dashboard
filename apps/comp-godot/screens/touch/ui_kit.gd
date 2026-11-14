@@ -78,17 +78,17 @@ static func full(c: Control) -> Control:
 
 
 ## A 420 px settings column (SettingsColumn.tsx): 32 px padding, 24 px title, 28 px gap.
-static func column(title: String, border_right: bool = true) -> Dictionary:
+static func column(title: String, border_right: bool = true, pad: int = 32, gap: int = 28) -> Dictionary:
 	var panel := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 0)
 	sb.border_color = Tokens.HAIRLINE
 	sb.border_width_right = 2 if border_right else 0
-	sb.set_content_margin_all(32)
+	sb.set_content_margin_all(pad)
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.custom_minimum_size.x = 420
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var box := vbox(28)
+	var box := vbox(gap)
 	box.add_child(label(title, 24, 600))
 	panel.add_child(box)
 	return {"panel": panel, "box": box}

@@ -1,0 +1,14 @@
+{
+  "extends": "touch_live_robot3d",
+  "input": [
+    {"wait_ms": 300},
+    {"expect": {"robot3d.turret.disabled": true, "robot3d.turret.value": {"near": -1.5708, "tol": 0.01},
+      "robot3d.index_wrist.disabled": true, "robot3d.climber_inner.disabled": false, "max_rendering_views": {"le": 1}}},
+    {"tap": "LeftRail/Home"},
+    {"wait_ms": 400},
+    {"expect": {"state.active_tab": "", "touch.driver.rendering": true}}
+  ],
+  "probes": [
+    {"name": "driver bumpers red", "window": "touch", "at": "node:BumperPlane", "half": 140, "kind": "hue", "hue": "red", "min_fraction": 0.05}
+  ]
+}

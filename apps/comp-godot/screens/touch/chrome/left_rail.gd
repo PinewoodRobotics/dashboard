@@ -36,6 +36,7 @@ func _ready() -> void:
 
 func rebuild() -> void:
 	for it in items:
+		remove_child(it)
 		it.queue_free()
 	items.clear()
 	for id: String in state.rail:
@@ -85,5 +86,27 @@ func centers() -> Array:
 	return items.map(func(it: TabIcon) -> Vector2: return it.canvas_center())
 
 
+## Insertion marker while a tab is dragged over the rail: before `before_id`, or after the last item.
+var drop_marker := ""
+var drop_marker_on := false
+
+
+func show_drop_marker(on: bool, before_id: String = "") -> void:
+	if on == drop_marker_on and before_id == drop_marker:
+		return
+	drop_marker_on = on
+	drop_marker = before_id
+	queue_redraw()
+
+
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color.BLACK)
+	if not drop_marker_on:
+		return
+	var y := PAD_Y + CELL_H
+	var it := item(drop_marker)
+	if it != null:
+		y = it.position.y
+	elif not items.is_empty():
+		y = items[items.size() - 1].position.y + items[items.size() - 1].size.y
+	draw_rect(Rect2(14, y - 2, size.x - 28, 4), Tokens.ACCENT)

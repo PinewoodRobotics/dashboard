@@ -4,13 +4,16 @@ extends RefCounted
 ## Scripted input for windowed Dev runs. Events are synthesized through
 ## Input.parse_input_event with the target window id, so touches go through
 ## the engine's touch-to-mouse emulation exactly like a real touchscreen.
-## Steps (fixture "input" array), positions in design pixels of the window or
-## a node path relative to the screen root (its center, plus "offset"):
+## Steps (fixture "input" array). A position P is [x, y] in design pixels of
+## the window, a node path relative to the screen root ("find:Name/Child"
+## searches by name) meaning its center, or {"node": path, "at": [x, y]} (from
+## the node's top-left) / {"node": path, "offset": [dx, dy]} (from its center):
 ##   {"tap": P}  {"swipe": {"from": P, "to": P, "ms": 250}}
 ##   {"hold_drag": {"from": P, "to": P, "hold_ms": 350, "ms": 300, "release": true}}
-##   {"drag": {"from": P, "to": P, "ms": 300}} (no hold)   {"wait_ms": N}
+##   {"drag": {"from": P, "to": P, "ms": 300}} (no hold)   {"release": P}   {"wait_ms": N}
 ##   {"mouse": true|false}  {"window": "touch"|"hud"}  {"mark": "name"}
-##   {"expect": {"dotted.path": value | {"ne": v} | {"changed_since": "mark"} | {"near": v, "tol": t}}}
+##   {"expect": {"dotted.path": value | {"ne": v} | {"le": v} | {"ge": v} | {"near": v, "tol": t}
+##     | {"changed_since": "mark"} | {"same_as": "mark", "tol": t}}}
 ##   {"screenshot": "name"}  {"call": "save_settings"}
 ## A failed expectation is recorded with the step index; the run continues.
 
@@ -30,6 +33,7 @@ func _init(owner: DevService) -> void:
 
 
 func run(steps: Array, prefix: String) -> void:
+	await _settle_focus()
 	for i in steps.size():
 		var s: Dictionary = steps[i]
 		trace.append({"step": i, "do": s.keys()})
@@ -40,17 +44,20 @@ func run(steps: Array, prefix: String) -> void:
 		if s.has("wait_ms"):
 			await _sleep(float(s["wait_ms"]) / 1000.0)
 		if s.has("tap"):
-			var p := _pos(s["tap"], s)
+			var p := _pos(s["tap"])
 			await _down(p)
 			await _frames(2)
 			await _up(p)
 			await _frames(2)
+		if s.has("release"):
+			await _up(_pos(s["release"]))
+			await _frames(2)
 		if s.has("swipe"):
-			await _stroke(s["swipe"], 0.0, s)
+			await _stroke(s["swipe"], 0.0)
 		if s.has("drag"):
-			await _stroke(s["drag"], 0.0, s)
+			await _stroke(s["drag"], 0.0)
 		if s.has("hold_drag"):
-			await _stroke(s["hold_drag"], float(s["hold_drag"].get("hold_ms", 350)) / 1000.0, s)
+			await _stroke(s["hold_drag"], float(s["hold_drag"].get("hold_ms", 350)) / 1000.0)
 		if s.has("mark"):
 			marks[str(s["mark"])] = dev.probe_state().duplicate(true)
 		if s.has("call"):
@@ -64,6 +71,18 @@ func run(steps: Array, prefix: String) -> void:
 			_window().get_texture().get_image().save_png(path)
 
 
+## A window launched from a terminal becomes active some time after it shows;
+## macOS then releases every pressed button (Input.release_pressed_events), which
+## would cut a synthesized drag short. Wait for focus first, then a little more.
+func _settle_focus() -> void:
+	var wid := _window().get_window_id()
+	DisplayServer.window_move_to_foreground(wid)
+	var end := Time.get_ticks_msec() + 3000
+	while not DisplayServer.window_is_focused(wid) and Time.get_ticks_msec() < end:
+		await tree.process_frame
+	await _sleep(0.3)
+
+
 func _window() -> Window:
 	return dev.window(window_key)
 
@@ -72,24 +91,41 @@ func _root() -> Node:
 	return dev.screen_root(window_key)
 
 
-func _pos(spec: Variant, step: Dictionary) -> Vector2:
-	var off: Array = step.get("offset", [0, 0])
+func _pos(spec: Variant) -> Vector2:
 	if typeof(spec) == TYPE_ARRAY:
 		return Vector2(spec[0], spec[1])
-	var node := _root().get_node_or_null(NodePath(str(spec))) as Control
+	var path := str(spec.get("node", "")) if typeof(spec) == TYPE_DICTIONARY else str(spec)
+	var node := _find(path)
 	if node == null:
-		failures.append("input: node not found: %s" % spec)
+		failures.append("input: node not found: %s" % path)
 		return Vector2.ZERO
-	return node.get_global_rect().get_center() + Vector2(off[0], off[1])
+	var r := node.get_global_rect()
+	if typeof(spec) == TYPE_DICTIONARY and spec.has("at"):
+		return r.position + Vector2(spec["at"][0], spec["at"][1])
+	if typeof(spec) == TYPE_DICTIONARY and spec.has("offset"):
+		return r.get_center() + Vector2(spec["offset"][0], spec["offset"][1])
+	return r.get_center()
+
+
+func _find(path: String) -> Control:
+	var root := _root()
+	if not path.begins_with("find:"):
+		return root.get_node_or_null(NodePath(path)) as Control
+	var parts := path.trim_prefix("find:").split("/", true, 1)
+	var n := root.find_child(parts[0], true, false)
+	if n != null and parts.size() > 1:
+		var child := n.get_node_or_null(NodePath(parts[1]))
+		n = child if child != null else n.find_child(parts[1], true, false)
+	return n as Control
 
 
 func _to_window(p: Vector2) -> Vector2:
 	return _window().get_final_transform() * p
 
 
-func _stroke(spec: Dictionary, hold_s: float, step: Dictionary) -> void:
-	var a := _pos(spec["from"], step)
-	var b := _pos(spec["to"], spec)
+func _stroke(spec: Dictionary, hold_s: float) -> void:
+	var a := _pos(spec["from"])
+	var b := _pos(spec["to"])
 	var ms := float(spec.get("ms", 250))
 	var n := maxi(2, int(spec.get("steps", 12)))
 	await _down(a)
@@ -189,6 +225,13 @@ static func same(a: Variant, b: Variant, tol: float = 1e-4) -> bool:
 	var num := func(v: Variant) -> bool: return typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
 	if num.call(a) and num.call(b):
 		return absf(float(a) - float(b)) <= tol
+	if typeof(a) == TYPE_DICTIONARY and typeof(b) == TYPE_DICTIONARY:
+		if (a as Dictionary).size() != (b as Dictionary).size():
+			return false
+		for k: Variant in a:
+			if not (b as Dictionary).has(k) or not same(a[k], b[k], tol):
+				return false
+		return true
 	if typeof(a) == TYPE_ARRAY and typeof(b) == TYPE_ARRAY:
 		if (a as Array).size() != (b as Array).size():
 			return false
@@ -209,6 +252,12 @@ func _check(i: int, exp: Dictionary) -> void:
 			ok = not same(got, want["ne"])
 		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("changed_since"):
 			ok = not same(got, dig(marks.get(str(want["changed_since"]), {}), path), 1e-6)
+		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("same_as"):
+			ok = same(got, dig(marks.get(str(want["same_as"]), {}), path), float(want.get("tol", 1e-4)))
+		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("le"):
+			ok = got != null and float(got) <= float(want["le"])
+		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("ge"):
+			ok = got != null and float(got) >= float(want["ge"])
 		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("near"):
 			ok = same(got, want["near"], float(want.get("tol", 1e-3)))
 		else:

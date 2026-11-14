@@ -7,7 +7,7 @@ extends Control
 
 signal pressed
 
-enum Style { DARK, PRIMARY, OUTLINE, ACCENT, LIGHT }
+enum Style { DARK, PRIMARY, OUTLINE, ACCENT, LIGHT, GHOST }
 
 const TAP_SLOP_PX := 16.0
 
@@ -75,6 +75,8 @@ func _colors() -> Dictionary:
 			return {"bg": Color(1, 1, 1, 0.08) if _down else Color(0, 0, 0, 0), "border": Tokens.OUTLINE, "text": Tokens.ZINC_400}
 		Style.ACCENT:
 			return {"bg": Tokens.SELECTED_FILL, "border": Tokens.ACCENT, "text": Tokens.ACCENT}
+		Style.GHOST:
+			return {"bg": Color(1, 1, 1, 0.2 if _down else 0.1), "border": Color(0, 0, 0, 0), "text": Color(1, 1, 1, 0.6)}
 		Style.LIGHT:
 			return {"bg": Tokens.ZINC_300 if _down else Color.WHITE, "border": Color(0, 0, 0, 0), "text": Color.BLACK}
 	return {"bg": Tokens.ZINC_800 if _down else Color.BLACK, "border": Color(0, 0, 0, 0), "text": Tokens.TEXT}

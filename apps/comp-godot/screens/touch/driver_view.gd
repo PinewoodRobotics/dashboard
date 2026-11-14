@@ -6,6 +6,7 @@ extends Control
 
 var orbit: RobotOrbitView
 var buttons: Array[PwButton] = []
+var _shown_preset := -1
 
 
 func _ready() -> void:
@@ -16,10 +17,10 @@ func _ready() -> void:
 	orbit.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(orbit)
 	for i in 4:
-		var b := PwButton.new(str(i + 1), PwButton.Style.DARK, Vector2(40, 40))
+		var b := PwButton.new(str(i + 1), PwButton.Style.GHOST, Vector2(40, 40))
 		b.name = "Preset%d" % (i + 1)
 		b.radius = 20.0
-		b.font_size = 18
+		b.font_size = 14
 		b.size = Vector2(40, 40)
 		b.pressed.connect(select_preset.bind(i))
 		add_child(b)
@@ -40,10 +41,16 @@ func select_preset(i: int) -> void:
 	_refresh_buttons()
 
 
+func _process(_delta: float) -> void:
+	if _shown_preset != orbit.cam.preset:
+		_refresh_buttons()
+
+
 func _refresh_buttons() -> void:
+	_shown_preset = orbit.cam.preset
 	for i in buttons.size():
 		var on := i == orbit.cam.preset
-		buttons[i].variant = PwButton.Style.LIGHT if on else PwButton.Style.DARK
+		buttons[i].variant = PwButton.Style.LIGHT if on else PwButton.Style.GHOST
 		buttons[i].queue_redraw()
 
 

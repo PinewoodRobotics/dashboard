@@ -126,13 +126,19 @@ func _units(k: String) -> float:
 		"DONE":
 			return 2.0
 		"SHIFT", "BKSP":
-			return 1.5
+			return 1.0 if numeric else 1.5
 	return 1.0
+
+
+## Node name of a key ("." ":" "/" are not allowed in node names).
+static func key_name(k: String) -> String:
+	return "Key_" + {".": "DOT", ":": "COLON", "/": "SLASH"}.get(k, k)
 
 
 func _make_key(k: String) -> PwButton:
 	var b := PwButton.new(_caption(k), PwButton.Style.PRIMARY if k == "DONE" else PwButton.Style.DARK)
-	b.name = "Key_" + k
+	b.name = key_name(k)
+	b.set_meta("key", k)
 	b.font_size = 22
 	b.radius = 6.0
 	match k:
@@ -164,7 +170,7 @@ func _caption(k: String) -> String:
 
 
 func key_button(k: String) -> PwButton:
-	return sheet.get_node_or_null("Key_" + k) as PwButton
+	return sheet.get_node_or_null(key_name(k)) as PwButton
 
 
 func press_key(k: String) -> void:
@@ -194,7 +200,7 @@ func press_key(k: String) -> void:
 
 func _refresh_captions() -> void:
 	for b: PwButton in _keys:
-		var k := String(b.name).trim_prefix("Key_")
+		var k: String = b.get_meta("key")
 		if b.icon_name == "":
 			b.text = _caption(k)
 		if k == "SHIFT":

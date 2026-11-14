@@ -1,0 +1,10 @@
+{
+  "extends": "touch_base",
+  "touch": {"active_tab": "howard"},
+  "input": [
+    {"mark": "a"}, {"tap": "find:More"}, {"expect": {"howard.index": {"changed_since": "a"}}},
+    {"mark": "b"}, {"tap": "find:More"}, {"expect": {"howard.index": {"changed_since": "b"}}},
+    {"mark": "c"}, {"tap": "find:More"}, {"expect": {"howard.index": {"changed_since": "c"}}},
+    {"mark": "d"}, {"tap": "find:More"}, {"expect": {"howard.index": {"changed_since": "d"}}}
+  ]
+}
