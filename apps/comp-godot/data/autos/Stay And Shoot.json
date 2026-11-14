@@ -1,0 +1,50 @@
+{
+ "version": 1,
+ "name": "Stay And Shoot",
+ "folder": null,
+ "dt": 0.02,
+ "duration_s": 0.0,
+ "nominal_duration_s": 0.0,
+ "auto_length_s": 20.0,
+ "ends_by_itself": false,
+ "truncated_at_auto_end": false,
+ "sample_count": 0,
+ "start_pose": null,
+ "end_pose": null,
+ "paths": [],
+ "samples": {
+  "red": null,
+  "blue": null
+ },
+ "segments": [],
+ "events": [
+  {
+   "name": "ContinuousAimCommand",
+   "kind": "command",
+   "t0": 0.0,
+   "t1": 20.0,
+   "end_reason": "auto_end",
+   "source": "auto",
+   "registered": true
+  },
+  {
+   "name": "ContinuousShooterCommand",
+   "kind": "command",
+   "t0": 0.0,
+   "t1": 20.0,
+   "end_reason": "auto_end",
+   "source": "auto",
+   "registered": true
+  },
+  {
+   "name": "IntakeCommand",
+   "kind": "command",
+   "t0": 0.0,
+   "t1": 20.0,
+   "end_reason": "auto_end",
+   "source": "auto",
+   "registered": true
+  }
+ ],
+ "warnings": []
+}

@@ -1,0 +1,42 @@
+{
+ "version": 1,
+ "source": "apps/comp/public/path-overview/meta/paths.json (display names and descriptions), Move Forward And Shoot entries written from their .auto files",
+ "autos": {
+  "Ball Shooter Left": {
+   "name": "Ball Shooter Left",
+   "description": "Goes through left trench and picks up fuel from neutral zone, shooting back to alliance area"
+  },
+  "Ball Shooter Right": {
+   "name": "Ball Shooter Right",
+   "description": "Goes through right trench and picks up fuel from neutral zone, shooting back to alliance area"
+  },
+  "Climber Right Left": {
+   "name": "Climber Left to Right",
+   "description": "From left side of alliance area, goes to the right side of the tower and climbs"
+  },
+  "Climber Right Middle": {
+   "name": "Climber Middle to Right",
+   "description": "From middle of alliance area, goes to the right side of the tower and climbs"
+  },
+  "Climber Right Right": {
+   "name": "Climber Right to Right",
+   "description": "From right side of alliance area, goes to the right side of the tower and climbs"
+  },
+  "Move Forward And Shoot Center": {
+   "name": "Move Forward And Shoot Center",
+   "description": "From the center of the alliance area, drives forward, then aims and shoots the preloaded fuel into the hub"
+  },
+  "Move Forward And Shoot Left": {
+   "name": "Move Forward And Shoot Left",
+   "description": "From the left side of the alliance area, drives forward, then aims and shoots the preloaded fuel into the hub"
+  },
+  "Move Forward And Shoot Right": {
+   "name": "Move Forward And Shoot Right",
+   "description": "From the right side of the alliance area, drives forward, then aims and shoots the preloaded fuel into the hub"
+  },
+  "Stay And Shoot": {
+   "name": "Stay And Shoot",
+   "description": "Stays at starting position and shoots initial fuel payload into the hub"
+  }
+ }
+}
