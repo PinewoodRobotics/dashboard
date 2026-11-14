@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "initial": {
+    "position": [1.38, 0.45, 1.38],
+    "target": [0, 0.25, 0],
+    "fov": 50
+  },
+  "states": [
+    {
+      "label": "Overview",
+      "position": [1.38, 0.45, 1.38],
+      "target": [0, 0.25, 0],
+      "fov": 50
+    },
+    {
+      "label": "Intake",
+      "position": [0.23, 0.25, 1.23],
+      "target": [0, 0.15, 0.3],
+      "fov": 50
+    },
+    {
+      "label": "Turret",
+      "position": [-0.92, 0.6, 0.62],
+      "target": [0, 0.4, 0],
+      "fov": 50
+    },
+    {
+      "label": "Side",
+      "position": [1.54, 0.2, 0],
+      "target": [0, 0.25, 0],
+      "fov": 50
+    }
+  ]
+}

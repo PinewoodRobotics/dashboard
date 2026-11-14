@@ -13,6 +13,9 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 NT="*res://services/nt_service.gd"
+Models="*res://services/models_service.gd"
+Telemetry="*res://services/telemetry_service.gd"
+Dev="*res://services/dev_service.gd"
 
 [display]
 

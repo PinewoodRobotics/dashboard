@@ -1,0 +1,9 @@
+{
+  "extends": "m2_overview_blue",
+  "nt": {"/matchhud/state/is_red_alliance": true},
+  "probes": [
+    {"name": "bumpers red", "window": "hud", "at": "robot", "half": 16, "kind": "hue", "hue": "red", "min_fraction": 0.08},
+    {"name": "touch bumpers red", "window": "touch", "at": "node:BumperPlane", "half": 140, "kind": "hue", "hue": "red", "min_fraction": 0.05},
+    {"name": "touch no blue bumper", "window": "touch", "at": "node:BumperPlane", "half": 140, "kind": "hue", "hue": "blue", "max_fraction": 0.005, "min_fraction": 0.0}
+  ]
+}

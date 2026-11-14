@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "generator": "comp-godot build_models.mjs",
+  "tools": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "draco3dgltf": "1.5.7",
+    "meshoptimizer": "1.3.0"
+  },
+  "robot": {
+    "source": "apps/comp/cad-assets/Robot-Full.glb",
+    "source_sha256": "f60b8be13459cacbfd00001b7968d05cbfaa4620e0e11b85f4f94367a719c5f0",
+    "output": "assets/models/robot.glb",
+    "output_sha256": "a5a57fb4fec43eda5bd764a499c389ed15b2c35b8ddcca52b996f9ecd192bcae",
+    "bytes": 7319780,
+    "triangles": 216886,
+    "surfaces": 9,
+    "budget": {
+      "triangles": 220000,
+      "surfaces": 10,
+      "bytes": 9437184
+    },
+    "anchors": {
+      "ClimberControlInner": {
+        "triangles": 26933,
+        "budget": 30000,
+        "surfaces": 1,
+        "parts_kept": 110,
+        "parts_dropped": 46,
+        "error_mm": 1.0246
+      },
+      "ClimberControlOuter": {
+        "triangles": 13496,
+        "budget": 15000,
+        "surfaces": 1,
+        "parts_kept": 61,
+        "parts_dropped": 0,
+        "error_mm": 1.5479
+      },
+      "FrameControl": {
+        "triangles": 115303,
+        "budget": 130000,
+        "surfaces": 2,
+        "parts_kept": 1247,
+        "parts_dropped": 1698,
+        "error_mm": 2.6127
+      },
+      "IndexWristRControl": {
+        "triangles": 30948,
+        "budget": 35000,
+        "surfaces": 2,
+        "parts_kept": 51,
+        "parts_dropped": 0,
+        "error_mm": 0.369
+      },
+      "TurretGearRControl": {
+        "triangles": 10478,
+        "budget": null,
+        "surfaces": 1,
+        "parts_kept": 4,
+        "parts_dropped": 0,
+        "error_mm": 0
+      },
+      "TurretRControl": {
+        "triangles": 18918,
+        "budget": null,
+        "surfaces": 1,
+        "parts_kept": 3,
+        "parts_dropped": 0,
+        "error_mm": 0
+      },
+      "BumperPlane": {
+        "triangles": 810,
+        "budget": null,
+        "surfaces": 1,
+        "parts_kept": 1,
+        "parts_dropped": 0,
+        "error_mm": 0
+      }
+    },
+    "rest_transforms": {
+      "Bumper": {
+        "translation": [
+          -0.004350574221462011,
+          0.000950655376072973,
+          0.0833708718419075
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ClimberControlInner": {
+        "translation": [
+          -0.000368273351341486,
+          0.2225707471370697,
+          0.6200249195098877
+        ],
+        "rotation": [
+          -0.70710688829422,
+          0,
+          0,
+          0.7071066498756409
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ClimberControlOuter": {
+        "translation": [
+          -0.00036826590076088905,
+          0.15223799645900726,
+          -0.009895116090774536
+        ],
+        "rotation": [
+          -0.70710688829422,
+          0,
+          0,
+          0.7071066498756409
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "FrameControl": {
+        "translation": [
+          -0.0003682696260511875,
+          -0.32371997833251953,
+          -0.025135044008493423
+        ],
+        "rotation": [
+          -0.5,
+          0.5,
+          -0.5000000596046448,
+          0.4999999403953552
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "IndexWristRControl": {
+        "translation": [
+          -0.25594326853752136,
+          -0.2348199486732483,
+          0.12091492861509323
+        ],
+        "rotation": [
+          -0.7056492567062378,
+          0,
+          0,
+          0.7085613012313843
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "TurretGearRControl": {
+        "translation": [
+          0.205879807472229,
+          0.006480151321738958,
+          0.2812524437904358
+        ],
+        "rotation": [
+          -0.6108707189559937,
+          0.35614195466041565,
+          -0.35614198446273804,
+          0.6108705401420593
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "TurretRControl": {
+        "translation": [
+          -0.0003682682290673256,
+          0.006480116862803698,
+          0.25840502977371216
+        ],
+        "rotation": [
+          -0.6108707189559937,
+          -0.35614195466041565,
+          0.35614198446273804,
+          0.6108705401420593
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "BumperPlane": {
+        "translation": [
+          0,
+          0.006349995732307434,
+          -0.06350000202655792
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.43814998865127563,
+          0.43814998865127563,
+          0.43814998865127563
+        ]
+      }
+    }
+  },
+  "field": {
+    "source": "apps/comp/cad-assets/field-2026.glb",
+    "source_sha256": "bad4af9f7b5ef951780001321549652c05dfcd61ce24b7efa12757a8afe533b1",
+    "output": "assets/models/field.glb",
+    "output_sha256": "5e3e91ab11ccdadb050d38422459b8408eff2b39428ccdb6b25c0a40b631936b",
+    "bytes": 3781364,
+    "triangles": 109340,
+    "surfaces": 2,
+    "budget": {
+      "triangles": 120000,
+      "surfaces": 6,
+      "bytes": 5242880
+    },
+    "fuel_nodes_dropped": 456,
+    "parts_kept": 1809,
+    "parts_dropped": 702,
+    "error_mm": 3.24
+  }
+}

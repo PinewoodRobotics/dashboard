@@ -17,6 +17,13 @@ the dashboard talks to.
 - /fake/uptime_s and /fake/request_log (every Request value received, in order)
 - optional /fake/load/* doubles so the server holds --total-topics topics,
   changing at --load-hz (runtime override: /fake/control/load_hz)
+- robot pose and the AdvantageKit joint topics (wrist, turret; climber only with
+  --climber since the FIR robot has no climber output). Default: parked at 5, 5
+  with a spinning heading; --pose X,Y,H parks it; --motion drives a loop on the
+  blue half with the wrist and turret moving. Runtime overrides:
+  /fake/control/pose (double[3]), /fake/control/wrist, /fake/control/turret,
+  /fake/control/climber (doubles, NaN = no override), /fake/control/alliance
+  ("red", "blue", or "" for the --alliance default)
 
 Run: uv run tools/sim/fake_robot.py --port 5810
 """
@@ -121,6 +128,21 @@ VALID_AUTOS = [
 
 INTAKE_DEFAULT_SPEED = 0.5
 
+WRIST_TOPIC = "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition"
+TURRET_TOPIC = "/AdvantageKit/RealOutputs/Turret/PositionRot"
+CLIMBER_TOPIC = "/AdvantageKit/RealOutputs/Climber/CurrentHeightMeters"
+
+
+def motion_state(t: float) -> tuple[float, float, float, float, float]:
+    """Pose (x, y, heading) on a loop over the blue half, wrist and turret rotations."""
+    a = t * 0.4
+    x = 4.0 + 2.0 * math.cos(a)
+    y = 4.03 + 2.5 * math.sin(a)
+    heading = math.atan2(2.5 * math.cos(a), -2.0 * math.sin(a))
+    wrist = 0.169 + 0.169 * math.sin(t * 1.3)
+    turret = (t * 0.1) % 1.0 - 0.5
+    return x, y, heading, wrist, turret
+
 
 def publisher(inst: ntcore.NetworkTableInstance, name: str, type_str: str):
     if type_str == "boolean":
@@ -164,6 +186,12 @@ def main() -> int:
         help="update rate of the /fake/load/* topics; /fake/control/load_hz overrides it at runtime",
     )
     ap.add_argument("--tag", default="", help="ignored; lets scripts find this process")
+    ap.add_argument("--pose", default="", help="park the robot at X,Y,HEADING (m, m, rad)")
+    ap.add_argument("--motion", action="store_true", help="drive a loop with moving wrist and turret")
+    ap.add_argument("--alliance", choices=["red", "blue"], default="blue")
+    ap.add_argument("--wrist", type=float, default=0.0, help="wrist rotations when not in --motion")
+    ap.add_argument("--turret", type=float, default=0.0, help="turret rotations when not in --motion")
+    ap.add_argument("--climber", type=float, default=None, help="publish the climber topic with this height (m)")
     ap.add_argument(
         "--no-flush",
         action="store_true",
@@ -186,6 +214,21 @@ def main() -> int:
     match_pubs = {k: publisher(inst, "/matchhud/state/" + k, t) for k, t in MATCH_STATE.items()}
     for k, v in STATIC_MATCH_VALUES.items():
         match_pubs[k].set(v)
+    match_pubs["is_red_alliance"].set(args.alliance == "red")
+
+    parked = None
+    if args.pose:
+        parked = tuple(float(v) for v in args.pose.split(","))
+        if len(parked) != 3:
+            ap.error("--pose needs X,Y,HEADING")
+    wrist_pub = inst.getDoubleTopic(WRIST_TOPIC).publish()
+    turret_pub = inst.getDoubleTopic(TURRET_TOPIC).publish()
+    climber_pub = inst.getDoubleTopic(CLIMBER_TOPIC).publish() if args.climber is not None else None
+    pose_ctl = inst.getDoubleArrayTopic("/fake/control/pose").subscribe([])
+    wrist_ctl = inst.getDoubleTopic("/fake/control/wrist").subscribe(math.nan)
+    turret_ctl = inst.getDoubleTopic("/fake/control/turret").subscribe(math.nan)
+    climber_ctl = inst.getDoubleTopic("/fake/control/climber").subscribe(math.nan)
+    alliance_ctl = inst.getStringTopic("/fake/control/alliance").subscribe("")
 
     type_pubs = {}
     for k, (t, v) in TYPE_VALUES.items():
@@ -241,7 +284,28 @@ def main() -> int:
         uptime = now - start
         match_pubs["seq"].set(seq)
         match_pubs["robot_time_us"].set(int(uptime * 1e6))
-        match_pubs["robot_heading_rad"].set(math.fmod(uptime * 0.5, 2 * math.pi) - math.pi)
+        if args.motion:
+            x, y, heading, wrist, turret = motion_state(uptime)
+        else:
+            x, y, heading = parked if parked else (5.0, 5.0, math.fmod(uptime * 0.5, 2 * math.pi) - math.pi)
+            wrist, turret = args.wrist, args.turret
+        pose_override = pose_ctl.get()
+        if len(pose_override) == 3:
+            x, y, heading = pose_override
+        w = wrist_ctl.get()
+        t = turret_ctl.get()
+        c = climber_ctl.get()
+        wrist = wrist if math.isnan(w) else w
+        turret = turret if math.isnan(t) else t
+        match_pubs["robot_pose_x_m"].set(x)
+        match_pubs["robot_pose_y_m"].set(y)
+        match_pubs["robot_heading_rad"].set(heading)
+        wrist_pub.set(wrist)
+        turret_pub.set(turret)
+        if climber_pub is not None:
+            climber_pub.set(args.climber if math.isnan(c) else c)
+        alliance = alliance_ctl.get() or args.alliance
+        match_pubs["is_red_alliance"].set(alliance == "red")
         uptime_pub.set(uptime)
 
         for v in auto_req.readQueue():

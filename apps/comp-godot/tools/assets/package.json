@@ -1,0 +1,16 @@
+{
+  "name": "comp-godot-asset-tools",
+  "private": true,
+  "type": "module",
+  "description": "Builds the simplified robot and field GLBs for apps/comp-godot from apps/comp/cad-assets",
+  "scripts": {
+    "build": "node build_models.mjs"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "draco3dgltf": "1.5.7",
+    "meshoptimizer": "1.3.0"
+  }
+}

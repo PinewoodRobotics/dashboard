@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "model": "cad/Robot-Full.glb",
+  "bumperNodes": ["Plane"],
+  "rootTransform": {
+    "scale": [1, 1, 1],
+    "position": [0, 0, 0]
+  },
+  "joints": {
+    "index_wrist": {
+      "nodeName": "IndexWristRControl",
+      "type": "revolute",
+      "axis": [1, 0, 0],
+      "limits": { "min": -2.22, "max": 0.02 },
+      "defaultValue": 0,
+      "ntTopic": "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition",
+      "inputTransform": { "scale": -7.368421052631579, "offset": 0.38842105263157894 },
+      "description": "Index wrist pivot",
+      "debugSlider": { "label": "Index Wrist", "step": 0.01 }
+    },
+    "turret": {
+      "nodeName": "TurretRControl",
+      "type": "revolute",
+      "axis": [0, 1, 0],
+      "limits": { "min": -3.14, "max": 3.14 },
+      "defaultValue": 0,
+      "ntTopic": "/AdvantageKit/RealOutputs/Turret/PositionRot",
+      "inputWrap": "signedUnitRotation",
+      "inputTransform": { "scale": -6.283185307179586, "offset": 0 },
+      "description": "Turret rotation",
+      "debugSlider": { "label": "Turret", "step": 0.01 }
+    },
+    "turret_gear": {
+      "nodeName": "TurretGearRControl",
+      "type": "revolute",
+      "axis": [0, 1, 0],
+      "limits": { "min": -3.14, "max": 3.14 },
+      "defaultValue": 0,
+      "description": "Turret gear — driven opposite to turret by same motor",
+      "link": { "source": "turret", "scale": -1, "offset": 0 }
+    },
+    "climber_inner": {
+      "nodeName": "ClimberControlInner",
+      "type": "prismatic",
+      "axis": [0, 0, 1],
+      "limits": { "min": -0.31, "max": 0 },
+      "defaultValue": 0,
+      "ntTopic": "/AdvantageKit/RealOutputs/Climber/CurrentHeightMeters",
+      "inputTransform": { "scale": 0.9904153354632587, "offset": -0.31 },
+      "description": "Climber inner stage",
+      "debugSlider": { "label": "Climber Inner", "step": 0.01 }
+    },
+    "climber_outer": {
+      "nodeName": "ClimberControlOuter",
+      "type": "prismatic",
+      "axis": [0, 0, 1],
+      "limits": { "min": -1.5, "max": 1.5 },
+      "defaultValue": 0,
+      "description": "Climber outer stage mirrors the inner stage in the opposite direction",
+      "link": { "source": "climber_inner", "scale": -1, "offset": 0 }
+    }
+  }
+}

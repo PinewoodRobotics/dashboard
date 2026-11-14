@@ -1,0 +1,9 @@
+{
+  "extends": "m2_base",
+  "camera": {"hud": {"position": [7.4, 2.2, 1.1], "target": [6.2705, 0.3, 0.0]}},
+  "probes": [
+    {"name": "robot drawn", "window": "hud", "at": "robot", "half": 120, "kind": "nonblack", "min_fraction": 0.3},
+    {"name": "bumpers blue", "window": "hud", "at": "robot", "half": 200, "kind": "hue", "hue": "blue", "min_fraction": 0.03},
+    {"name": "touch bumpers blue", "window": "touch", "at": "node:BumperPlane", "half": 140, "kind": "hue", "hue": "blue", "min_fraction": 0.05}
+  ]
+}

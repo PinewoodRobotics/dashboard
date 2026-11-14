@@ -5,6 +5,7 @@ signal connection_changed(connected: bool)
 signal state_changed(state: int)
 
 var client := Nt4Client.new()
+var fixture_mode := false
 var nt_settings := ConnectionSettings.DEFAULT_NT.duplicate()
 
 var _slots := {}
@@ -124,6 +125,29 @@ func off_value(topic: String, callback: Callable) -> void:
 	var slot: int = _slots.get(topic, -1)
 	if slot >= 0 and _callbacks[slot] != null:
 		_callbacks[slot].erase(callback)
+
+
+## Offline fixture mode (screenshots, tests): the values become cached and live
+## as if a connected robot had sent them, with no socket. A null value removes
+## the topic's value.
+func inject(values: Dictionary) -> void:
+	fixture_mode = true
+	var now := Time.get_ticks_usec()
+	for topic: String in values:
+		var slot := _slot_for(topic)
+		var v: Variant = values[topic]
+		_values[slot] = v
+		_has[slot] = 0 if v == null else 1
+		_fresh[slot] = _has[slot]
+		_local_ts[slot] = now
+		_updates[slot] += 1
+		var cbs: Variant = _callbacks[slot]
+		if cbs != null and v != null:
+			for cb: Callable in cbs:
+				cb.call(v)
+	if not _ready_flag:
+		_ready_flag = true
+		connection_changed.emit(true)
 
 
 func diagnostics() -> Dictionary:

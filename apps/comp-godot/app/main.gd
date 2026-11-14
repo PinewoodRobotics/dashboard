@@ -1,17 +1,56 @@
-extends Control
+extends Node
 
-## M1 shell: connects NT from the shared connection settings (CLI overrides),
-## subscribes the dashboard topic groups and hosts the F3 debug overlay.
-## CLI (after `--`): --nt-host=H --nt-port=P --debug-overlay
-##                   --screenshot=<png> [--screenshot-delay=S]
+## Composes the screens from CLI args (after `--`):
+##   --screen=both|hud|touch   both: HUD in the root window, touchscreen in a second OS window
+##   --nt-host=H --nt-port=P   override the shared connection settings without persisting
+##   --fixture=NAME|PATH       offline: inject a fixture's NT values, never open a socket
+##   --debug-overlay           show the F3 NetworkTables overlay at start
+## Screenshot, perf and probe flags are documented in services/dev_service.gd.
 
+var screen := "both"
+var windows := {}
+var hud: HudScreen
+var touch: TouchScreen
 var _overlay: DebugOverlay
-var _status: Label
 var _args := {}
 
 
 func _ready() -> void:
 	_args = CliArgs.parse(OS.get_cmdline_user_args())
+	screen = WindowManager.parse_screen(_args)
+	var root := get_window()
+	WindowManager.setup_root(root, screen)
+	_apply_frame_policy()
+	_start_nt()
+
+	if screen == "touch":
+		touch = TouchScreen.new()
+		add_child(touch)
+		windows["touch"] = root
+	else:
+		hud = HudScreen.new()
+		add_child(hud)
+		windows["hud"] = root
+		if screen == "both":
+			var w := WindowManager.create_touch_window(root)
+			add_child(w)
+			touch = TouchScreen.new()
+			w.add_child(touch)
+			windows["touch"] = w
+			var vs := DisplayServer.VSYNC_ENABLED if str(_args.get("vsync", "hud")) == "both" else DisplayServer.VSYNC_DISABLED
+			DisplayServer.window_set_vsync_mode(vs, w.get_window_id())
+
+	_overlay = DebugOverlay.new(NT)
+	_overlay.visible = _args.has("debug_overlay")
+	add_child(_overlay)
+
+	Dev.attach(self)
+
+
+func _start_nt() -> void:
+	if Dev.has_fixture():
+		NT.inject(Dev.fixture_nt())
+		return
 	var conn := ConnectionSettings.load_shared()
 	var nt_conf: Dictionary = conn["nt"]
 	var host: String = _args.get("nt_host", nt_conf["host"])
@@ -21,40 +60,23 @@ func _ready() -> void:
 	NT.subscribe_groups(Topics.subscription_groups(nt_conf))
 	NT.start()
 
-	var bg := ColorRect.new()
-	bg.color = Color.BLACK
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	_status = Label.new()
-	_status.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_status.add_theme_font_size_override("font_size", 28)
-	_status.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-	add_child(_status)
 
-	_overlay = DebugOverlay.new(NT)
-	_overlay.visible = _args.has("debug_overlay")
-	add_child(_overlay)
-
-	if _args.has("screenshot"):
-		_screenshot(str(_args["screenshot"]), CliArgs.get_float(_args, "screenshot_delay", 1.0))
+## --max-fps=N (0 = uncapped, default 60), --vsync=hud|both|off (default hud).
+func _apply_frame_policy() -> void:
+	Engine.max_fps = CliArgs.get_int(_args, "max_fps", 60)
+	var vsync := str(_args.get("vsync", "hud"))
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED if vsync == "off" else DisplayServer.VSYNC_ENABLED)
 
 
-func _process(_delta: float) -> void:
-	_status.text = "PWRUP comp dashboard\nNT %s  %s:%d\nF3: NetworkTables overlay" % [NT.client.state_name(), NT.client.host, NT.client.port]
+func minimap() -> MinimapView:
+	return hud.minimap if hud != null else null
+
+
+func orbit() -> RobotOrbitView:
+	return touch.orbit if touch != null else null
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F3:
 		_overlay.toggle()
 		get_viewport().set_input_as_handled()
-
-
-func _screenshot(path: String, delay_s: float) -> void:
-	await get_tree().create_timer(delay_s).timeout
-	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	var err := img.save_png(path)
-	print("screenshot ", path, " ", error_string(err))
-	get_tree().quit(0 if err == OK else 1)
