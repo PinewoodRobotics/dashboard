@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end against the real robot code: refreshes a scratch copy of the FIR
 # robot project (never the repo itself), disables the PhotonVision cameras and
-# the sim GUI there, runs the WPILib sim (NT4 server on 5810), runs tests/sim
+# the sim GUI there, adds the README's PathPlanner/DeployHash snippet, runs the WPILib sim (NT4 server on 5810), runs tests/sim
 # and windowed screenshots (F3 overlay, both 3D windows, the auto selector and
 # intake panel driven by scripted touch input, the auto preview mirrored on the
 # HUD once the robot confirms the selection), then stops the sim and checks that port
@@ -81,6 +81,25 @@ sed -i '' -E 's/camera\("([a-z_]+)", true,/camera("\1", false,/' \
   "$FIR_SIM_DIR/src/main/java/frc/robot/constant/VisionConstants.java"
 sed -i '' -E 's/wpi\.sim\.addGui\(\)\.defaultEnabled = true/wpi.sim.addGui().defaultEnabled = false/' \
   "$FIR_SIM_DIR/build.gradle"
+
+# The README's robot-side DeployHash snippet, so the dashboard's "matches robot"
+# check runs against real robot code.
+PP_SUB="$FIR_SIM_DIR/src/main/java/frc/robot/subsystem/PathPlannerSubsystem.java"
+{ echo "package frc.robot.subsystem;"; cat "$APP/tools/pathplanner/DeployHash.java"; } \
+  >"$FIR_SIM_DIR/src/main/java/frc/robot/subsystem/DeployHash.java"
+python3 - "$PP_SUB" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+a = '    Logger.recordOutput("PathPlanner/ValidNames/Autos", allAutos);\n'
+if a not in s:
+    sys.exit("could not find ValidNames/Autos in PathPlannerSubsystem")
+s = s.replace(a, a + '    Logger.recordOutput("PathPlanner/DeployHash", DEPLOY_HASH);\n', 1)
+i = s.find("{", s.find("class PathPlannerSubsystem")) + 1
+s = s[:i] + ("\n  private static final String DEPLOY_HASH = DeployHash.of("
+             "new java.io.File(org.wpilib.system.Filesystem.getDeployDirectory(), \"pathplanner\").toPath());\n") + s[i:]
+open(p, "w").write(s)
+PY
 
 if [[ $SIM_MATCH == 1 ]]; then
   sed -i '' -E 's/^( *)RobotController\.getTime\(\),/\1RobotController.getTime() \/ 1000L,/' \

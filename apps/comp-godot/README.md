@@ -40,6 +40,17 @@ F3 toggles the NetworkTables overlay (client state, RTT, every cached topic).
 
 - The list starts with which export is loaded (built-in or event update, with
   its export time) and a Reload Autos button.
+- Whether the preview can be trusted: a path edited and deployed without a
+  re-export keeps the same auto names, so the robot's auto list cannot tell.
+  When the robot publishes `PathPlanner/DeployHash` (below), the list header
+  says "matches robot" (green) or "differs from robot" (red, with a warning
+  on every auto). Without it, the header shows the export's age and turns
+  amber with a warning once the export is more than 3 days old.
+- Every auto file of an export is checked when it loads. If one in an event
+  update is broken (truncated, missing samples), that auto falls back to the
+  built-in export with an amber note; with no older copy, its card says
+  "Preview failed to load" and the preview area shows why. The log gets one
+  warning per broken file, not one per frame.
 - Autos the robot lists (`PathPlanner/ValidNames/Autos`) that the export lacks
   get their own cards marked "On the robot: no preview, not exported". They
   can be selected like any other auto, so a stale export never blocks a new
@@ -126,8 +137,8 @@ macOS) re-tiles from either window.
 
 Not run yet: none of these can be verified on the macOS development machine.
 Check them on the real laptop with both displays attached, and keep the
-benchmark files with the results. Until the touch item passes, keep the
-Electron dashboard installed as the fallback.
+benchmark files with the results. Until every item passes on that laptop, the
+Electron dashboard stays the primary dashboard and this one is the trial.
 
 - [ ] Placement: the HUD fills the 1920x1080 display and the touchscreen fills
       the 1920x515 one with no title bar or taskbar on top, with the laptop's
@@ -143,6 +154,10 @@ Electron dashboard installed as the fallback.
       the HUD window" box. Close it (bottom right), then check by hand: taps on
       the rail, hold-to-drag of a rail icon to the dock, a swipe down on an open
       tab, the auto preview scrub bar, and drag/pinch on the expanded preview.
+      Scroll by dragging: the Intake Speed panel down to the shooter readouts
+      (start the drag on the Speed slider: the slider must not move), and the
+      Visual tab sideways to Diagnostics (start on Reload Models: it must not
+      reload).
       Every touch press is also in `logs/godot.log` (`touch-test:` lines). If
       touch goes to the wrong window or is offset, use
       `PWRUP-Comp-TwoProcess.bat` and repeat this item.
@@ -179,14 +194,14 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_integration.sh` | NT4 client, telemetry, HUD and controls against `tools/sim/fake_robot.py` (real ntcore) | 2 min |
 | `run_screenshots.sh` | 3D views, joints, mesh sharing, startup timing (windowed) | 1 min |
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
-| `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, restart persistence, the touch test | 2 min |
-| `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring, expand and touch orbit, start pose chips, robot-only autos, a user-folder export | 3 min |
+| `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, drag scrolling of the panels and tabs (touch and mouse, strokes starting on sliders and buttons), restart persistence, the touch test | 2 min |
+| `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring, expand and touch orbit, start pose chips, robot-only autos, a user-folder export, a broken one, the export age and robot hash warnings, the log comparison selftest | 3 min |
 | `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution; the auto quality fallback under simulated fill-bound and vertex-bound GPUs (the second must switch every 3D view to the light models); the driver-station benchmark end to end | 3 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
 | `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
 | `run_soak.sh [--minutes=N]` | 10 minutes of looping 8x matches: clean log, memory, orphans | 10 min |
-| `run_sim_e2e.sh` | the real robot code in the WPILib sim (scratch copy of FIR, never the repo): live HUD, auto and intake round trips from the UI | 4 min |
+| `run_sim_e2e.sh` | the real robot code in the WPILib sim (scratch copy of FIR, never the repo, plus the DeployHash snippet): live HUD, auto and intake round trips from the UI, the deploy hash against the export | 4 min |
 | `run_all.sh [--quick] [--no-sim]` | all of the above in order with a summary | 30 min |
 
 Screenshots and reports land in `apps/comp-godot/.screenshots/` (gitignored).
@@ -274,6 +289,43 @@ of this, use the second form on a dev machine and copy the folder over.
 Then tap Reload Autos on the Auto tab (or restart the dashboard); the list
 header says "event update" with the export time. Autos the robot has that
 are not exported yet stay selectable without a preview in the meantime.
+
+### Robot-side deploy hash (recommended)
+
+So the dashboard can tell when the robot runs paths the export does not have,
+copy `tools/pathplanner/DeployHash.java` into the robot code (add a package
+line) and log its result every loop next to `ValidNames/Autos`:
+
+```java
+private static final String DEPLOY_HASH =
+    DeployHash.of(new File(Filesystem.getDeployDirectory(), "pathplanner").toPath());
+// in periodic():
+Logger.recordOutput("PathPlanner/DeployHash", DEPLOY_HASH);
+```
+
+It hashes `autos/`, `paths/` and `settings.json` the same way the export's
+`source_hash` does (`java tools/pathplanner/DeployHash.java DIR` prints it for
+any folder). The robot repo does not have it yet; `run_sim_e2e.sh` adds it to
+its scratch copy of the robot code to test the comparison end to end.
+
+### Checking the preview against a real auto run
+
+The preview's path comes from PathPlannerLib, but its event timing and the
+mechanism animation are a model: `data/auto_commands.json` guesses 0.5 s of
+wrist travel, and the robot code currently leaves the wrist controller off.
+Before trusting them, compare with a log from a practice-field auto:
+
+```sh
+uv run --script tools/pathplanner/compare_auto_log.py /path/to/akit_log.wpilog
+```
+
+It finds every enabled autonomous period in the log (the robot's own
+AdvantageKit log or an NT capture), takes the auto the robot had selected (or
+`--auto NAME`) and the logged alliance, and prints the start pose offset, the
+path error with and without the best time lag, when the shooter spun up and
+every wrist move with its travel time next to the model's. `--json OUT` keeps
+the numbers. None of the logs available so far (practice teleop and the
+WPILib sim, whose drivetrain does not move) contain a real autonomous run.
 
 ## Windows export
 
