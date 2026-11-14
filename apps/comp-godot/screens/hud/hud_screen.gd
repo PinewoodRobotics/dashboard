@@ -14,12 +14,52 @@ var buffer_line: SegmentText
 var minimap: MinimapView
 var banner: ConnectionBanner
 var toast: LaneToastView
+var auto_label: AutoLabel
+var autos: AutosService
 var _toast_count := -1
+
+
+## Pre-match auto name over the top of the minimap; "Preview" with the
+## playback time while the touchscreen preview is mirrored.
+class AutoLabel:
+	extends PanelContainer
+	var icon := PwIcon.new("route", 30, Tokens.ACCENT)
+	var kind := UiKit.label("", 26, 600, Tokens.ACCENT)
+	var title := UiKit.label("", 30, 600)
+	var time := UiKit.label("", 26, 500, Tokens.ZINC_300)
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0, 0.72)
+		sb.set_corner_radius_all(12)
+		sb.content_margin_left = 18
+		sb.content_margin_right = 20
+		sb.content_margin_top = 6
+		sb.content_margin_bottom = 6
+		add_theme_stylebox_override("panel", sb)
+		var row := UiKit.hbox(12)
+		row.add_child(icon)
+		row.add_child(kind)
+		row.add_child(title)
+		time.add_theme_font_override("font", Tokens.mono(500))
+		row.add_child(time)
+		add_child(row)
+
+	func show_auto(display: String, mirror: bool, t: float) -> void:
+		kind.text = "PREVIEW" if mirror else "AUTO"
+		title.text = display
+		time.text = "%05.2f s" % t if mirror else ""
+		time.visible = mirror
+		reset_size()
+		position = Vector2(roundf(HudLayout.MINIMAP.get_center().x - size.x * 0.5), HudLayout.MINIMAP.position.y + 14.0)
 
 
 func _ready() -> void:
 	if match_service == null:
 		match_service = get_node_or_null("/root/Match") as MatchService
+	if autos == null:
+		autos = get_node_or_null("/root/Autos") as AutosService
 	theme = ThemeBuilder.build()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -66,6 +106,11 @@ func _ready() -> void:
 	timer.size = HudLayout.TIMER_BOX.size
 	add_child(timer)
 	timer.center_baseline()
+
+	auto_label = AutoLabel.new()
+	auto_label.name = "AutoLabel"
+	auto_label.visible = false
+	add_child(auto_label)
 
 	toast = LaneToastView.new()
 	toast.name = "LaneToast"
@@ -115,6 +160,16 @@ func refresh() -> void:
 		if m.toast.fire_count > 0:
 			toast.show_state(m.toast.visible_on)
 	toast.set_progress(m.toast.progress(now))
+	_refresh_auto_label()
+
+
+func _refresh_auto_label() -> void:
+	var hud: Dictionary = autos.hud if autos != null else {}
+	var name_: String = hud.get("auto", "")
+	auto_label.visible = name_ != ""
+	if auto_label.visible:
+		var mirror: bool = hud.get("mirror", false)
+		auto_label.show_auto(autos.library.display_name(name_), mirror, autos.clock.t)
 
 
 func displayed_total() -> String:
@@ -130,6 +185,9 @@ func layout_report() -> Dictionary:
 		"minimap": {"rect": _r(Rect2(minimap.position, minimap.size))},
 		"banner": {"visible": banner.visible, "rect": _r(Rect2(banner.position, banner.size)), "text": banner.text()},
 		"toast": {"visible": toast.visible, "rect": _r(Rect2(toast.position, toast.size)), "text": toast.text() if toast.visible else ""},
+		"auto_label": {"visible": auto_label.visible, "rect": _r(Rect2(auto_label.position, auto_label.size)),
+			"text": "%s %s %s" % [auto_label.kind.text, auto_label.title.text, auto_label.time.text] if auto_label.visible else ""},
+		"minimap_auto": {"overlay": minimap.auto_overlay.visible, "key": minimap.auto_overlay.key, "mirroring": minimap.mirroring},
 	}
 	return out
 

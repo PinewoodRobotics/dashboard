@@ -1,0 +1,7 @@
+{"extends": "hud_pre_match",
+ "nt": {"/matchhud/state/enabled": false, "/matchhud/state/robot_pose_x_m": 3.37, "/matchhud/state/robot_pose_y_m": 4.03, "/matchhud/state/robot_heading_rad": 2.36,
+   "/Shared/PathPlanner/SelectedPath/State": "Move Forward And Shoot Center"},
+ "controls": {"selected_auto": "Move Forward And Shoot Center"},
+ "probes": [
+  {"name": "auto label text", "window": "hud", "at": [700, 490, 520, 50], "kind": "color", "color": "#70cd35", "tol": 0.1, "min_fraction": 0.01},
+  {"name": "path ribbon in the minimap", "window": "hud", "at": [540, 560, 840, 520], "kind": "color", "color": "#70cd35", "tol": 0.12, "min_fraction": 0.001}]}

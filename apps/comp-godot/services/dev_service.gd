@@ -19,12 +19,14 @@ extends Node
 ##   "nt_link": "up"|"down" (down: values cached as if the connection dropped),
 ##   "nt_steps": [{topic: value}, ...] injected in order after start (e.g. toasts),
 ##   "match": {"advance_s": S} advance the frozen match clock after the steps,
-##   "orbit_preset": 0, "camera": {"hud"|"touch": {"position": [x,y,z], "target": [..], "up": [..]}},
+##   "orbit_preset": 0, "camera": {"hud"|"touch"|"preview": {"position": [x,y,z], "target": [..], "up": [..]}},
 ##   "touch": {"active_tab": id, "open_panel": id, "dock_open": bool, "dev_tab": "gallery",
 ##     "keyboard": "<gallery input name>", "keyboard_text": "..", "howard_index": N,
 ##     "view_auto": name, "panel_scroll": px}
 ##     (applied, then every transition finished, before the run),
 ##   "controls": {"selected_auto": name|"NONE", "intake_speed": x, "conflict": bool, "trim_requested": deg},
+##   "preview": {"auto", "t", "playing", "speed", "loop", "alliance", "realtime", "camera": "path"|"field"} auto preview
+##     (offline the preview clock is frozen unless realtime is true),
 ##   "connection": {shared-file "settings" object} (offline: replaces the connection settings in memory),
 ##   "input": [steps] scripted touch or mouse input with expectations (services/dev_input.gd),
 ##   "probes": [{"name": "..", "window": "hud"|"touch", "at": "robot" | "node:<Name>" | [x, y, w, h],
@@ -132,6 +134,10 @@ func _views() -> Dictionary:
 		out["hud"] = mm
 	if ob != null:
 		out["touch"] = ob
+	for v: CadView in get_tree().get_nodes_in_group(CadView.GROUP):
+		if v is AutoPreviewView and v.is_visible_in_tree():
+			out["preview"] = v
+			break
 	return out
 
 
@@ -150,6 +156,21 @@ func _apply_fixture_views() -> void:
 		if adv > 0.0 and Match.clock.is_frozen():
 			Match.clock.advance_s(adv)
 			Match.model.step(Match.clock.now_us())
+	if fixture.has("orbit_preset") and views.has("touch"):
+		(views["touch"] as RobotOrbitView).apply_preset(int(fixture["orbit_preset"]))
+	if fixture.has("controls"):
+		Controls.apply_fixture(fixture["controls"])
+		Controls.step()
+	var ts := touch_screen()
+	if ts != null and fixture.has("touch"):
+		ts.call("apply_fixture", fixture["touch"])
+	if fixture.has("preview"):
+		Autos.apply_fixture(fixture["preview"])
+	views = _views()
+	if views.has("preview") and fixture.get("preview", {}).has("camera"):
+		var panel := (views["preview"] as Node).find_parent("AutoPreview")
+		if panel != null:
+			panel.call("set_camera", fixture["preview"]["camera"] == "field")
 	var cams: Dictionary = fixture.get("camera", {})
 	for key: String in cams:
 		if views.has(key):
@@ -159,14 +180,6 @@ func _apply_fixture_views() -> void:
 				"target": _vec3(c.get("target", [0, 0, 0])),
 				"up": _vec3(c.get("up", [0, 1, 0])),
 			}
-	if fixture.has("orbit_preset") and views.has("touch"):
-		(views["touch"] as RobotOrbitView).apply_preset(int(fixture["orbit_preset"]))
-	if fixture.has("controls"):
-		Controls.apply_fixture(fixture["controls"])
-		Controls.step()
-	var ts := touch_screen()
-	if ts != null and fixture.has("touch"):
-		ts.call("apply_fixture", fixture["touch"])
 
 
 ## Untyped on purpose: a typed reference would compile every touchscreen
@@ -198,6 +211,7 @@ func inject_nt(values: Dictionary) -> void:
 func probe_state() -> Dictionary:
 	var out := {"settings": Settings.data.duplicate(true), "max_rendering_views": max_rendering_views,
 		"controls": Controls.snapshot(), "connection": Settings.connection().duplicate(true), "nt_ready": NT.is_ready(),
+		"autos": Autos.snapshot(),
 		"models": {"generation": Models.generation.duplicate()}, "engine": {"max_fps": Engine.max_fps}}
 	var views: Array = []
 	for v: CadView in get_tree().get_nodes_in_group(CadView.GROUP):
@@ -210,7 +224,8 @@ func probe_state() -> Dictionary:
 	var mm: MinimapView = _main.call("minimap") if _main != null else null
 	if mm != null:
 		var p := mm.camera.global_position
-		out["minimap"] = {"camera": [p.x, p.y, p.z], "dist": mm.cam_model.dist}
+		out["minimap"] = {"camera": [p.x, p.y, p.z], "dist": mm.cam_model.dist, "mirroring": mm.mirroring,
+			"auto_overlay": mm.auto_overlay.key, "robot": [mm.robot.position.x, mm.robot.position.z]}
 	return out
 
 
@@ -288,6 +303,7 @@ func _run() -> void:
 	report["os_windows"] = Array(DisplayServer.get_window_list())
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
 	report["controls"] = Controls.snapshot()
+	report["autos"] = Autos.snapshot()
 	report["anchors"] = _anchor_positions(images)
 	var hud: HudScreen = _main.call("hud_screen")
 	if hud != null:

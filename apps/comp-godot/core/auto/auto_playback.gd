@@ -61,6 +61,12 @@ func has_path() -> bool:
 	return sample_count > 0
 
 
+## Length of the preview timeline: until the auto ends by itself, otherwise
+## the whole auto period, because its never-ending commands run until then.
+func timeline_s() -> float:
+	return maxf(nominal_duration_s if ends_by_itself else auto_length_s, duration_s)
+
+
 ## Pose and field-relative velocity at t seconds (blue-origin meters, radians),
 ## clamped to [0, duration_s]. Empty when the auto has no path.
 func sample(t: float, alliance: StringName) -> Dictionary:

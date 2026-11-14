@@ -39,6 +39,13 @@ const ICONS = [
   "rotate-ccw",
   "circle-check",
   "unplug",
+  "play",
+  "pause",
+  "repeat",
+  "skip-back",
+  "crosshair",
+  "zap",
+  "arrow-down-to-line",
 ];
 
 const icons = {};

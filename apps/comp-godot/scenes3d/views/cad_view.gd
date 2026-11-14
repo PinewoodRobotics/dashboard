@@ -16,6 +16,10 @@ var robot: RobotModel
 var telemetry: TelemetryService
 var models: ModelsService
 var settings_service: SettingsService
+## Views that show the field set this before _ready.
+var with_field := false
+var field: Node3D
+var _field_generation := 0
 ## Dev/fixture camera: {position: Vector3, target: Vector3, up: Vector3}; empty = view's own camera.
 var camera_override := {}
 
@@ -48,7 +52,27 @@ func _ready() -> void:
 	if settings_service != null:
 		apply_visual(settings_service.visual())
 		settings_service.changed.connect(_on_settings_changed)
+	if with_field and models != null:
+		models.when_ready("field", _attach_field)
+		models.model_ready.connect(_on_model_ready)
 	_setup()
+
+
+func _on_model_ready(key: String) -> void:
+	if key == "field" and field != null and int(models.generation.get(key, 0)) != _field_generation:
+		field.free()
+		field = null
+		_attach_field(models.scenes[key])
+
+
+func _attach_field(scene: PackedScene) -> void:
+	if field != null or not is_inside_tree():
+		return
+	if models != null:
+		_field_generation = int(models.generation.get("field", 0))
+	field = scene.instantiate() as Node3D
+	CadMaterials.apply(field)
+	viewport.add_child(field)
 
 
 func _on_settings_changed(section: String) -> void:

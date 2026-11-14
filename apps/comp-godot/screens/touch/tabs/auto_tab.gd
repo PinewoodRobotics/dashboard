@@ -18,6 +18,7 @@ const ROSE := Color("#f43f5e")
 const ROSE_TEXT := Color("#fb7185")
 const LIST_W_FRACTION := 1.0 / 3.0
 const BANNER_H := 44.0
+const DETAIL_LEFT_W := 360.0
 
 var controls: ControlsService
 var autos: AutosService
@@ -30,15 +31,13 @@ var detail_desc: Label
 var detail_warning: Label
 var detail_robot: Label
 var select_button: PwButton
-var info_box: Control
-var info_text: Label
+var preview: AutoPreviewPanel
 var banner: Control
 var popup: Control
 var popup_body: Label
 var resync: PwButton
 var _list_pane: Control
 var _detail_pane: Control
-var _timeline_cache := {}
 
 
 func _ready() -> void:
@@ -122,15 +121,20 @@ func _build_detail() -> Control:
 	pane.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var row := UiKit.hbox(24)
 	var left := UiKit.vbox(8)
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.size_flags_stretch_ratio = 1.0
+	left.custom_minimum_size.x = DETAIL_LEFT_W
 	detail_title = UiKit.label("", 34, 600)
 	detail_title.name = "DetailTitle"
 	detail_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	detail_title.clip_text = true
+	detail_title.custom_minimum_size.x = DETAIL_LEFT_W
 	left.add_child(detail_title)
 	detail_file = UiKit.label("", 16, 400, Tokens.ZINC_500)
+	detail_file.clip_text = true
+	detail_file.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	detail_file.custom_minimum_size.x = DETAIL_LEFT_W
 	left.add_child(detail_file)
-	detail_desc = UiKit.wrapped("", 22, Tokens.ZINC_300)
+	detail_desc = UiKit.wrapped("", 20, Tokens.ZINC_300)
+	detail_desc.custom_minimum_size.x = DETAIL_LEFT_W
 	detail_desc.max_lines_visible = 4
 	left.add_child(detail_desc)
 	var warn_row := UiKit.hbox(8)
@@ -138,16 +142,21 @@ func _build_detail() -> Control:
 	warn_row.add_child(PwIcon.new("triangle-alert", 22, AutoCard.AMBER))
 	detail_warning = UiKit.label("", 20, 500, AutoCard.AMBER)
 	detail_warning.name = "DetailWarning"
+	detail_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail_warning.custom_minimum_size.x = DETAIL_LEFT_W - 30
 	warn_row.add_child(detail_warning)
 	left.add_child(warn_row)
 	detail_robot = UiKit.label("", 18, 400, Tokens.ZINC_400)
 	detail_robot.name = "DetailRobot"
+	detail_robot.clip_text = true
+	detail_robot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	detail_robot.custom_minimum_size.x = DETAIL_LEFT_W
 	left.add_child(detail_robot)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left.add_child(spacer)
-	select_button = PwButton.new("Select", PwButton.Style.DARK, Vector2(440, 84))
+	select_button = PwButton.new("Select", PwButton.Style.DARK, Vector2(DETAIL_LEFT_W, 84))
 	select_button.name = "Select"
 	select_button.font_size = 34
 	select_button.radius = 0.0
@@ -156,25 +165,10 @@ func _build_detail() -> Control:
 	left.add_child(select_button)
 	row.add_child(left)
 
-	info_box = PanelContainer.new()
-	info_box.name = "Info"
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Tokens.ZINC_950
-	sb.set_corner_radius_all(8)
-	sb.set_content_margin_all(20)
-	info_box.add_theme_stylebox_override("panel", sb)
-	info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var ib := UiKit.vbox(10)
-	ib.add_child(UiKit.label("AUTO TIMELINE", 12, 600, Tokens.ZINC_400))
-	info_text = UiKit.label("", 17, 400, Tokens.ZINC_300)
-	info_text.name = "InfoText"
-	info_text.add_theme_font_override("font", Tokens.mono())
-	info_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info_text.max_lines_visible = 14
-	ib.add_child(info_text)
-	info_box.add_child(ib)
-	row.add_child(info_box)
+	preview = AutoPreviewPanel.new()
+	preview.autos = autos
+	preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(preview)
 	pane.add_child(UiKit.full(UiKit.margin(row, 24, 24, 24, 24)))
 	return pane
 
@@ -313,39 +307,24 @@ func _refresh_detail(active: String) -> void:
 		detail_title.text = "No Auto"
 		detail_file.text = ""
 		detail_desc.text = NO_AUTO_DETAIL
-		info_box.visible = false
+		preview.visible = false
 		return
-	info_box.visible = true
 	if autos == null:
 		return
+	preview.visible = true
+	if preview.auto_name != viewing:
+		preview.show_auto(viewing)
 	detail_title.text = autos.library.display_name(viewing)
-	detail_file.text = viewing + ".auto"
+	detail_file.text = file_line(viewing)
 	detail_desc.text = autos.library.description(viewing)
-	info_text.text = timeline_text(viewing)
 
 
-func timeline_text(auto_name: String) -> String:
-	if _timeline_cache.has(auto_name):
-		return _timeline_cache[auto_name]
-	var lines := PackedStringArray()
-	var e := autos.library.entry(auto_name)
+func file_line(auto_name: String) -> String:
 	var p := autos.library.get_auto(auto_name)
-	if e.is_empty() or p == null:
-		lines.append("No exported trajectory for this auto.")
-	else:
-		lines.append("Duration   %.2f s%s" % [p.duration_s, "" if p.ends_by_itself else " (runs to the 20 s limit)"])
-		if str(e.get("folder", "")) != "":
-			lines.append("Folder     %s" % e["folder"])
-		lines.append("Paths      %s" % (", ".join(p.paths) if not p.paths.is_empty() else "none (stays in place)"))
-		var cmds := PackedStringArray()
-		for ev: Dictionary in p.events:
-			var n := str(ev.get("name", ""))
-			if n != "" and not cmds.has(n):
-				cmds.append(n)
-		if not cmds.is_empty():
-			lines.append("Commands   %s" % ", ".join(cmds))
-	_timeline_cache[auto_name] = "\n".join(lines)
-	return _timeline_cache[auto_name]
+	if p == null:
+		return auto_name + ".auto"
+	var path := "path %.1f s" % p.duration_s if p.has_path() else "no path"
+	return "%s.auto  ·  %s  ·  %s %.1f s" % [auto_name, path, "ends at" if p.ends_by_itself else "runs to", p.timeline_s()]
 
 
 func card(auto_name: String) -> AutoCard:
@@ -365,4 +344,5 @@ func probe() -> Dictionary:
 		"popup": popup.visible, "resync_enabled": not resync.disabled, "cards": card_states,
 		"card_count": cards.size(), "detail_title": detail_title.text, "detail_warning": detail_warning.text,
 		"detail_robot": detail_robot.text, "list_scroll": list.scroll_offset,
+		"detail_file": detail_file.text, "preview": preview.probe() if preview.visible else {},
 	}

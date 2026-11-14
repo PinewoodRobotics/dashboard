@@ -75,15 +75,19 @@ func test_meta_covers_every_auto() -> void:
 
 func test_service_preview_drives_the_shared_clock() -> void:
 	var s := AutosService.new()
+	s.time_source.freeze(0)
 	tree.root.add_child(s)
 	check_eq(s.library.names().size(), 9)
 	s.set_preview("Move Forward And Shoot Center")
-	check_near(s.clock.duration, s.preview().duration_s, 1e-12)
+	check_near(s.clock.duration, s.preview().timeline_s(), 1e-12)
 	s.clock.play()
-	s._process(0.5)
+	s.step()
+	s.time_source.advance_s(0.5)
+	s.step()
 	check_near(s.clock.t, 0.5, 1e-9)
 	s.set_preview("Stay And Shoot")
-	check_eq(s.clock.duration, 0.0)
+	check_eq(s.clock.duration, 20.0)
+	check_eq(s.clock.t, 0.0)
 	check(not s.clock.playing, "a new preview pauses")
 	s.queue_free()
 	await tree.process_frame

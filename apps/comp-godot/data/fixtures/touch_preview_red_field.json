@@ -1,0 +1,5 @@
+{"extends": "touch_m6_base", "nt": {"/matchhud/state/is_red_alliance": true},
+ "touch": {"active_tab": "auto", "view_auto": "Ball Shooter Left"}, "preview": {"t": 8.0, "camera": "field"},
+ "probes": [
+  {"name": "travelled ribbon on the red (left) half", "window": "touch", "at": [1115, 40, 335, 260], "kind": "color", "color": "#70cd35", "tol": 0.12, "min_fraction": 0.001},
+  {"name": "no ribbon on the blue (right) half", "window": "touch", "at": [1470, 40, 330, 260], "kind": "color", "color": "#70cd35", "tol": 0.06, "min_fraction": 0.0, "max_fraction": 0.0005}]}
