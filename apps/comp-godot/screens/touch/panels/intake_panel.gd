@@ -8,7 +8,7 @@ extends Control
 const SPEED_LABEL := "{v} - duty cycle sent to the intake motor"
 
 var controls: ControlsService
-var scroll: ScrollContainer
+var scroll: PwScroll
 var speed: PwSlider
 var speed_status: Label
 var reset: PwButton
@@ -25,6 +25,7 @@ func _ready() -> void:
 	var col := UiKit.vbox(20)
 	col.add_child(UiKit.label("Intake Speed", 36, 500))
 	scroll = UiKit.vscroll()
+	scroll.name = "IntakeScroll"
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var body := UiKit.vbox(16)
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL

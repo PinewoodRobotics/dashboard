@@ -43,31 +43,12 @@ static func margin(child: Control, l: int, t: int, r: int, b: int) -> MarginCont
 	return m
 
 
-## Vertical scroller with the web's 5 px accent scrollbar.
-static func vscroll() -> ScrollContainer:
-	var sc := ScrollContainer.new()
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_style_bar(sc.get_v_scroll_bar())
-	return sc
+static func vscroll() -> PwScroll:
+	return PwScroll.new(true)
 
 
-static func hscroll() -> ScrollContainer:
-	var sc := ScrollContainer.new()
-	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_style_bar(sc.get_h_scroll_bar())
-	return sc
-
-
-static func _style_bar(bar: ScrollBar) -> void:
-	var grab := PwBox.new()
-	grab.bg_color = Tokens.ACCENT
-	grab.set_content_margin_all(2.5)
-	var track := StyleBoxEmpty.new()
-	track.set_content_margin_all(2.5)
-	for s in ["grabber", "grabber_highlight", "grabber_pressed"]:
-		bar.add_theme_stylebox_override(s, grab)
-	bar.add_theme_stylebox_override("scroll", track)
-	bar.add_theme_stylebox_override("scroll_focus", track)
+static func hscroll() -> PwScroll:
+	return PwScroll.new(false)
 
 
 static func full(c: Control) -> Control:

@@ -179,7 +179,7 @@ func test_scroll_not_at_top_blocks_swipe_down() -> void:
 	ts.state.switch_tab("effects")
 	ts.step(1.0)
 	var content := ts.tab_content("effects")
-	var sc := ScrollContainer.new()
+	var sc := PwScroll.new()
 	sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var tall := Control.new()
 	tall.custom_minimum_size = Vector2(100, 2000)

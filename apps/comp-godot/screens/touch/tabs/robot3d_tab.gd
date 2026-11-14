@@ -35,6 +35,7 @@ func _ready() -> void:
 	side.add_theme_stylebox_override("panel", sb)
 	side.custom_minimum_size.x = COL_W
 	var scroll := UiKit.vscroll()
+	scroll.name = "JointsScroll"
 	var col := UiKit.vbox(12)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(UiKit.label("Joints", 20, 600))

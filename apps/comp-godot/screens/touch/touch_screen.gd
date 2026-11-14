@@ -392,8 +392,6 @@ static func gesture_context(root: Node, pos: Vector2) -> Dictionary:
 			ctx["on_horizontal_widget"] = true
 		if ctl.is_in_group("pw_grab"):
 			ctx["on_grab_widget"] = true
-		if ctl is ScrollContainer and (ctl as ScrollContainer).scroll_vertical > 0:
-			ctx["scroll_not_at_top"] = true
 		if ctl.is_in_group("pw_scroll") and float(ctl.get("scroll_offset")) > 0.0:
 			ctx["scroll_not_at_top"] = true
 	return ctx
@@ -455,10 +453,18 @@ func apply_fixture(tf: Dictionary) -> void:
 		(content as AutoTab).view(str(tf["view_auto"]))
 		(content as AutoTab).list.reveal((content as AutoTab).cards.find((content as AutoTab).card(str(tf["view_auto"]))))
 	if tf.has("tab_scroll_x") and content != null:
-		var scrolls := content.find_children("*", "ScrollContainer", true, false)
+		var scrolls := scrollers(content)
 		if not scrolls.is_empty():
 			await get_tree().process_frame
-			(scrolls[0] as ScrollContainer).scroll_horizontal = int(tf["tab_scroll_x"])
+			scrolls[0].scroll_horizontal = int(tf["tab_scroll_x"])
+
+
+func scrollers(root: Node) -> Array[PwScroll]:
+	var out: Array[PwScroll] = []
+	for n in get_tree().get_nodes_in_group("pw_scroll") + get_tree().get_nodes_in_group("pw_hscroll"):
+		if n is PwScroll and root.is_ancestor_of(n):
+			out.append(n)
+	return out
 
 
 ## State for Dev scripted-input expectations.
@@ -486,6 +492,11 @@ func probe() -> Dictionary:
 			var r: Dictionary = (content as Robot3DTab).rows[key]
 			rows[key] = {"disabled": (r["slider"] as PwSlider).disabled, "value": (r["slider"] as PwSlider).value, "source": (r["source"] as Label).text}
 		out["robot3d"] = rows
+	var scrolls := {}
+	for sc in scrollers(self):
+		if sc.is_visible_in_tree():
+			scrolls[String(sc.name)] = {"offset": sc.scroll_offset, "max": sc.max_scroll(), "dragging": sc.dragging}
+	out["scrolls"] = scrolls
 	out["driver"] = {"preset": orbit.cam.preset, "theta": orbit.cam.theta, "phi": orbit.cam.phi, "dist": orbit.cam.dist}
 	return out
 

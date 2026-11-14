@@ -4,7 +4,9 @@
 # --screen=touch and a subset for --screen=both. Scripted runs synthesize touch
 # and mouse input through the Dev hook and fail on any unmet expectation; the
 # *_restart runs reuse the settings file of the run before them to prove the
-# layout, map and visual settings survive an app restart. The *_controls_live run
+# layout, map and visual settings survive an app restart. The *_scroll runs drag
+# the scrolling panels and tabs with touch and the mouse, including strokes
+# that start on sliders and buttons. The *_controls_live run
 # selects an auto and drives the intake slider against the fake robot.
 # PNGs, logs and JSON reports land in $OUT (default apps/comp-godot/.screenshots/m4).
 set -euo pipefail
@@ -55,6 +57,8 @@ printf '%s\n' '{}' >"$SETTINGS/visual.json"
 run touch_script_visual touch_script_visual --screen=both --settings="$SETTINGS/visual.json"
 run touch_script_visual_restart touch_script_visual_restart --screen=both --settings="$SETTINGS/visual.json"
 run touch_script_widgets touch_script_widgets --screen=touch
+run touch_script_scroll touch_script_scroll --screen=touch
+run touch_script_scroll_tabs touch_script_scroll_tabs --screen=touch
 run touch_script_widgets_both touch_script_widgets --screen=both
 run touch_script_robot3d touch_script_robot3d --screen=both
 run touch_script_robot3d_live touch_script_robot3d_live --screen=touch

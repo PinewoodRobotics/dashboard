@@ -25,7 +25,7 @@ var mode: PwSelector
 var angle: PwSlider
 var zoom: PwSlider
 var reset: PwButton
-var scroll: ScrollContainer
+var scroll: PwScroll
 
 
 func _ready() -> void:
@@ -34,6 +34,7 @@ func _ready() -> void:
 	var col := UiKit.vbox(20)
 	col.add_child(UiKit.label("Map Settings", 36, 500))
 	scroll = UiKit.vscroll()
+	scroll.name = "MapScroll"
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var body := UiKit.vbox(20)
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
