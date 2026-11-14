@@ -3,7 +3,9 @@
 # ~40 s), fixture screenshots of the preview and the HUD overlay with pixel
 # probes, scripted play/pause/scrub/speed/loop input, a two-window run that
 # samples frame rate and 3D view count while the preview plays, and a live run
-# against the fake robot where the robot confirms the selection.
+# against the fake robot where the robot confirms the selection. Also: a broken
+# event-update export, the export age and robot hash warnings, the log
+# comparison tool's selftest and DeployHash.java against the export's hash.
 # PNGs, logs and JSON reports land in $OUT (default apps/comp-godot/.screenshots/m7).
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -32,7 +34,7 @@ done
 for fx in hud_auto_path hud_auto_mirror hud_auto_gone hud_auto_start_off; do
   run "$fx" "$fx" --screen=hud
 done
-for fx in touch_auto_long_names touch_auto_long_desc touch_auto_robot_only touch_script_preview_expand; do
+for fx in touch_auto_long_names touch_auto_long_desc touch_auto_robot_only touch_script_preview_expand touch_auto_paths_differ touch_auto_export_old; do
   run "$fx" "$fx" --screen=touch
 done
 USER_AUTOS="$OUT/user_autos"
@@ -56,7 +58,38 @@ run touch_autos_user_export touch_autos_user_export --screen=touch --autos-dir="
 LATE_AUTOS="$OUT/late_autos"
 python3 -c 'import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)' "$LATE_AUTOS"
 run touch_autos_reload_new touch_autos_reload_new --screen=touch --autos-dir="$LATE_AUTOS" --autos-stage="$USER_AUTOS"
+BROKEN_AUTOS="$OUT/broken_autos"
+python3 - "$USER_AUTOS" "$BROKEN_AUTOS" <<'PY'
+import json, shutil, sys
+from pathlib import Path
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+shutil.rmtree(dst, ignore_errors=True)
+shutil.copytree(src, dst)
+p = dst / "Ball Shooter Right.json"
+text = p.read_text()
+p.write_text(text[: len(text) // 2])
+p = dst / "Event Fix Auto.json"
+body = json.loads(p.read_text())
+del body["samples"]["blue"]["omega"]
+p.write_text(json.dumps(body))
+PY
+run touch_autos_broken_export touch_autos_broken_export --screen=touch --autos-dir="$BROKEN_AUTOS"
 run both_script_preview both_script_preview --screen=both --perf-frames=300
+
+if uv run --quiet --script "$APP/tools/pathplanner/compare_auto_log.py" --selftest >"$OUT/compare_selftest.log" 2>&1; then
+  echo "ok   compare_auto_log selftest"
+else
+  echo "FAIL compare_auto_log selftest:"; tail -5 "$OUT/compare_selftest.log"; status=1
+fi
+JAVA="${SIM_JAVA_HOME:-$HOME/.wpilib/2027_alpha7/jdk}/bin/java"
+if [[ -x "$JAVA" ]]; then
+  want="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["source_hash"])' "$APP/data/autos/index.json")"
+  got="$("$JAVA" "$APP/tools/pathplanner/DeployHash.java" "$APP/data/pathplanner" 2>&1)"
+  if [[ "$got" == "$want" ]]; then echo "ok   DeployHash.java matches the export's source_hash"
+  else echo "FAIL DeployHash.java: $got, export source_hash $want"; status=1; fi
+else
+  echo "skip DeployHash.java (no JDK at $JAVA)"
+fi
 
 SETTINGS="$OUT/settings"
 mkdir -p "$SETTINGS"

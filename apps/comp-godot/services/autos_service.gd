@@ -30,8 +30,13 @@ var manual_red := true
 var frame := {}
 ## {"auto": name or "", "mirror": bool, "red": bool}
 var hud := {"auto": "", "mirror": false, "red": true}
+## Fixture runs see the export as this many seconds old instead of its real
+## age, so their screenshots and expectations do not change as the export ages
+## (fixture key "export_age_s", default 1 h). Negative uses the system clock.
+var export_age_override_s := -1.0
 
 var telemetry: TelemetryService
+var nt: NtService
 var match_service: MatchService
 var controls: ControlsService
 var _mechanisms := {}
@@ -45,6 +50,8 @@ func _ready() -> void:
 	var dev := get_node_or_null("/root/Dev") as DevService
 	if dev != null and dev.offline_fixture() and not bool(dev.fixture.get("preview", {}).get("realtime", false)):
 		time_source.freeze()
+	if dev != null and dev.has_fixture():
+		export_age_override_s = float(dev.fixture.get("export_age_s", 3600.0))
 	if dev != null and dev.args.has("autos_dir"):
 		library_dirs = [str(dev.args["autos_dir"]), AutoLibrary.BUILTIN_DIR]
 	reload()
@@ -137,11 +144,26 @@ func _bind() -> void:
 		match_service = get_node_or_null("/root/Match") as MatchService
 	if controls == null:
 		controls = get_node_or_null("/root/Controls") as ControlsService
+	if nt == null:
+		nt = get_node_or_null("/root/NT") as NtService
 
 
 func _update_frame() -> void:
 	var m := preview_mechanisms()
 	frame = frame_at(m, clock.t, alliance()) if m != null else {}
+
+
+## ExportFreshness.check for the loaded export against the robot's deploy hash.
+func freshness() -> Dictionary:
+	_bind()
+	if not library.is_loaded():
+		return {}
+	var robot: Variant = nt.value(Topics.PP_DEPLOY_HASH) if nt != null and nt.has_value(Topics.PP_DEPLOY_HASH) else null
+	var now := Time.get_unix_time_from_system()
+	if export_age_override_s >= 0.0:
+		var at := ExportFreshness.age_s(library.exported_at(), now)
+		now += export_age_override_s - at if at >= 0.0 else 0.0
+	return ExportFreshness.check(library.exported_at(), library.exported_source_hash(), robot, now)
 
 
 func robot_auto() -> String:

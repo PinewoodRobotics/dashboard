@@ -46,6 +46,9 @@ var start_chip: StartChip
 var select_button: PwButton
 var preview: AutoPreviewPanel
 var no_preview: Control
+var no_preview_icon: PwIcon
+var no_preview_title: Label
+var no_preview_hint: Label
 var list_summary: Label
 var reload_button: PwButton
 var expanded := false
@@ -58,6 +61,10 @@ var _detail_pane: Control
 var _detail_left: Control
 var _detail_margin: MarginContainer
 var _robot_only_key := ""
+var _fresh_level := -1
+var _fresh_age := ""
+var _summary_ms := 0
+var _no_preview_key: Variant = null
 
 
 class StartChip:
@@ -180,12 +187,27 @@ func reload_autos() -> void:
 		autos.reload()
 
 
-static func summary_text(lib: AutoLibrary) -> String:
+const PATHS_DIFFER := "The robot's PathPlanner files differ from this export, so the preview may be out of date. Re-export the autos, then tap Reload Autos."
+const EXPORT_OLD := "This export is %s old. If a path was edited since, the preview is out of date: re-export the autos."
+
+
+static func summary_text(lib: AutoLibrary, fresh: Dictionary = {}) -> String:
 	if not lib.is_loaded():
 		return "No auto export loaded"
 	var where := "built-in" if lib.dir == AutoLibrary.BUILTIN_DIR else "event update"
-	var at := lib.exported_at().replace("T", " ").trim_suffix("Z")
-	return "%d autos · %s\nexported %s UTC" % [lib.names().size(), where, at.left(16)]
+	var extra := str(fresh.get("text", ""))
+	return "%d autos · %s%s\nexported %s UTC" % [lib.names().size(), where, " · " + extra if extra != "" else "",
+		AutoLibrary.short_time(lib.exported_at())]
+
+
+func _refresh_summary() -> void:
+	if list_summary == null or autos == null:
+		return
+	var fresh := autos.freshness()
+	list_summary.text = summary_text(autos.library, fresh)
+	list_summary.add_theme_color_override("font_color", ExportFreshness.color(fresh.get("level", ExportFreshness.Level.FRESH)))
+	_fresh_level = fresh.get("level", -1)
+	_fresh_age = str(fresh.get("age", ""))
 
 
 func _names() -> PackedStringArray:
@@ -231,8 +253,7 @@ func _rebuild_cards() -> void:
 		c.mark_robot_only()
 		cards.append(c)
 		list.add_item(c)
-	if list_summary != null and autos != null:
-		list_summary.text = summary_text(autos.library)
+	_refresh_summary()
 	if autos != null and _names().is_empty():
 		var failed := not autos.library.is_loaded()
 		var row := AutoCard.new(RETRY, "Failed to load autos" if failed else "No autos found", "",
@@ -341,19 +362,36 @@ func _build_no_preview() -> Control:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col := UiKit.vbox(12)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	var icon := PwIcon.new("eye-off", 40, Tokens.ZINC_500)
-	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	col.add_child(icon)
-	var t := UiKit.label("No preview: not in the dashboard's export", 22, 600, Tokens.ZINC_300)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(t)
-	var hint := UiKit.label("Export the autos into the dashboard's user folder, then tap Reload Autos.", 18, 400, Tokens.ZINC_500)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(hint)
+	no_preview_icon = PwIcon.new("eye-off", 40, Tokens.ZINC_500)
+	no_preview_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(no_preview_icon)
+	no_preview_title = UiKit.label("", 22, 600, Tokens.ZINC_300)
+	no_preview_title.name = "NoPreviewTitle"
+	no_preview_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(no_preview_title)
+	no_preview_hint = UiKit.wrapped("", 18, Tokens.ZINC_500)
+	no_preview_hint.name = "NoPreviewHint"
+	no_preview_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	no_preview_hint.custom_minimum_size.x = 640
+	col.add_child(no_preview_hint)
 	center.add_child(col)
 	box.add_child(center)
 	box.visible = false
 	return box
+
+
+func _show_no_preview(failed: String) -> void:
+	no_preview.visible = true
+	if _no_preview_key == failed:
+		return
+	_no_preview_key = failed
+	no_preview_icon.icon_name = "file-x" if failed != "" else "eye-off"
+	no_preview_icon.color = ROSE_TEXT if failed != "" else Tokens.ZINC_500
+	no_preview_icon.queue_redraw()
+	no_preview_title.text = "Failed to load preview" if failed != "" else "No preview: not in the dashboard's export"
+	no_preview_title.add_theme_color_override("font_color", ROSE_TEXT if failed != "" else Tokens.ZINC_300)
+	no_preview_hint.text = ("%s. Re-export the autos, then tap Reload Autos." % failed) if failed != "" \
+		else "Export the autos into the dashboard's user folder, then tap Reload Autos."
 
 
 func set_expanded(on: bool) -> void:
@@ -463,6 +501,18 @@ func _warning_for(auto_name: String) -> String:
 	return AutoSelectionSync.validity_text(controls.sync.validity(auto_name))
 
 
+## The robot's validity warning first, then a broken export file.
+func _card_warning(auto_name: String) -> String:
+	var w := _warning_for(auto_name)
+	if w != "" or autos == null or not _names().has(auto_name):
+		return w
+	if autos.library.auto_error(auto_name) != "":
+		return "Preview failed to load"
+	if autos.library.auto_note(auto_name) != "":
+		return "Event copy broken: older preview"
+	return ""
+
+
 func refresh() -> void:
 	if controls == null:
 		return
@@ -475,12 +525,15 @@ func refresh() -> void:
 	for c in cards:
 		if c.auto_name == RETRY:
 			continue
-		c.set_state(c.auto_name == active, c.auto_name == viewing, _warning_for(c.auto_name) if c.auto_name != NONE else "")
+		c.set_state(c.auto_name == active, c.auto_name == viewing, _card_warning(c.auto_name) if c.auto_name != NONE else "")
 	if banner.visible != sync.locked():
 		banner.visible = sync.locked()
 		_layout()
 	popup.visible = sync.conflict
 	resync.disabled = sync.locked()
+	if Time.get_ticks_msec() >= _summary_ms:
+		_summary_ms = Time.get_ticks_msec() + 1000
+		_refresh_summary()
 	popup_body.text = "Robot auto changed too many times in a short window while this dashboard was trying to enforce %s." % (sync.selected if sync.selected != "" else NONE)
 	_refresh_detail(active)
 
@@ -506,16 +559,30 @@ func _refresh_detail(active: String) -> void:
 		detail_file.text = "" if not robot_only else (ROBOT_ONLY_FILE if listed else UNCONFIRMED_FILE)
 		detail_desc.text = NO_AUTO_DETAIL if not robot_only else (ROBOT_ONLY_DETAIL if listed else UNCONFIRMED_DETAIL)
 		preview.visible = false
-		no_preview.visible = robot_only
+		no_preview.visible = false
+		if robot_only:
+			_show_no_preview("")
 		start_chip.show_check({})
 		set_expanded(false)
 		_fit_desc()
 		return
 	if autos == null:
 		return
-	preview.visible = true
+	var failed := autos.library.auto_error(viewing)
+	var note := autos.library.auto_note(viewing)
+	if warn == "" and note == "" and _fresh_level == ExportFreshness.Level.DIFFERS:
+		note = PATHS_DIFFER
+	elif warn == "" and note == "" and _fresh_level == ExportFreshness.Level.OLD:
+		note = EXPORT_OLD % _fresh_age
+	if warn == "" and note != "":
+		detail_warning.text = note
+		detail_warning.get_parent().visible = true
+	preview.visible = failed == ""
 	no_preview.visible = false
-	if preview.auto_name != viewing:
+	if failed != "":
+		_show_no_preview(failed)
+		set_expanded(false)
+	elif preview.auto_name != viewing:
 		preview.show_auto(viewing)
 	detail_title.text = autos.library.display_name(viewing)
 	detail_file.text = file_line(viewing)
@@ -574,8 +641,9 @@ func probe() -> Dictionary:
 		"detail_robot": detail_robot.text, "list_scroll": list.scroll_offset,
 		"detail_file": detail_file.text, "preview": preview.probe() if preview.visible else {},
 		"expanded": expanded, "list_visible": _list_pane.visible, "no_preview": no_preview.visible,
+		"no_preview_title": no_preview_title.text if no_preview.visible else "",
 		"start_chip": start_chip.text.text if start_chip.visible else "", "start_level": start_chip.level,
-		"summary": list_summary.text, "robot_only": Array(_robot_only()), "unconfirmed": Array(_unconfirmed()),
+		"summary": list_summary.text, "fresh_level": _fresh_level, "robot_only": Array(_robot_only()), "unconfirmed": Array(_unconfirmed()),
 		"title_lines": detail_title.get_line_count(), "title_clipped": _clipped(detail_title),
 		"file_clipped": _clipped(detail_file), "robot_clipped": _clipped(detail_robot),
 		"desc_lines": detail_desc.get_line_count(), "desc_clipped": _clipped(detail_desc),

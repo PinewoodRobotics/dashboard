@@ -333,6 +333,7 @@ def main() -> int:
     ap.add_argument("--post-s", type=float, default=4.0, help="post-match length before a --loop restart, match seconds")
     ap.add_argument("--loop", action="store_true", help="restart the match after post-match")
     ap.add_argument("--game-data", default="B", help="game-specific message R or B (sets which hub is inactive first)")
+    ap.add_argument("--deploy-hash", default="", help="publish PathPlanner/DeployHash (source_hash of deploy/pathplanner)")
     ap.add_argument(
         "--no-flush",
         action="store_true",
@@ -395,6 +396,9 @@ def main() -> int:
     pp_valid = inst.getBooleanTopic("/AdvantageKit/RealOutputs/PathPlanner/SelectedAutoValid").publish()
     pp_names = inst.getStringArrayTopic("/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos").publish()
     pp_names.set(VALID_AUTOS)
+    if args.deploy_hash:
+        pp_hash = inst.getStringTopic("/AdvantageKit/RealOutputs/PathPlanner/DeployHash").publish()
+        pp_hash.set(args.deploy_hash)
 
     readout_pubs = {k: (publisher(inst, OUTPUTS + k, "boolean" if isinstance(v, bool) else "double"), v) for k, v in READOUTS.items()}
     connections_pub = inst.getIntegerTopic("/fake/connections").publish()

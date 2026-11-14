@@ -64,6 +64,9 @@ const AIM_TRIM_READBACK := "/AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg
 const PP_CURRENT_SELECTED_AUTO := "/AdvantageKit/RealOutputs/PathPlanner/CurrentSelectedAuto"
 const PP_SELECTED_AUTO_VALID := "/AdvantageKit/RealOutputs/PathPlanner/SelectedAutoValid"
 const PP_VALID_AUTOS := "/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos"
+## Optional: AutoLibrary.source_hash() of the robot's deploy/pathplanner, which
+## the robot code publishes only once it adds the README's snippet.
+const PP_DEPLOY_HASH := "/AdvantageKit/RealOutputs/PathPlanner/DeployHash"
 
 const INTAKE_SPEED_ENTRY := "Intake/Speed"
 
@@ -116,6 +119,7 @@ static func subscription_groups(nt_settings: Dictionary) -> Array:
 		PP_CURRENT_SELECTED_AUTO,
 		PP_SELECTED_AUTO_VALID,
 		PP_VALID_AUTOS,
+		PP_DEPLOY_HASH,
 	])
 	return [
 		{"topics": PackedStringArray([MATCH_STATE_PREFIX]), "options": {"prefix": true, "periodic": PERIODIC_FAST}},

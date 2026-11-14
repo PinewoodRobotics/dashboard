@@ -50,6 +50,8 @@ const ICONS = [
   "maximize-2",
   "minimize-2",
   "eye-off",
+  "file-x",
+  "clock-alert",
 ];
 
 const icons = {};

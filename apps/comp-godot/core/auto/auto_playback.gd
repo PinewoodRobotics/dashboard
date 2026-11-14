@@ -53,6 +53,62 @@ static func from_dict(d: Dictionary) -> AutoPlayback:
 	return p
 
 
+## Why d cannot be played back, or "" when it can. from_dict() trusts its
+## input, so every export goes through this first.
+static func validate(d: Variant) -> String:
+	if not d is Dictionary:
+		return "not a JSON object"
+	for k in ["dt", "duration_s"]:
+		if not _is_num(d.get(k)) or float(d[k]) < 0.0:
+			return "bad %s" % k
+	if float(d["dt"]) <= 0.0:
+		return "bad dt"
+	for k in ["segments", "events", "warnings"]:
+		if d.has(k) and not d[k] is Array:
+			return "bad %s" % k
+	for e: Variant in d.get("events", []):
+		if not e is Dictionary or not _is_num(e.get("t0")) or not _is_num(e.get("t1")):
+			return "bad event"
+	for s: Variant in d.get("segments", []):
+		if not s is Dictionary or not _is_num(s.get("t1")):
+			return "bad segment"
+	for w: Variant in d.get("warnings", []):
+		if not w is Dictionary or not w.has("code"):
+			return "bad warning"
+	var samples: Variant = d.get("samples")
+	var path := samples is Dictionary and samples.get(String(RED)) != null
+	if not path:
+		return ""
+	var n := -1
+	for side: StringName in [RED, BLUE]:
+		var raw: Variant = samples.get(String(side))
+		if not raw is Dictionary:
+			return "no %s samples" % side
+		for k: StringName in CHANNELS:
+			var a: Variant = raw.get(String(k))
+			if not a is Array or (a as Array).is_empty():
+				return "missing %s samples: %s" % [side, k]
+			if n < 0:
+				n = (a as Array).size()
+			if (a as Array).size() != n:
+				return "%s %s has %d samples, expected %d" % [side, k, (a as Array).size(), n]
+			for v: Variant in a:
+				if not _is_num(v):
+					return "non-numeric %s %s sample" % [side, k]
+		for k in ["start_pose", "end_pose"]:
+			var pose: Variant = d.get(k)
+			if not pose is Dictionary or not pose.get(String(side)) is Array or (pose[String(side)] as Array).size() != 3:
+				return "bad %s" % k
+			for v: Variant in pose[String(side)]:
+				if not _is_num(v):
+					return "bad %s" % k
+	return ""
+
+
+static func _is_num(v: Variant) -> bool:
+	return (typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT) and is_finite(float(v))
+
+
 static func _vec3(a: Array) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
 

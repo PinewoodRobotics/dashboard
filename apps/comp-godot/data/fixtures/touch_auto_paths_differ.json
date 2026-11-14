@@ -1,0 +1,11 @@
+{"extends": "touch_m6_base",
+ "touch": {"active_tab": "auto", "view_auto": "Ball Shooter Left"},
+ "input": [
+  {"wait_ms": 200},
+  {"expect": {"auto_tab.detail_warning": "", "auto_tab.fresh_level": 0}},
+  {"inject": {"/AdvantageKit/RealOutputs/PathPlanner/DeployHash": "deadbeef"}},
+  {"wait_for": {"auto_tab.fresh_level": 3}, "timeout_ms": 2000},
+  {"expect": {"auto_tab.detail_warning": "The robot's PathPlanner files differ from this export, so the preview may be out of date. Re-export the autos, then tap Reload Autos.",
+    "auto_tab.desc_clipped": {"ne": null}}},
+  {"screenshot": "differs"}
+ ]}
