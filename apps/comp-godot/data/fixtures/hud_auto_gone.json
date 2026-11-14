@@ -1,0 +1,4 @@
+{"extends": "hud_auto_mirror", "nt": {"/matchhud/state/match_phase": 1, "/matchhud/state/enabled": true, "/matchhud/state/autonomous": true, "/matchhud/state/total_time_remaining_s": 150.0},
+ "probes": [
+  {"name": "no auto label", "window": "hud", "at": [600, 490, 720, 50], "kind": "color", "color": "#70cd35", "tol": 0.1, "min_fraction": 0.0, "max_fraction": 0.0},
+  {"name": "no ribbon", "window": "hud", "at": [540, 560, 840, 520], "kind": "color", "color": "#70cd35", "tol": 0.06, "min_fraction": 0.0, "max_fraction": 0.0002}]}

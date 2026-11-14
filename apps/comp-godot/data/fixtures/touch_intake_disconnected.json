@@ -1,0 +1,1 @@
+{"extends": "touch_m6_base", "nt_link": "down", "controls": {"intake_speed": 0.42}, "touch": {"open_panel": "intakeSpeed"}}

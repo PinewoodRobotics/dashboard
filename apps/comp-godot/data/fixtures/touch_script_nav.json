@@ -1,0 +1,30 @@
+{
+  "extends": "touch_base",
+  "input": [
+    {"expect": {"state.rail": ["auto", "settings"], "state.dock": ["visual", "auto", "settings", "effects", "howard", "robot3d"]}},
+    {"tap": "LeftRail/rail_auto"},
+    {"wait_ms": 300},
+    {"expect": {"state.active_tab": "auto", "touch.driver.rendering": false}},
+    {"screenshot": "tab_open"},
+    {"swipe": {"from": [900, 120], "to": [900, 470], "ms": 200}},
+    {"wait_ms": 350},
+    {"expect": {"state.active_tab": "", "touch.driver.rendering": true, "touch.overlay.tabs": []}},
+    {"tap": "LeftRail/DockToggle"},
+    {"wait_ms": 200},
+    {"expect": {"state.dock_open": true, "touch.dock.visible": true}},
+    {"hold_drag": {"from": "Dock/dock_howard", "to": {"node": "LeftRail/rail_settings", "offset": [0, -5]}, "hold_ms": 350, "ms": 300, "release": false}},
+    {"screenshot": "dragging"},
+    {"release": {"node": "LeftRail/rail_settings", "offset": [0, -5]}},
+    {"expect": {"state.rail": ["auto", "howard", "settings"], "settings.layout.rail": ["auto", "howard", "settings"]}},
+    {"tap": "LeftRail/DockToggle"},
+    {"wait_ms": 200},
+    {"expect": {"state.dock_open": false}},
+    {"tap": "LeftRail/rail_howard"},
+    {"wait_ms": 300},
+    {"expect": {"state.active_tab": "howard"}},
+    {"tap": "LeftRail/Home"},
+    {"wait_ms": 300},
+    {"expect": {"state.active_tab": "", "max_rendering_views": {"le": 2}}},
+    {"call": "save_settings"}
+  ]
+}

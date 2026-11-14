@@ -1,0 +1,2 @@
+{"extends": "touch_m6_base", "nt": {"/Shared/PathPlanner/SelectedPath/State": "Climber Right Left"},
+ "controls": {"selected_auto": "Ball Shooter Left", "conflict": true}, "touch": {"active_tab": "auto"}}

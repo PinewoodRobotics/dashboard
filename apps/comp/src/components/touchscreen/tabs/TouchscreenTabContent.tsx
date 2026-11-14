@@ -6,6 +6,12 @@ import { HowardTab } from "./HowardTab";
 import { SettingsTab } from "./SettingsTab";
 import { VisualTab } from "./VisualTab";
 
+// MediaRecorder + getUserMedia are browser-only — keep the Record app out of the server bundle
+const RecordTab = dynamic(() => import("./RecordTab").then((m) => m.RecordTab), {
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-[#272727]" />,
+});
+
 // Canvas must not SSR — dynamic import keeps Three.js out of the server bundle
 const Robot3DTab = dynamic(() => import("./Robot3DTab").then((m) => m.Robot3DTab), {
   ssr: false,
@@ -27,6 +33,9 @@ export function TouchscreenTabContent({ tabId }: { tabId: OverlayTabId }) {
   }
   if (tabId === "visual") {
     return <VisualTab />;
+  }
+  if (tabId === "record") {
+    return <RecordTab />;
   }
   return <EffectsTab />;
 }

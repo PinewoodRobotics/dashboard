@@ -1,0 +1,32 @@
+{
+ "version": 1,
+ "source": "FIR src/2026Rebuilt @ a7e6ddd: RobotContainer.java (NamedCommands), command/intake/IntakeCommand.java, constant/IntakeConstants.java, subsystem/IntakeSubsystem.java",
+ "auto_length_s": 20.0,
+ "robot_loop_s": 0.02,
+ "wrist": {
+  "at_setpoint_check": "always_true",
+  "at_setpoint_check_note": "IntakeSubsystem.wristAtSetpoint() returns true with its tolerance check commented out, so commands that end at the wrist setpoint finish after one robot loop. Set this to \"tolerance\" once the robot checks the real wrist position; travel_s is then used.",
+  "travel_s": 0.5,
+  "closed_loop_enabled": false,
+  "closed_loop_note": "IntakeSubsystem.periodic() has the wrist position controller commented out, so setpoints are recorded but the wrist is not driven.",
+  "setpoints_rot": {"BOTTOM": 0.0, "MIDDLE": 0.338, "TOP": 0.338},
+  "setpoints_note": "intakeType is \"BELT\", so MIDDLE is 0.338 rotations; 0.1 is the value for the other intake type."
+ },
+ "intake_default_command": {
+  "wrist": "MIDDLE",
+  "rollers": false,
+  "note": "When no auto command holds the intake, its default IntakeCommand runs with the operator switches off: wrist to the alternate raise location (MIDDLE), rollers stopped."
+ },
+ "bound_event_triggers": [],
+ "commands": {
+  "ContinuousAimCommand": {"registered": true, "end": "never", "effect": {"aim": true}},
+  "ContinuousShooterCommand": {"registered": true, "end": "never", "effect": {"shooter": true}},
+  "IntakeCommand": {"registered": true, "end": "never", "effect": {"wrist": "BOTTOM", "rollers": true}},
+  "IntakeBottomCommand": {"registered": true, "end": "wrist_at_setpoint", "effect": {"wrist": "BOTTOM", "rollers": true}},
+  "IntakeMiddleCommand": {"registered": true, "end": "wrist_at_setpoint", "effect": {"wrist": "MIDDLE", "rollers": false}},
+  "IntakeTopCommand": {"registered": true, "end": "wrist_at_setpoint", "effect": {"wrist": "TOP", "rollers": false}},
+  "MoveClimberUp": {"registered": false, "end": "instant", "note": "Not registered; the robot has no climber."},
+  "MoveClimberDown": {"registered": false, "end": "instant", "note": "Not registered; the robot has no climber."},
+  "ClimberL1Command": {"registered": false, "end": "instant", "note": "Not registered; the robot has no climber."}
+ }
+}

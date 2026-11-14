@@ -1,0 +1,608 @@
+{
+ "version": 1,
+ "generator": "tools/pathplanner/export_autos.py",
+ "trajectory_library": {
+  "provider": "java",
+  "name": "PathplannerLib-java",
+  "version": "2027.0.0-alpha-4.1",
+  "dumped_at": "2026-11-14T12:28:08Z"
+ },
+ "robot_library": {
+  "name": "PathplannerLib-java",
+  "version": "2027.0.0-alpha-4.1"
+ },
+ "source_hash": "3e03068c8f377014417fb19d87aa685f6bdf1c078e85db1650972f7c88b9a807",
+ "commands_hash": "c528a78ac55f800dab3da4b0d71f6b0749a5b927d267773d44bce56ac3f208a0",
+ "paths_hash": "a9bf27b3d3755256a20a4b0aa4787cc1047a5e2e53be0a234d6948cf354e9e34",
+ "exported_at": "2026-11-14T12:28:09Z",
+ "registered_commands": [
+  "ContinuousAimCommand",
+  "ContinuousShooterCommand",
+  "IntakeBottomCommand",
+  "IntakeCommand",
+  "IntakeMiddleCommand",
+  "IntakeTopCommand"
+ ],
+ "registered_source": "robot_code",
+ "field": {
+  "length_m": 16.54,
+  "width_m": 8.07,
+  "symmetry": "rotational"
+ },
+ "frame": "WPILib blue-origin field meters, heading in radians CCW; 'red' is the authored path, 'blue' the PathPlannerLib flip",
+ "dt": 0.02,
+ "auto_length_s": 20.0,
+ "autos": [
+  {
+   "name": "Ball Shooter Left",
+   "file": "Ball Shooter Left.json",
+   "folder": "Going Out",
+   "duration_s": 15.6,
+   "sample_count": 781,
+   "has_path": true,
+   "paths": [
+    "Ball Shooter Left"
+   ],
+   "ends_by_itself": false,
+   "warnings": [
+    "unbound_marker"
+   ]
+  },
+  {
+   "name": "Ball Shooter Right",
+   "file": "Ball Shooter Right.json",
+   "folder": "Going Out",
+   "duration_s": 15.6,
+   "sample_count": 781,
+   "has_path": true,
+   "paths": [
+    "Ball Shooter Right"
+   ],
+   "ends_by_itself": false,
+   "warnings": [
+    "unbound_marker"
+   ]
+  },
+  {
+   "name": "Climber Right Left",
+   "file": "Climber Right Left.json",
+   "folder": "Climber",
+   "duration_s": 10.9,
+   "sample_count": 546,
+   "has_path": true,
+   "paths": [
+    "Climber Right Left",
+    "Climber Right Close"
+   ],
+   "ends_by_itself": true,
+   "warnings": [
+    "unregistered_command"
+   ]
+  },
+  {
+   "name": "Climber Right Middle",
+   "file": "Climber Right Middle.json",
+   "folder": "Climber",
+   "duration_s": 7.16,
+   "sample_count": 359,
+   "has_path": true,
+   "paths": [
+    "Climber Right Middle"
+   ],
+   "ends_by_itself": true,
+   "warnings": [
+    "unregistered_command"
+   ]
+  },
+  {
+   "name": "Climber Right Right",
+   "file": "Climber Right Right.json",
+   "folder": "Climber",
+   "duration_s": 13.92,
+   "sample_count": 697,
+   "has_path": true,
+   "paths": [
+    "Climber Right Right",
+    "Climber Left Close"
+   ],
+   "ends_by_itself": true,
+   "warnings": [
+    "unregistered_command"
+   ]
+  },
+  {
+   "name": "Move Forward And Shoot Center",
+   "file": "Move Forward And Shoot Center.json",
+   "folder": "Move Forward",
+   "duration_s": 2.5,
+   "sample_count": 126,
+   "has_path": true,
+   "paths": [
+    "Move Forward Center"
+   ],
+   "ends_by_itself": false,
+   "warnings": []
+  },
+  {
+   "name": "Move Forward And Shoot Left",
+   "file": "Move Forward And Shoot Left.json",
+   "folder": "Move Forward",
+   "duration_s": 2.96,
+   "sample_count": 149,
+   "has_path": true,
+   "paths": [
+    "Move Forward Left"
+   ],
+   "ends_by_itself": false,
+   "warnings": []
+  },
+  {
+   "name": "Move Forward And Shoot Right",
+   "file": "Move Forward And Shoot Right.json",
+   "folder": "Move Forward",
+   "duration_s": 2.58,
+   "sample_count": 130,
+   "has_path": true,
+   "paths": [
+    "Move Forward Right"
+   ],
+   "ends_by_itself": false,
+   "warnings": []
+  },
+  {
+   "name": "Stay And Shoot",
+   "file": "Stay And Shoot.json",
+   "folder": null,
+   "duration_s": 0.0,
+   "sample_count": 0,
+   "has_path": false,
+   "paths": [],
+   "ends_by_itself": false,
+   "warnings": []
+  }
+ ],
+ "paths": [
+  {
+   "name": "Ball Shooter Left",
+   "duration_s": 15.5911423,
+   "python_duration_s": 15.9492366,
+   "states": 68,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    14.4948767,
+    2.0690725,
+    2.5889564
+   ],
+   "end_pose": [
+    8.7334808,
+    6.8676074,
+    1.5707963
+   ],
+   "python_end_pose": [
+    8.7334808,
+    6.8676074,
+    1.5707963
+   ],
+   "events": [
+    "TriggerEvent",
+    "TriggerEvent"
+   ],
+   "used_by": [
+    "Ball Shooter Left"
+   ]
+  },
+  {
+   "name": "Ball Shooter Right",
+   "duration_s": 15.5911423,
+   "python_duration_s": 15.9492382,
+   "states": 68,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    14.4948767,
+    5.9999275,
+    -2.5889564
+   ],
+   "end_pose": [
+    8.7334808,
+    1.2013926,
+    -1.5707963
+   ],
+   "python_end_pose": [
+    8.7334808,
+    1.2013926,
+    -1.5707963
+   ],
+   "events": [
+    "TriggerEvent",
+    "TriggerEvent"
+   ],
+   "used_by": [
+    "Ball Shooter Right"
+   ]
+  },
+  {
+   "name": "Climber Left Close",
+   "duration_s": 5.6312211,
+   "python_duration_s": 5.6312211,
+   "states": 3,
+   "max_velocity_mps": 0.15,
+   "start_pose": [
+    15.469,
+    5.4053416,
+    1.5707963
+   ],
+   "end_pose": [
+    15.469,
+    4.983,
+    1.5707963
+   ],
+   "python_end_pose": [
+    15.469,
+    4.983,
+    1.5707963
+   ],
+   "events": [],
+   "used_by": [
+    "Climber Right Right"
+   ]
+  },
+  {
+   "name": "Climber Left",
+   "duration_s": 3.0060547,
+   "python_duration_s": 3.0060547,
+   "states": 11,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    15.3810663,
+    2.0632067,
+    3.1415927
+   ],
+   "end_pose": [
+    14.9585345,
+    3.8583108,
+    3.1415927
+   ],
+   "python_end_pose": [
+    14.9585345,
+    3.8583108,
+    3.1415927
+   ],
+   "events": [],
+   "used_by": []
+  },
+  {
+   "name": "Climber Middle",
+   "duration_s": 1.4739645,
+   "python_duration_s": 1.4754971,
+   "states": 4,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    14.504444,
+    4.0335566,
+    -3.1319401
+   ],
+   "end_pose": [
+    15.0008533,
+    3.8482068,
+    3.1415927
+   ],
+   "python_end_pose": [
+    15.0008533,
+    3.8482068,
+    3.1415927
+   ],
+   "events": [],
+   "used_by": []
+  },
+  {
+   "name": "Climber Right Close",
+   "duration_s": 3.3341845,
+   "python_duration_s": 3.3341845,
+   "states": 4,
+   "max_velocity_mps": 0.2,
+   "start_pose": [
+    15.469,
+    3.251,
+    -1.5707963
+   ],
+   "end_pose": [
+    15.469,
+    3.683,
+    -1.5707963
+   ],
+   "python_end_pose": [
+    15.469,
+    3.683,
+    -1.5707963
+   ],
+   "events": [],
+   "used_by": [
+    "Climber Right Left"
+   ]
+  },
+  {
+   "name": "Climber Right Left",
+   "duration_s": 7.5321597,
+   "python_duration_s": 7.5321597,
+   "states": 20,
+   "max_velocity_mps": 0.5,
+   "start_pose": [
+    13.135021,
+    1.4269157,
+    -0.7853982
+   ],
+   "end_pose": [
+    15.482,
+    3.251,
+    -1.5707963
+   ],
+   "python_end_pose": [
+    15.482,
+    3.251,
+    -1.5707963
+   ],
+   "events": [],
+   "used_by": [
+    "Climber Right Left"
+   ]
+  },
+  {
+   "name": "Climber Right Middle",
+   "duration_s": 7.1406311,
+   "python_duration_s": 7.1406311,
+   "states": 10,
+   "max_velocity_mps": 0.5,
+   "start_pose": [
+    14.010003,
+    4.0594727,
+    2.449852
+   ],
+   "end_pose": [
+    15.0025726,
+    4.7602848,
+    3.1415927
+   ],
+   "python_end_pose": [
+    15.0025726,
+    4.7602848,
+    3.1415927
+   ],
+   "events": [],
+   "used_by": [
+    "Climber Right Middle"
+   ]
+  },
+  {
+   "name": "Climber Right Right",
+   "duration_s": 8.2628386,
+   "python_duration_s": 7.9515676,
+   "states": 18,
+   "max_velocity_mps": 0.5,
+   "start_pose": [
+    12.9742752,
+    6.6045053,
+    0.7853982
+   ],
+   "end_pose": [
+    15.469,
+    5.4053416,
+    1.5707963
+   ],
+   "python_end_pose": [
+    15.469,
+    5.4053416,
+    1.5707963
+   ],
+   "events": [],
+   "used_by": [
+    "Climber Right Right"
+   ]
+  },
+  {
+   "name": "Move Forward Center",
+   "duration_s": 2.464392,
+   "python_duration_s": 2.464392,
+   "states": 8,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    13.1694716,
+    4.0435395,
+    -0.7853982
+   ],
+   "end_pose": [
+    14.4283056,
+    4.7764179,
+    -0.7853982
+   ],
+   "python_end_pose": [
+    14.4283056,
+    4.7764179,
+    -0.7853982
+   ],
+   "events": [],
+   "used_by": [
+    "Move Forward And Shoot Center"
+   ]
+  },
+  {
+   "name": "Move Forward Left",
+   "duration_s": 2.9364194,
+   "python_duration_s": 2.9364194,
+   "states": 11,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    13.1252299,
+    1.4116588,
+    -0.7853982
+   ],
+   "end_pose": [
+    14.6819558,
+    2.5554472,
+    -0.7853982
+   ],
+   "python_end_pose": [
+    14.6819558,
+    2.5554472,
+    -0.7853982
+   ],
+   "events": [],
+   "used_by": [
+    "Move Forward And Shoot Left"
+   ]
+  },
+  {
+   "name": "Move Forward Right",
+   "duration_s": 2.5594904,
+   "python_duration_s": 2.5594904,
+   "states": 9,
+   "max_velocity_mps": 1.0,
+   "start_pose": [
+    13.1358134,
+    6.5926601,
+    -0.7853982
+   ],
+   "end_pose": [
+    14.4933119,
+    5.8404699,
+    -0.7853982
+   ],
+   "python_end_pose": [
+    14.4933119,
+    5.8404699,
+    -0.7853982
+   ],
+   "events": [],
+   "used_by": [
+    "Move Forward And Shoot Right"
+   ]
+  }
+ ],
+ "parity": {
+  "python_library": {
+   "name": "robotpy-pathplannerlib",
+   "version": "2026.1.2"
+  },
+  "java_library": {
+   "name": "PathplannerLib-java",
+   "version": "2027.0.0-alpha-4.1"
+  },
+  "dumped_at": "2026-11-14T12:28:08Z",
+  "stale": false,
+  "tolerance": {
+   "duration_rel": 0.02,
+   "end_pose_m": 0.02
+  },
+  "ok": false,
+  "decision": "Java trajectories are exported (python and java disagree)",
+  "rows": [
+   {
+    "name": "Ball Shooter Left",
+    "python_duration_s": 15.9492366,
+    "java_duration_s": 15.5911423,
+    "duration_rel_diff": 0.0229678,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": false
+   },
+   {
+    "name": "Ball Shooter Right",
+    "python_duration_s": 15.9492382,
+    "java_duration_s": 15.5911423,
+    "duration_rel_diff": 0.0229679,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": false
+   },
+   {
+    "name": "Climber Left Close",
+    "python_duration_s": 5.6312211,
+    "java_duration_s": 5.6312211,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Climber Left",
+    "python_duration_s": 3.0060547,
+    "java_duration_s": 3.0060547,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Climber Middle",
+    "python_duration_s": 1.4754971,
+    "java_duration_s": 1.4739645,
+    "duration_rel_diff": 0.0010398,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Climber Right Close",
+    "python_duration_s": 3.3341845,
+    "java_duration_s": 3.3341845,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Climber Right Left",
+    "python_duration_s": 7.5321597,
+    "java_duration_s": 7.5321597,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Climber Right Middle",
+    "python_duration_s": 7.1406311,
+    "java_duration_s": 7.1406311,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Climber Right Right",
+    "python_duration_s": 7.9515676,
+    "java_duration_s": 8.2628386,
+    "duration_rel_diff": 0.0376712,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": false
+   },
+   {
+    "name": "Move Forward Center",
+    "python_duration_s": 2.464392,
+    "java_duration_s": 2.464392,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Move Forward Left",
+    "python_duration_s": 2.9364194,
+    "java_duration_s": 2.9364194,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   },
+   {
+    "name": "Move Forward Right",
+    "python_duration_s": 2.5594904,
+    "java_duration_s": 2.5594904,
+    "duration_rel_diff": 0.0,
+    "end_pose_diff_m": 0.0,
+    "end_heading_diff_rad": 0.0,
+    "ok": true
+   }
+  ]
+ }
+}

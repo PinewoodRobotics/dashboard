@@ -1,0 +1,5 @@
+{"extends": "hud_auto_path",
+ "nt": {"/matchhud/state/robot_pose_x_m": 1.5, "/matchhud/state/robot_pose_y_m": 3.3, "/matchhud/state/robot_heading_rad": 1.8},
+ "probes": [
+  {"name": "amber start pose chip", "window": "hud", "at": [640, 548, 640, 44], "kind": "color", "color": "#fbbf24", "tol": 0.1, "min_fraction": 0.03},
+  {"name": "no green start chip", "window": "hud", "at": [640, 548, 640, 44], "kind": "color", "color": "#70cd35", "tol": 0.08, "min_fraction": 0.0, "max_fraction": 0.001}]}

@@ -1,0 +1,9 @@
+{"extends": "touch_m6_base",
+ "touch": {"active_tab": "auto", "view_auto": "Ball Shooter Left"},
+ "export_age_s": 432000,
+ "input": [
+  {"wait_ms": 200},
+  {"expect": {"auto_tab.fresh_level": 1,
+    "auto_tab.detail_warning": "This export is 5 d old. If a path was edited since, the preview is out of date: re-export the autos."}},
+  {"screenshot": "old"}
+ ]}

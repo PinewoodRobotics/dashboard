@@ -1,0 +1,25 @@
+{
+  "extends": "touch_base",
+  "input": [
+    {"tap": "RightDrawer/Panel_showMap"},
+    {"wait_ms": 300},
+    {"expect": {"state.open_panel": "showMap", "touch.drawer.rect": [1380, 0, 540, 515]}},
+    {"mark": "m0"},
+    {"drag": {"from": {"node": "find:Zoom", "at": [100, 60]}, "to": {"node": "find:Zoom", "at": [300, 60]}, "ms": 250}},
+    {"wait_ms": 400},
+    {"expect": {"settings.map.zoom": {"ge": 0.9}, "minimap.camera": {"changed_since": "m0"}, "minimap.dist": {"changed_since": "m0"}, "state.open_panel": "showMap"}},
+    {"screenshot": "zoomed"},
+    {"mark": "m1"},
+    {"tap": {"node": "find:Mode", "at": [40, 76]}},
+    {"wait_ms": 400},
+    {"expect": {"settings.map.mode": "driver", "minimap.camera": {"changed_since": "m1"}}},
+    {"mark": "m2"},
+    {"drag": {"from": {"node": "find:Angle", "at": [300, 60]}, "to": {"node": "find:Angle", "at": [200, 60]}, "ms": 250}},
+    {"wait_ms": 400},
+    {"expect": {"settings.map.angle": {"near": 0.06, "tol": 0.02}, "minimap.camera": {"changed_since": "m2"}}},
+    {"swipe": {"from": [1520, 30], "to": [1880, 30], "ms": 200}},
+    {"wait_ms": 350},
+    {"expect": {"state.open_panel": "", "touch.drawer.rect": [1836, 0, 84, 515], "max_rendering_views": {"le": 2}}},
+    {"call": "save_settings"}
+  ]
+}

@@ -8,6 +8,9 @@ const autobahnCallbacks = new Map();
 const autobahnStatusCallbacks = new Map();
 let nextAutobahnStatusCallbackId = 1;
 
+const recorderStatusCallbacks = new Map();
+let nextRecorderStatusCallbackId = 1;
+
 ipcRenderer.on("blitz:settings:update", (_event, snapshot) => {
   settingsCallbacks.forEach((callback) => {
     callback(snapshot);
@@ -39,6 +42,12 @@ ipcRenderer.on("blitz:autobahn:update", (_event, update) => {
 ipcRenderer.on("blitz:autobahn:status", (_event, isConnected) => {
   autobahnStatusCallbacks.forEach((callback) => {
     callback(isConnected);
+  });
+});
+
+ipcRenderer.on("blitz:recorder:status", (_event, status) => {
+  recorderStatusCallbacks.forEach((callback) => {
+    callback(status);
   });
 });
 
@@ -102,5 +111,33 @@ contextBridge.exposeInMainWorld("blitzRenderer", {
     },
     publish: (params) => ipcRenderer.invoke("blitz:autobahn:publish", params),
     reconnect: () => ipcRenderer.invoke("blitz:autobahn:reconnect"),
+  },
+  recorder: {
+    getStatus: () => ipcRenderer.invoke("blitz:recorder:get-status"),
+    subscribeStatus: (callback) => {
+      const callbackId = nextRecorderStatusCallbackId++;
+      recorderStatusCallbacks.set(callbackId, callback);
+      return callbackId;
+    },
+    unsubscribeStatus: (callbackId) => {
+      recorderStatusCallbacks.delete(callbackId);
+    },
+    start: (options) => ipcRenderer.invoke("blitz:recorder:start", options ?? {}),
+    stop: () => ipcRenderer.invoke("blitz:recorder:stop"),
+    listSessions: () => ipcRenderer.invoke("blitz:recorder:list-sessions"),
+    deleteSession: (id) => ipcRenderer.invoke("blitz:recorder:delete-session", id),
+    revealSession: (id) => ipcRenderer.invoke("blitz:recorder:reveal-session", id),
+    setAutoRecord: (enabled) => ipcRenderer.invoke("blitz:recorder:set-auto-record", enabled),
+    chooseRecordingsDir: () => ipcRenderer.invoke("blitz:recorder:choose-dir"),
+    setRecordingsDir: (dir) => ipcRenderer.invoke("blitz:recorder:set-dir", dir),
+    beginVideo: (info) => ipcRenderer.invoke("blitz:recorder:begin-video", info),
+    // Structured clone keeps this zero-copy-ish; chunks arrive once per timeslice.
+    appendVideoChunk: (chunk) => ipcRenderer.invoke("blitz:recorder:append-video", chunk),
+    endVideo: () => ipcRenderer.invoke("blitz:recorder:end-video"),
+  },
+  media: {
+    getCameraStatus: () => ipcRenderer.invoke("blitz:media:get-camera-status"),
+    requestCamera: () => ipcRenderer.invoke("blitz:media:request-camera"),
+    openCameraSettings: () => ipcRenderer.invoke("blitz:media:open-camera-settings"),
   },
 });

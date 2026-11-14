@@ -8,6 +8,7 @@ export interface NetworkTablesSettings {
 export interface ConnectionSettings {
   host: string;
   port: number;
+  reconnectTimeoutSeconds?: number;
   networkTables: NetworkTablesSettings;
 }
 
@@ -40,9 +41,18 @@ export interface SharedSettingsPayload {
   visualSettings?: VisualSettings;
 }
 
+export const DEFAULT_RECONNECT_TIMEOUT_SECONDS = 10;
+
+export function normalizeReconnectTimeoutSeconds(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 2 && v <= 60
+    ? Math.round(v)
+    : DEFAULT_RECONNECT_TIMEOUT_SECONDS;
+}
+
 export const DEFAULTS: ConnectionSettings = {
   host: "10.47.65.7",
   port: 8080,
+  reconnectTimeoutSeconds: DEFAULT_RECONNECT_TIMEOUT_SECONDS,
   networkTables: {
     host: "10.47.65.2",
     port: 5810,

@@ -1,0 +1,2 @@
+{"extends": "touch_m6_base", "nt": {"/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos": ["Ball Shooter Right", "Stay And Shoot"],
+  "/AdvantageKit/RealOutputs/PathPlanner/SelectedAutoValid": false}, "touch": {"active_tab": "auto"}}

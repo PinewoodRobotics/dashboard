@@ -1,0 +1,10 @@
+{
+  "extends": "m2_base",
+  "camera": {"hud": {"position": [0, 24, 0.0], "target": [0, 0, 0], "up": [0, 0, -1]}},
+  "probes": [
+    {"name": "bumpers blue", "window": "hud", "at": "robot", "half": 16, "kind": "hue", "hue": "blue", "min_fraction": 0.08},
+    {"name": "no red bumper", "window": "hud", "at": "robot", "half": 16, "kind": "hue", "hue": "red", "max_fraction": 0.005, "min_fraction": 0.0},
+    {"name": "field drawn", "window": "hud", "at": [560, 650, 800, 260], "kind": "nonblack", "min_fraction": 0.5},
+    {"name": "touch robot drawn", "window": "touch", "at": "robot", "half": 120, "kind": "nonblack", "min_fraction": 0.1}
+  ]
+}

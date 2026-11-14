@@ -1,0 +1,71 @@
+class_name WindowManager
+extends RefCounted
+
+## One process, up to two OS windows: the root window shows the first screen,
+## a non-embedded child Window shows the touchscreen when --screen=both.
+## Windows open windowed at two thirds of the design size.
+
+const HUD_DESIGN := Vector2i(1920, 1080)
+const TOUCH_DESIGN := Vector2i(1920, 515)
+const DEV_SCALE := 2.0 / 3.0
+
+const SCREENS := ["both", "hud", "touch"]
+
+
+static func parse_screen(args: Dictionary) -> String:
+	var s := str(args.get("screen", "both"))
+	return s if SCREENS.has(s) else "both"
+
+
+static func design_size(screen_name: String) -> Vector2i:
+	return TOUCH_DESIGN if screen_name == "touch" else HUD_DESIGN
+
+
+static func configure(window: Window, screen_name: String) -> void:
+	var design := design_size(screen_name)
+	window.content_scale_size = design
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+
+
+static func dev_size(screen_name: String) -> Vector2i:
+	return Vector2i((Vector2(design_size(screen_name)) * DEV_SCALE).round())
+
+
+## Root window: resized to the screen it hosts (the project default is the HUD).
+static func setup_root(root: Window, screen_name: String, full_size: bool = false) -> void:
+	configure(root, screen_name)
+	root.title = "PWRUP Comp - %s" % ("Touchscreen" if screen_name == "touch" else "HUD")
+	if DisplayServer.get_name() != "headless":
+		root.size = design_size(screen_name) if full_size else dev_size(screen_name)
+
+
+static func create_touch_window(root: Window, full_size: bool = false) -> Window:
+	var w := Window.new()
+	w.name = "TouchWindow"
+	w.title = "PWRUP Comp - Touchscreen"
+	configure(w, "touch")
+	w.size = design_size("touch") if full_size else dev_size("touch")
+	w.position = root.position + Vector2i(0, root.size.y + 40)
+	w.transient = false
+	w.wrap_controls = false
+	w.close_requested.connect(func() -> void: root.get_tree().quit())
+	return w
+
+
+## MODE_FULLSCREEN is borderless and not exclusive, so focusing one window
+## never minimizes the other. A borderless window sized to the screen is not a
+## substitute: macOS treats it as occluded and stops drawing it.
+static func apply_placement(key: String, window: Window, p: Dictionary) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if p["mode"] == "fullscreen":
+		if window.mode != Window.MODE_WINDOWED:
+			window.mode = Window.MODE_WINDOWED
+		window.current_screen = int(p["screen"])
+		window.mode = Window.MODE_FULLSCREEN
+		return
+	if window.mode != Window.MODE_WINDOWED:
+		window.mode = Window.MODE_WINDOWED
+		window.size = dev_size(key)
+		window.move_to_center()

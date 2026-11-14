@@ -35,6 +35,47 @@ export interface AutobahnTopicUpdate {
   isConnected: boolean;
 }
 
+/** Live recorder state, pushed from the Electron main process at ~4 Hz. */
+export interface RecorderStatus {
+  isRecording: boolean;
+  isConnected: boolean;
+  host: string;
+  port: number;
+  sessionId: string | null;
+  startedAtIso: string | null;
+  elapsedMs: number;
+  bytesWritten: number;
+  topicCount: number;
+  sampleCount: number;
+  samplesPerSecond: number;
+  hadConnectionLoss: boolean;
+  autoRecord: boolean;
+  robotEnabled: boolean;
+  recordingsDir: string;
+  lastError: string | null;
+  video: { active: boolean; deviceLabel: string | null; bytesWritten: number } | null;
+}
+
+/** One finished (or in-flight) recording, mirrored by the `<id>.json` sidecar on disk. */
+export interface RecorderSessionSummary {
+  id: string;
+  logPath: string;
+  logBytes: number;
+  videoPath: string | null;
+  videoBytes: number | null;
+  videoStartOffsetMs: number | null;
+  startedAtIso: string;
+  endedAtIso: string | null;
+  durationMs: number;
+  topicCount: number;
+  sampleCount: number;
+  host: string;
+  port: number;
+  hadConnectionLoss: boolean;
+  autoStarted: boolean;
+  note: string | null;
+}
+
 export interface BlitzRendererBridge {
   platform: string;
   electronVersion: string;
@@ -66,6 +107,22 @@ export interface BlitzRendererBridge {
     unsubscribeTopic: (subscriptionId: number) => Promise<void>;
     publish: (params: { topic: string; payload: Uint8Array | ArrayBuffer }) => Promise<void>;
     reconnect: () => Promise<void>;
+  };
+  recorder: {
+    getStatus: () => Promise<RecorderStatus>;
+    subscribeStatus: (callback: (status: RecorderStatus) => void) => number;
+    unsubscribeStatus: (callbackId: number) => void;
+    start: (options?: { note?: string }) => Promise<RecorderSessionSummary>;
+    stop: () => Promise<RecorderSessionSummary | null>;
+    listSessions: () => Promise<RecorderSessionSummary[]>;
+    deleteSession: (id: string) => Promise<void>;
+    revealSession: (id: string) => Promise<void>;
+    setAutoRecord: (enabled: boolean) => Promise<RecorderStatus>;
+    chooseRecordingsDir: () => Promise<string | null>;
+    setRecordingsDir: (dir: string) => Promise<RecorderStatus>;
+    beginVideo: (info: { deviceLabel: string; mimeType: string }) => Promise<void>;
+    appendVideoChunk: (chunk: Uint8Array) => Promise<void>;
+    endVideo: () => Promise<void>;
   };
 }
 

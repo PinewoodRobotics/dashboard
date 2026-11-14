@@ -1,0 +1,15 @@
+{
+  "extends": "touch_m6_base",
+  "nt": {"/matchhud/state/match_phase": 0, "/matchhud/state/is_red_alliance": true},
+  "touch": {"active_tab": "auto", "view_auto": "Ball Shooter Left"},
+  "preview": {"realtime": true},
+  "input": [
+    {"expect": {"autos.hud.mirror": false, "minimap.mirroring": false, "minimap.auto_overlay": "Ball Shooter Left|red"}},
+    {"tap": "find:PlayPause"},
+    {"wait_ms": 3000},
+    {"expect": {"autos.playing": true, "autos.hud.mirror": true, "minimap.mirroring": true, "minimap.auto_overlay": "Ball Shooter Left|red",
+      "max_rendering_views": {"le": 2}}, "screenshot": "mirror_touch"},
+    {"window": "hud", "screenshot": "mirror"},
+    {"window": "touch"}
+  ]
+}

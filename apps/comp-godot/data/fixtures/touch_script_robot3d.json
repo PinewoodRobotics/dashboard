@@ -1,0 +1,17 @@
+{
+  "extends": "touch_base",
+  "nt": {"/AdvantageKit/RealOutputs/Turret/PositionRot": null, "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition": null},
+  "touch": {"active_tab": "robot3d"},
+  "input": [
+    {"expect": {"robot3d.turret.disabled": false, "robot3d.turret.source": "Manual fallback: Turret/PositionRot", "touch.driver.rendering": false}},
+    {"drag": {"from": {"node": "find:Joint_turret/Slider", "at": [40, 50]}, "to": {"node": "find:Joint_turret/Slider", "at": [130, 50]}, "ms": 250}},
+    {"expect": {"telemetry.manual.turret": {"ge": 1.0}, "telemetry.targets.turret": {"ge": 1.0}, "telemetry.targets.turret_gear": {"le": -1.0}}},
+    {"screenshot": "turret_moved"},
+    {"tap": "find:Joint_turret/Reset"},
+    {"expect": {"telemetry.manual.turret": 0.0, "robot3d.turret.value": 0.0}},
+    {"drag": {"from": {"node": "find:Joint_index_wrist/Slider", "at": [150, 50]}, "to": {"node": "find:Joint_index_wrist/Slider", "at": [60, 50]}, "ms": 250}},
+    {"expect": {"telemetry.manual.index_wrist": {"le": -0.5}}},
+    {"tap": "find:ResetAll"},
+    {"expect": {"telemetry.manual.index_wrist": 0.0, "max_rendering_views": {"le": 2}}}
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "extends": "touch_m6_base",
+  "controls": {
+    "selected_auto": ""
+  },
+  "touch": {
+    "active_tab": "auto"
+  },
+  "input": [
+    {
+      "expect": {
+        "auto_tab.card_count": 10,
+        "auto_tab.viewing": "Ball Shooter Left",
+        "auto_tab.button": "Selected",
+        "auto_tab.banner": false
+      }
+    },
+    {
+      "tap": "find:Card_NONE"
+    },
+    {
+      "expect": {
+        "auto_tab.viewing": "NONE",
+        "auto_tab.detail_title": "No Auto",
+        "auto_tab.button": "Select"
+      }
+    },
+    {
+      "tap": "find:Select"
+    },
+    {
+      "expect": {
+        "controls.auto.selected": "NONE",
+        "controls.auto.last_wire": "NONE",
+        "auto_tab.button": "Selecting...",
+        "settings.controls.selected_auto": "NONE"
+      }
+    },
+    {
+      "inject": {
+        "/Shared/PathPlanner/SelectedPath/State": "NONE"
+      }
+    },
+    {
+      "expect": {
+        "auto_tab.button": "Selected",
+        "auto_tab.cards.NONE.active": true
+      }
+    },
+    {
+      "inject": {
+        "/matchhud/state/enabled": true
+      }
+    },
+    {
+      "expect": {
+        "auto_tab.banner": true,
+        "auto_tab.button": "Locked During Match",
+        "auto_tab.button_enabled": false
+      }
+    },
+    {
+      "tap": "find:Card_Ball_Shooter_Left"
+    },
+    {
+      "tap": "find:Select"
+    },
+    {
+      "expect": {
+        "controls.auto.selected": "NONE",
+        "auto_tab.button": "Locked During Match"
+      }
+    },
+    {
+      "screenshot": "locked"
+    },
+    {
+      "inject": {
+        "/matchhud/state/enabled": false
+      }
+    },
+    {
+      "expect": {
+        "auto_tab.banner": false,
+        "auto_tab.button": "Select"
+      }
+    },
+    {
+      "tap": "LeftRail/Home"
+    },
+    {
+      "wait_ms": 300
+    },
+    {
+      "tap": "LeftRail/rail_settings"
+    },
+    {
+      "wait_ms": 300
+    },
+    {
+      "expect": {
+        "state.active_tab": "settings",
+        "settings_tab.save_enabled": false,
+        "settings_tab.status": "Connected"
+      }
+    },
+    {
+      "tap": "find:SharedTable"
+    },
+    {
+      "expect": {
+        "touch.keyboard.open": true
+      }
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_BKSP"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_BKSP"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_BKSP"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_BKSP"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_BKSP"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_BKSP"
+    },
+    {
+      "expect": {
+        "settings_tab.save_enabled": false,
+        "settings_tab.invalid": [
+          "sharedTable"
+        ]
+      }
+    },
+    {
+      "screenshot": "settings_invalid"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_a"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_b"
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_c"
+    },
+    {
+      "expect": {
+        "settings_tab.save_enabled": true,
+        "settings_tab.preview.request": "/abc/PathPlanner/SelectedPath/Request"
+      }
+    },
+    {
+      "tap": "Keyboard/Sheet/Key_DONE"
+    },
+    {
+      "tap": "find:Save"
+    },
+    {
+      "expect": {
+        "connection.nt.sharedTable": "abc",
+        "settings_tab.save_enabled": false,
+        "controls.auto.request_topic": "/abc/PathPlanner/SelectedPath/Request"
+      }
+    },
+    {
+      "tap": "find:Reset"
+    },
+    {
+      "expect": {
+        "connection.nt.sharedTable": "Shared",
+        "settings_tab.drafts.sharedTable": "Shared",
+        "controls.auto.request_topic": "/Shared/PathPlanner/SelectedPath/Request"
+      }
+    }
+  ]
+}

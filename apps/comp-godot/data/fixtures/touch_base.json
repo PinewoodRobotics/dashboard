@@ -1,0 +1,13 @@
+{
+  "nt": {
+    "/matchhud/state/connected": true,
+    "/matchhud/state/seq": 1,
+    "/matchhud/state/robot_pose_x_m": 2.0,
+    "/matchhud/state/robot_pose_y_m": 4.03,
+    "/matchhud/state/robot_heading_rad": 0.0,
+    "/matchhud/state/robot_pose_valid": true,
+    "/matchhud/state/is_red_alliance": false,
+    "/AdvantageKit/RealOutputs/Turret/PositionRot": 0.0,
+    "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition": 0.0
+  }
+}

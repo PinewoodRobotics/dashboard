@@ -2,6 +2,7 @@ import { RIGHT_PANELS } from "../../model";
 import type { RightPanelId } from "../../model";
 import { RightIconColumn } from "./RightIconColumn";
 import { MapSettingsPanel } from "../panels/MapSettingsPanel";
+import { IntakeSpeedPanel } from "../panels/IntakeSpeedPanel";
 
 export function RightSideContent({
   openPanel,
@@ -19,6 +20,8 @@ export function RightSideContent({
       <RightIconColumn openPanel={openPanel} onToggle={onToggle} />
       {displayPanel === "showMap" ? (
         <MapSettingsPanel />
+      ) : displayPanel === "intakeSpeed" ? (
+        <IntakeSpeedPanel />
       ) : (
         <div className="flex flex-col h-full items-start p-[10px] shrink-0 w-[426px]">
           {definition && (

@@ -1,95 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PWRUP dashboards
 
-## Getting Started
+pnpm workspace for FRC team PWRUP's driver station and pit software.
 
-First, run the development server:
+| Path | What it is |
+|---|---|
+| `apps/comp-godot` | Native competition dashboard (Godot 4.7.2): match HUD and touchscreen in one process, NetworkTables 4, 3D robot and field, realtime 3D auto previews. See [its README](apps/comp-godot/README.md). |
+| `apps/comp` | The Electron/Next.js competition dashboard. Stays the primary dashboard until the Godot one passes its driver-station checklist. |
+| `apps/admin` | Admin panel (Next.js + Electron). |
+| `packages/shared-core` | NetworkTables connection layer shared by the web apps. |
+| `packages/shared-proto` | Generated protobuf types for coprocessor messages (web apps only). |
+| `packages/shared-ui` | Shared React UI components. |
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Web apps
+
+Requires Node 20+ and pnpm.
+
+```sh
+pnpm install
+pnpm dev:admin        # admin panel in Electron
+pnpm dev:comp         # web comp dashboard in Electron
+pnpm renderer:comp    # web comp dashboard renderer only, http://127.0.0.1:3001
+pnpm build:admin      # Windows x64 unpacked build
+pnpm dist:comp        # Windows x64 installer
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Godot comp dashboard
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Requires Godot 4.7.2 on `PATH` as `godot`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Docker
-
-Build and run the production container:
-
-```bash
-docker build -t blitz-renderer .
-docker run -d --rm -p 7070:7070 --name blitz-renderer blitz-renderer
+```sh
+godot --path apps/comp-godot
+godot --path apps/comp-godot -- --nt-host=127.0.0.1 --nt-port=5810   # against a local robot sim
 ```
 
-The `-d` flag runs the container in detached mode (background), so you can continue using your terminal.
+Install, launch flags, tests, Windows export and the driver-station checklist
+are in [apps/comp-godot/README.md](apps/comp-godot/README.md).
 
-To stop the container:
-```bash
-docker stop blitz-renderer
+## PathPlanner autos
+
+Both comp dashboards read autos synced from the robot repo
+(`~/Developer/FIR/src/2026Rebuilt` by default):
+
+```sh
+pnpm sync:pathplanner:dry   # show what would change
+pnpm sync:pathplanner       # copy paths and autos
 ```
 
-To view logs:
-```bash
-docker logs blitz-renderer
-```
-
-Or with Compose (also runs in detached mode):
-```bash
-docker compose up -d --build
-```
-
-Access the app at [http://localhost:7070](http://localhost:7070)
-
-## Electron App Builds
-
-The web app and Electron app are separate flows. Existing web scripts (`npm run dev`, `npm run build`, `npm run start`) still work as-is.
-
-### Electron development
-
-```bash
-npm run electron:dev
-```
-
-This runs Next.js in dev mode and launches Electron against `http://127.0.0.1:3000`.
-
-### Windows x86-64 build (unpacked app folder)
-
-```bash
-npm run electron:build:win
-```
-
-This generates:
-- `build/icons/icon.ico` and `build/icons/icon.png`
-- a production Next.js build
-- `dist-electron/win-unpacked/Blitz Renderer.exe` (Windows x64 app)
-
-### Windows x86-64 installer/distributable
-
-```bash
-npm run electron:dist:win
-```
-
-This generates installer artifacts in `dist-electron/` (for example NSIS and portable `.exe` outputs).
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The Godot dashboard also needs the precomputed trajectory export; the steps are
+in its README under "PathPlanner autos".

@@ -1,0 +1,2 @@
+{"extends": "touch_m6_base", "touch": {"active_tab": "auto"}, "probes": [
+  {"name": "selected card green border", "window": "touch", "at": [94, 230, 4, 150], "kind": "color", "color": "#70cd35", "tol": 0.1, "min_fraction": 0.3}]}

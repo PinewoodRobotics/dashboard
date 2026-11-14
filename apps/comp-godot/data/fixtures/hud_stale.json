@@ -1,0 +1,212 @@
+{
+  "extends": "hud_shift_active",
+  "nt": {},
+  "match": {
+    "advance_s": 1.5
+  },
+  "probes": [
+    {
+      "name": "header #70cd35 (left)",
+      "window": "hud",
+      "at": [
+        0,
+        0,
+        480,
+        180
+      ],
+      "kind": "color",
+      "color": "#70cd35",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "header #70cd35 (right)",
+      "window": "hud",
+      "at": [
+        1440,
+        0,
+        480,
+        180
+      ],
+      "kind": "color",
+      "color": "#70cd35",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "header bottom row 179",
+      "window": "hud",
+      "at": [
+        0,
+        179,
+        1920,
+        1
+      ],
+      "kind": "color",
+      "color": "#70cd35",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "black below the header",
+      "window": "hud",
+      "at": [
+        0,
+        181,
+        1920,
+        8
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "timer dimmed (no white)",
+      "window": "hud",
+      "at": [
+        491,
+        0,
+        938,
+        180
+      ],
+      "kind": "color",
+      "color": "#ffffff",
+      "tol": 0.02,
+      "min_fraction": 0.0,
+      "max_fraction": 0.0005
+    },
+    {
+      "name": "aim icon #3b82f6",
+      "window": "hud",
+      "at": [
+        705,
+        235,
+        200,
+        200
+      ],
+      "kind": "color",
+      "color": "#3b82f6",
+      "tol": 0.02,
+      "min_fraction": 0.05
+    },
+    {
+      "name": "minimap field drawn",
+      "window": "hud",
+      "at": [
+        740,
+        640,
+        440,
+        260
+      ],
+      "kind": "nonblack",
+      "min_fraction": 0.5
+    },
+    {
+      "name": "minimap top-left corner rounded off",
+      "window": "hud",
+      "at": [
+        540,
+        480,
+        50,
+        40
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "minimap top-right corner rounded off",
+      "window": "hud",
+      "at": [
+        1330,
+        480,
+        50,
+        40
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "minimap soft left edge",
+      "window": "hud",
+      "at": [
+        540,
+        760,
+        8,
+        200
+      ],
+      "kind": "mean_luma",
+      "max": 0.06
+    },
+    {
+      "name": "minimap interior lit",
+      "window": "hud",
+      "at": [
+        900,
+        760,
+        40,
+        200
+      ],
+      "kind": "mean_luma",
+      "min": 0.25
+    },
+    {
+      "name": "minimap soft bottom edge",
+      "window": "hud",
+      "at": [
+        740,
+        1074,
+        440,
+        6
+      ],
+      "kind": "mean_luma",
+      "max": 0.12
+    },
+    {
+      "name": "left column black",
+      "window": "hud",
+      "at": [
+        0,
+        470,
+        530,
+        610
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "right column black",
+      "window": "hud",
+      "at": [
+        1390,
+        470,
+        530,
+        610
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "banner red dot",
+      "window": "hud",
+      "at": [
+        880,
+        1018,
+        40,
+        40
+      ],
+      "kind": "color",
+      "color": "#ef4444",
+      "tol": 0.03,
+      "min_fraction": 0.03
+    }
+  ]
+}

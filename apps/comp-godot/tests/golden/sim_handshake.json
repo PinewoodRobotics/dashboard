@@ -1,0 +1,154 @@
+{
+  "captured": "2026-11-14T08:57:36",
+  "continuation": [
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":111,\"name\":\"\\/matchhud\\/state\\/robot_pose_y_m\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":114,\"name\":\"\\/matchhud\\/state\\/robot_heading_rad\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":117,\"name\":\"\\/matchhud\\/state\\/robot_pose_valid\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":120,\"name\":\"\\/matchhud\\/state\\/auto_align_active\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":123,\"name\":\"\\/matchhud\\/state\\/auto_align_distance_m\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":126,\"name\":\"\\/matchhud\\/state\\/auto_align_ready\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":129,\"name\":\"\\/matchhud\\/state\\/driver_override\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":132,\"name\":\"\\/matchhud\\/state\\/aim_mode\",\"properties\":{},\"type\":\"int\"}}]"
+    },
+    {
+      "binary_b64": "lDPPAAABMN9JStMCzJs="
+    },
+    {
+      "binary_b64": "lDbPAAABMN9JStQCzwAEpug2R9Cq"
+    },
+    {
+      "binary_b64": "lDnPAAABMN8aFdYAwg=="
+    },
+    {
+      "binary_b64": "lDzPAAABMN8aFdcAwg=="
+    },
+    {
+      "binary_b64": "lD/PAAABMN8aFdgAwg=="
+    }
+  ],
+  "continuation_note": "every frame after the first 20, up to the fifth binary value frame",
+  "frames": [
+    {
+      "binary_b64": "lP/PAAABMN9JaoQCzgAC0WU="
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":51,\"name\":\"\\/matchhud\\/state\\/seq\",\"properties\":{},\"type\":\"int\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":54,\"name\":\"\\/matchhud\\/state\\/robot_time_us\",\"properties\":{},\"type\":\"int\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":57,\"name\":\"\\/matchhud\\/state\\/connected\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":60,\"name\":\"\\/matchhud\\/state\\/is_red_alliance\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":63,\"name\":\"\\/matchhud\\/state\\/enabled\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":66,\"name\":\"\\/matchhud\\/state\\/autonomous\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":69,\"name\":\"\\/matchhud\\/state\\/game_specific_message\",\"properties\":{},\"type\":\"string\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":75,\"name\":\"\\/matchhud\\/state\\/match_phase\",\"properties\":{},\"type\":\"int\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":78,\"name\":\"\\/matchhud\\/state\\/hub_status\",\"properties\":{},\"type\":\"int\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":81,\"name\":\"\\/matchhud\\/state\\/header_color\",\"properties\":{},\"type\":\"int\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":84,\"name\":\"\\/matchhud\\/state\\/total_time_remaining_s\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":87,\"name\":\"\\/matchhud\\/state\\/period_time_remaining_s\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":90,\"name\":\"\\/matchhud\\/state\\/shift_time_remaining_s\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":93,\"name\":\"\\/matchhud\\/state\\/shift_time_with_buffer_s\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":96,\"name\":\"\\/matchhud\\/state\\/buffer_remaining_s\",\"properties\":{},\"type\":\"double\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":99,\"name\":\"\\/matchhud\\/state\\/is_shooting\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":102,\"name\":\"\\/matchhud\\/state\\/show_shift_indicator\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":105,\"name\":\"\\/matchhud\\/state\\/show_buffer\",\"properties\":{},\"type\":\"boolean\"}}]"
+    },
+    {
+      "text": "[{\"method\":\"announce\",\"params\":{\"id\":108,\"name\":\"\\/matchhud\\/state\\/robot_pose_x_m\",\"properties\":{},\"type\":\"double\"}}]"
+    }
+  ],
+  "protocol": "networktables.first.wpi.edu",
+  "source": "FIR 2026Rebuilt robot sim, WPILib 2027.0.0-alpha-8 ntcore, captured by tests/sim/test_1_sim_handshake.gd",
+  "subscriptions": [
+    {
+      "options": {
+        "periodic": 0.02,
+        "prefix": true
+      },
+      "topics": [
+        "/matchhud/state/"
+      ]
+    },
+    {
+      "options": {
+        "periodic": 0.02
+      },
+      "topics": [
+        "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition",
+        "/AdvantageKit/RealOutputs/Turret/PositionRot",
+        "/AdvantageKit/RealOutputs/Climber/CurrentHeightMeters"
+      ]
+    },
+    {
+      "options": {
+        "periodic": 0.1
+      },
+      "topics": [
+        "/AdvantageKit/RealOutputs/Turret/DistanceToTarget",
+        "/AdvantageKit/RealOutputs/Shooter/RequestedVelocityRPM",
+        "/AdvantageKit/RealOutputs/Shooter/VelocityRPM",
+        "/AdvantageKit/RealOutputs/Shooter/LeaderVelocityRPM",
+        "/AdvantageKit/RealOutputs/Shooter/FollowerVelocityRPM",
+        "/AdvantageKit/RealOutputs/Turret/PositionDeg",
+        "/AdvantageKit/RealOutputs/Turret/Angle",
+        "/AdvantageKit/RealOutputs/Shooter/IsSpunUp",
+        "/AdvantageKit/RealOutputs/ShooterSubsystem/GPSAssistFeaturesEnabled",
+        "/AdvantageKit/RealOutputs/MatchStatus/isShooting",
+        "/AdvantageKit/RealOutputs/SwerveSubsystem/AdjustingVelocity",
+        "/AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg",
+        "/Shared/PathPlanner/SelectedPath/State",
+        "/Shared/Intake/Speed/State",
+        "/AdvantageKit/RealOutputs/PathPlanner/CurrentSelectedAuto",
+        "/AdvantageKit/RealOutputs/PathPlanner/SelectedAutoValid",
+        "/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos"
+      ]
+    }
+  ]
+}

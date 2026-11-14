@@ -1,0 +1,4 @@
+{"extends": "hud_auto_path", "preview": {"auto": "Ball Shooter Left", "t": 9.0, "playing": true},
+ "probes": [
+  {"name": "preview label text", "window": "hud", "at": [600, 490, 720, 50], "kind": "color", "color": "#70cd35", "tol": 0.1, "min_fraction": 0.01},
+  {"name": "travelled ribbon in the minimap", "window": "hud", "at": [540, 560, 840, 520], "kind": "color", "color": "#70cd35", "tol": 0.12, "min_fraction": 0.001}]}

@@ -1,0 +1,2 @@
+{"extends": "touch_m6_base", "touch": {"active_tab": "auto", "view_auto": "Move Forward And Shoot Center"}, "preview": {"t": 5.0},
+ "camera": {"preview": {"position": [5.9, 2.2, -0.741], "target": [5.9, 0, -0.741], "up": [0, 0, -1]}}}

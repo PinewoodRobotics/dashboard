@@ -105,7 +105,26 @@ class NtBroker extends EventEmitter {
     }
 
     await publisher.publishPromise;
+    await this.#ensureServerTimeSynced();
     publisher.topic.setValue(params.value);
+  }
+
+  // ntcore-ts-client only runs RTT time sync on NT 4.0. On NT 4.1 the server-time offset
+  // stays 0, so values are stamped with this process's uptime and the robot's ntcore
+  // server silently drops any value older than the topic's current one.
+  async #ensureServerTimeSynced() {
+    const socket = this.client?.client?.messenger?.socket;
+    if (!socket || typeof socket.heartbeat !== "function" || socket.bestRtt !== -1) return;
+
+    socket.heartbeat();
+    const deadline = Date.now() + 1000;
+    while (socket.bestRtt === -1 && Date.now() < deadline) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    if (socket.bestRtt === -1) {
+      throw new Error("NetworkTables server time sync timed out.");
+    }
   }
 
   stop() {
@@ -275,6 +294,10 @@ class NtBroker extends EventEmitter {
     }
 
     this.isConnected = connected;
+    const socket = this.client?.client?.messenger?.socket;
+    if (connected && socket && typeof socket.bestRtt === "number") {
+      socket.bestRtt = -1;
+    }
     this.topicEntries.forEach((entry) => this.#broadcastEntry(entry));
   }
 

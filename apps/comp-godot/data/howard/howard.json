@@ -1,0 +1,62 @@
+[
+  {
+    "image": "res://assets/images/howard/Glare.webp",
+    "text": "Howard is unhappy now",
+    "happy_text": "Howard glaring at the camera"
+  },
+  {
+    "image": "res://assets/images/howard/Boba.webp",
+    "text": "Howard needs a boba break now",
+    "happy_text": "Howard looking at two cups of boba"
+  },
+  {
+    "image": "res://assets/images/howard/Email.webp",
+    "text": "Howard is writing an angry email about this",
+    "happy_text": "Howard writing an email for Tech Club"
+  },
+  {
+    "image": "res://assets/images/howard/History.webp",
+    "text": "Howard is writing up a report on this",
+    "happy_text": "Howard filling out a worksheet in World History class"
+  },
+  {
+    "image": "res://assets/images/howard/Shocked.webp",
+    "text": "Howard is pensively thinking about this",
+    "happy_text": "Howard shyly looking at the camera"
+  },
+  {
+    "image": "res://assets/images/howard/FunnyNumber.webp",
+    "text": "Howard got distracted by the funny number",
+    "happy_text": "Howard but with the numbers 6 and 9 in front of him"
+  },
+  {
+    "image": "res://assets/images/howard/Cookie.webp",
+    "text": "Howard needs a cookie break now",
+    "happy_text": "Howard eating a cookie"
+  },
+  {
+    "image": "res://assets/images/howard/Photography.webp",
+    "text": "Howard is taking a picture of this",
+    "happy_text": "Howard taking a picture of the sunset with his iPhone 15 Plus"
+  },
+  {
+    "image": "res://assets/images/howard/Amused.webp",
+    "text": "Howard is amused by this",
+    "happy_text": "Howard looking at the camera, amused"
+  },
+  {
+    "image": "res://assets/images/howard/Carry.webp",
+    "text": "Howard is busy carrying these seat cushions right now",
+    "happy_text": "Howard carrying a stack of seat cushions"
+  },
+  {
+    "image": "res://assets/images/howard/Scroll.webp",
+    "text": "Howard is busy scrolling Instagram Reels right now",
+    "happy_text": "Howard scrolling on his iPhone 15 Plus, likely looking at Instagram Reels"
+  },
+  {
+    "image": "res://assets/images/howard/Watch.webp",
+    "text": "Howard is watching a tutorial on how to fix this",
+    "happy_text": "Howard watching funny cat videos on his iPhone 15 Plus"
+  }
+]

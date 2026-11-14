@@ -1,0 +1,10 @@
+{
+  "extends": "touch_base",
+  "nt": {"/AdvantageKit/RealOutputs/Turret/PositionRot": 0.25},
+  "touch": {"active_tab": "robot3d"},
+  "input": [
+    {"expect": {"robot3d.turret.disabled": true, "robot3d.turret.source": "NT live: Turret/PositionRot", "robot3d.turret.value": {"near": -1.57, "tol": 0.01}, "robot3d.climber_inner.disabled": false}},
+    {"drag": {"from": {"node": "find:Joint_turret/Slider", "at": [40, 50]}, "to": {"node": "find:Joint_turret/Slider", "at": [130, 50]}, "ms": 250}},
+    {"expect": {"telemetry.targets.turret": {"near": -1.5708, "tol": 0.001}}}
+  ]
+}

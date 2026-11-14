@@ -1,6 +1,13 @@
-export type OverlayTabId = "auto" | "settings" | "effects" | "howard" | "robot3d" | "visual";
+export type OverlayTabId =
+  | "auto"
+  | "settings"
+  | "effects"
+  | "howard"
+  | "robot3d"
+  | "visual"
+  | "record";
 
-export type RightPanelId = "showMap" | "showTimers" | "showStatus" | "showCamera";
+export type RightPanelId = "showMap" | "intakeSpeed" | "showTimers" | "showStatus" | "showCamera";
 
 export interface TabDef {
   id: OverlayTabId;
