@@ -1,0 +1,33 @@
+{
+  "extends": "touch_base",
+  "touch": {"active_tab": "auto"},
+  "input": [
+    {"wait_for": {"nt_ready": true, "controls.auto.robot_known": true}, "timeout_ms": 8000},
+    {"drag": {"from": {"node": "find:List", "at": [300, 450]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:List", "at": [300, 450]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:List", "at": [300, 450]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
+    {"expect": {"auto_tab.list_scroll": {"ge": 1000}, "state.active_tab": "auto"}},
+    {"tap": "find:Card_Move_Forward_And_Shoot_Left"},
+    {"expect": {"auto_tab.viewing": "Move Forward And Shoot Left", "auto_tab.button": {"ne": "Selected"}}},
+    {"tap": "find:Select"},
+    {"wait_for": {"controls.auto.robot": "Move Forward And Shoot Left"}, "timeout_ms": 1000},
+    {"wait_for": {"auto_tab.button": "Selected", "auto_tab.cards.Move Forward And Shoot Left.active": true}, "timeout_ms": 1000},
+    {"expect": {"controls.auto.selected": "Move Forward And Shoot Left", "settings.controls.selected_auto": "Move Forward And Shoot Left",
+      "controls.auto.validity": "OK", "auto_tab.detail_warning": ""}},
+    {"screenshot": "auto_selected"},
+    {"tap": "LeftRail/Home"},
+    {"wait_ms": 300},
+    {"tap": "find:Panel_intakeSpeed"},
+    {"wait_ms": 400},
+    {"expect": {"intake_panel.speed_status": "Using the robot's compiled constant"}},
+    {"drag": {"from": {"node": "find:Speed", "at": [100, 60]}, "to": {"node": "find:Speed", "at": [160, 60]}, "ms": 250}},
+    {"mark": "dragged"},
+    {"wait_for": {"intake_panel.speed_status": "Robot confirmed this speed"}, "timeout_ms": 1000},
+    {"expect": {"controls.intake.requested": {"ne": null}, "settings.controls.intake_speed": {"ne": null}}},
+    {"screenshot": "intake_confirmed"},
+    {"tap": "find:Reset"},
+    {"wait_for": {"intake_panel.speed_status": "Using the robot's compiled constant", "controls.intake.requested": null}, "timeout_ms": 1000},
+    {"expect": {"controls.intake.last_published": -1.0, "settings.controls.intake_speed": null}},
+    {"call": "save_settings"}
+  ]
+}

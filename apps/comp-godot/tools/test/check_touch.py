@@ -33,7 +33,8 @@ def near(a, b, tol=0.5):
 names = list(fixtures) + [f"both_{f}" for f in ("touch_driver", "touch_tab_robot3d", "touch_panel_map", "touch_dock")]
 scripts = ["touch_script_nav", "touch_script_restart", "touch_script_map", "touch_script_map_restart", "touch_script_visual",
            "touch_script_visual_restart", "touch_script_widgets", "touch_script_widgets_both", "touch_script_robot3d",
-           "touch_script_robot3d_live", "touch_script_driver", "touch_script_howard", "touch_live_fake"]
+           "touch_script_robot3d_live", "touch_script_driver", "touch_script_howard", "touch_live_fake",
+           "touch_script_controls_offline", "touch_script_controls_live"]
 reports = {n: report(n) for n in names + scripts}
 
 for name, r in reports.items():
@@ -70,6 +71,12 @@ if m["mode"] != "driver" or m["zoom"] < 0.9:
 v = json.loads((settings_dir / "visual.json").read_text())["visual"]
 if v != {"render_scale": 0.75, "msaa": 4, "fps_cap": 30}:
     errors.append(f"visual.json: {v}")
+c = json.loads((settings_dir / "controls.json").read_text())["controls"]
+if c != {"selected_auto": "Move Forward And Shoot Left", "intake_speed": None}:
+    errors.append(f"controls.json after the live controls run: {c}")
+conn = json.loads((settings_dir / "connection-settings.json").read_text()) if (settings_dir / "connection-settings.json").exists() else None
+if conn is not None:
+    errors.append("the live controls run wrote the shared connection file without a Save")
 
 for e in errors:
     print("CHECK FAIL:", e)

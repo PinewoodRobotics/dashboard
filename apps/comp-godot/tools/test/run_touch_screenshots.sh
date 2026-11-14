@@ -4,7 +4,8 @@
 # --screen=touch and a subset for --screen=both. Scripted runs synthesize touch
 # and mouse input through the Dev hook and fail on any unmet expectation; the
 # *_restart runs reuse the settings file of the run before them to prove the
-# layout, map and visual settings survive an app restart.
+# layout, map and visual settings survive an app restart. The *_controls_live run
+# selects an auto and drives the intake slider against the fake robot.
 # PNGs, logs and JSON reports land in $OUT (default apps/comp-godot/.screenshots/m4).
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -26,7 +27,9 @@ run() {
 
 SHOTS=(touch_driver touch_preset_turret touch_tab_auto touch_tab_settings touch_tab_effects touch_tab_howard
   touch_tab_robot3d touch_tab_robot3d_manual touch_tab_visual touch_panel_map touch_panel_intake touch_tab_visual_map
-  touch_dock touch_dock_over_tab touch_gallery touch_gallery_keyboard touch_gallery_keypad)
+  touch_dock touch_dock_over_tab touch_gallery touch_gallery_keyboard touch_gallery_keypad
+  touch_auto_selected touch_auto_locked touch_auto_conflict touch_auto_invalid touch_auto_none touch_settings_disconnected
+  touch_intake_confirmed touch_intake_waiting touch_intake_disconnected touch_intake_readouts)
 for fx in "${SHOTS[@]}"; do
   run "$fx" "$fx" --screen=touch
 done
@@ -51,6 +54,7 @@ run touch_script_robot3d touch_script_robot3d --screen=both
 run touch_script_robot3d_live touch_script_robot3d_live --screen=touch
 run touch_script_driver touch_script_driver --screen=touch
 run touch_script_howard touch_script_howard --screen=touch
+run touch_script_controls_offline touch_script_controls_offline --screen=touch
 
 FAKE="$APP/tools/sim/fake_robot.py"
 TAG="comp-godot-touch-$$"
@@ -61,6 +65,9 @@ uv run --quiet --script "$FAKE" --port "$PORT" --pose 2.0,4.03,0 --alliance red 
 for _ in $(seq 1 100); do nc -z -G 1 127.0.0.1 "$PORT" 2>/dev/null && break; sleep 0.1; done
 printf '%s\n' '{}' >"$SETTINGS/live.json"
 run touch_live_fake touch_live_fake --screen=touch --live --nt-host=127.0.0.1 --nt-port="$PORT" --settings="$SETTINGS/live.json"
+printf '%s\n' '{}' >"$SETTINGS/controls.json"
+PWRUP_SHARED_SETTINGS_PATH="$SETTINGS/connection-settings.json" \
+  run touch_script_controls_live touch_script_controls_live --screen=touch --live --nt-host=127.0.0.1 --nt-port="$PORT" --settings="$SETTINGS/controls.json"
 stop_fake
 
 python3 "$APP/tools/test/check_touch.py" "$OUT" "$SETTINGS" "${SHOTS[@]}" || status=1

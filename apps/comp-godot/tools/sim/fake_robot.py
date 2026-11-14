@@ -13,6 +13,13 @@ the dashboard talks to.
   SharedStringTopic/SharedDoubleTopic: State follows Request, and falls back
   to the default as soon as the writer disconnects (requests are not retained)
 - /Tuning/Turret/AimTrimDeg echoed to /AdvantageKit/NetworkInputs/...
+- PathPlanner/CurrentSelectedAuto, ValidNames/Autos and SelectedAutoValid like
+  PathPlannerSubsystem (an unknown name is echoed to State but is not valid)
+- the ten shooter readouts of the intake panel (AdvantageKit RealOutputs), with
+  the turret command in radians
+- /fake/connections: how many NT clients are connected right now
+- /fake/control/enabled (int: -1 = scripted value, 0 = false, 1 = true) pins
+  /matchhud/state/enabled, e.g. to lock the auto selector
 - /fake/types/* with one topic per NT type, for decode tests
 - /fake/uptime_s and /fake/request_log (every Request value received, in order)
 - optional /fake/load/* doubles so the server holds --total-topics topics,
@@ -134,6 +141,20 @@ VALID_AUTOS = [
 INTAKE_DEFAULT_SPEED = 0.5
 
 LANE_TOPIC = "/AdvantageKit/RealOutputs/SwerveSubsystem/AdjustingVelocity"
+
+OUTPUTS = "/AdvantageKit/RealOutputs"
+READOUTS = {
+    "/ShooterSubsystem/GPSAssistFeaturesEnabled": True,
+    "/Turret/DistanceToTarget": 3.2,
+    "/Shooter/RequestedVelocityRPM": 3200.0,
+    "/Shooter/VelocityRPM": 3180.0,
+    "/Shooter/LeaderVelocityRPM": 3182.0,
+    "/Shooter/FollowerVelocityRPM": 3178.0,
+    "/Shooter/IsSpunUp": True,
+    "/MatchStatus/isShooting": False,
+    "/Turret/PositionDeg": 0.0,
+    "/Turret/Angle": 0.0,
+}
 
 AUTO_S = 20.0
 TRANSITION_S = 10.0
@@ -375,6 +396,10 @@ def main() -> int:
     pp_names = inst.getStringArrayTopic("/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos").publish()
     pp_names.set(VALID_AUTOS)
 
+    readout_pubs = {k: (publisher(inst, OUTPUTS + k, "boolean" if isinstance(v, bool) else "double"), v) for k, v in READOUTS.items()}
+    connections_pub = inst.getIntegerTopic("/fake/connections").publish()
+    enabled_ctl = inst.getIntegerTopic("/fake/control/enabled").subscribe(-1)
+
     load_hz_sub = inst.getDoubleTopic("/fake/control/load_hz").subscribe(args.load_hz)
     match_speed_ctl = inst.getDoubleTopic("/fake/control/match_speed").subscribe(math.nan)
     lane_pub = inst.getBooleanTopic(LANE_TOPIC).publish()
@@ -457,6 +482,20 @@ def main() -> int:
         auto_state.set(auto_name)
         pp_current.set(auto_name)
         pp_valid.set(auto_name in VALID_AUTOS)
+
+        pinned_enabled = enabled_ctl.get()
+        if pinned_enabled in (0, 1):
+            match_pubs["enabled"].set(pinned_enabled == 1)
+        for k, (pub, base) in readout_pubs.items():
+            if isinstance(base, bool):
+                pub.set(base)
+            elif k == "/Turret/Angle":
+                pub.set(math.radians(turret * 360.0))
+            elif k == "/Turret/PositionDeg":
+                pub.set(turret * 360.0)
+            else:
+                pub.set(base + 5.0 * math.sin(uptime))
+        connections_pub.set(len(inst.getConnections()))
 
         requested = intake_req.get()
         intake_state.set(requested if 0.0 <= requested <= 1.0 else INTAKE_DEFAULT_SPEED)

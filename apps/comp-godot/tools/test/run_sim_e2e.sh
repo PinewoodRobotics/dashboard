@@ -2,7 +2,8 @@
 # End-to-end against the real robot code: refreshes a scratch copy of the FIR
 # robot project (never the repo itself), disables the PhotonVision cameras and
 # the sim GUI there, runs the WPILib sim (NT4 server on 5810), runs tests/sim
-# and windowed screenshots (F3 overlay, both 3D windows), then stops the sim and checks that port
+# and windowed screenshots (F3 overlay, both 3D windows, the auto selector and
+# intake panel driven by scripted touch input), then stops the sim and checks that port
 # 5810 is free and the FIR repo is unchanged.
 #
 # Env: FIR_SRC (robot project), PWRUP_TMP_DIR (scratch root, default
@@ -158,6 +159,11 @@ if [[ $SCREENSHOT == 1 ]]; then
     "$GODOT" --path "$APP" -- --screen=touch --design-size --nt-host=127.0.0.1 --nt-port="$PORT" \
     --fixture=touch_live_robot3d --live --settings="$FIR_SIM_DIR/touch-settings.json" \
     --frames=30 --screenshot="$APP/.screenshots/sim_touch" || STATUS=1
+  printf '%s\n' '{}' >"$FIR_SIM_DIR/controls-settings.json"
+  PWRUP_SHARED_SETTINGS_PATH="$FIR_SIM_DIR/no-shared-settings.json" \
+    "$GODOT" --path "$APP" -- --screen=touch --design-size --nt-host=127.0.0.1 --nt-port="$PORT" \
+    --fixture=touch_script_controls_live --live --settings="$FIR_SIM_DIR/controls-settings.json" \
+    --frames=10 --screenshot="$APP/.screenshots/sim_controls" || STATUS=1
 fi
 set -e
 
