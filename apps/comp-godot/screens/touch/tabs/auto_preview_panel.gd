@@ -230,10 +230,25 @@ static func _top_right(c: Control, right: float, w: float) -> void:
 	c.offset_bottom = 48
 
 
+## Expanded, the scrub bar goes compact and moves into the transport row so
+## the 3D view gets the height.
 func set_expanded_icon(on: bool) -> void:
 	expanded = on
 	expand_button.icon_name = "minimize-2" if on else "maximize-2"
 	expand_button.queue_redraw()
+	var row := time_label.get_parent()
+	var col := row.get_parent()
+	scrub.get_parent().remove_child(scrub)
+	if on:
+		row.add_child(scrub)
+		row.move_child(scrub, time_label.get_index() + 1)
+	else:
+		col.add_child(scrub)
+		col.move_child(scrub, row.get_index())
+	scrub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scrub.size_flags_vertical = Control.SIZE_SHRINK_CENTER if on else Control.SIZE_FILL
+	time_label.size_flags_horizontal = Control.SIZE_FILL if on else Control.SIZE_EXPAND_FILL
+	scrub.set_compact(on)
 
 
 func _button(n: String, text: String, icon: String, min_size: Vector2, style: PwButton.Style = PwButton.Style.DARK) -> PwButton:

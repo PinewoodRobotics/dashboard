@@ -12,6 +12,11 @@ enum CameraMode { PATH, FIELD }
 
 const PITCH := deg_to_rad(58.0)
 const MIN_EXTENT := 4.5
+## Past this aspect the framing is height bound, so the minimum box gets
+## shallower (never below MIN_DEPTH_FRACTION) to keep the robot large.
+const WIDE_ASPECT := 3.0
+const MIN_DEPTH_FRACTION := 0.4
+const ROBOT_LENGTH_M := 0.9
 const ROBOT_H := 0.8
 const FIT_MARGIN := 0.9
 const MIN_VIEW_PITCH := deg_to_rad(8.0)
@@ -144,11 +149,14 @@ func _place_camera(m: AutoMechanisms, side: StringName) -> void:
 	var center := (lo + hi) * 0.5
 	center.y = 0.0
 	var ends := [pts[0], pts[pts.size() - 1]]
-	for c in [Vector3(-1, 0, -1), Vector3(1, 0, -1), Vector3(-1, 0, 1), Vector3(1, 0, 1)]:
-		pts.append(center + c * MIN_EXTENT * 0.5)
+	var fwd := driver_side(side)
+	var across := Vector3.UP.cross(fwd)
+	var depth := MIN_EXTENT * clampf(WIDE_ASPECT / aspect, MIN_DEPTH_FRACTION, 1.0)
+	for c in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+		pts.append(center + across * c.x * MIN_EXTENT * 0.5 + fwd * c.y * depth * 0.5)
 		for e: Vector3 in ends:
-			pts.append(e + c * 0.5)
-	var back := view_back(driver_side(side))
+			pts.append(e + Vector3(c.x, 0, c.y) * 0.5)
+	var back := view_back(fwd)
 	home = view_of(center, back, fit_distance(pts, center, camera.fov, aspect, back))
 
 
@@ -261,7 +269,17 @@ func camera_report() -> Dictionary:
 		return {}
 	var t: Vector3 = v["target"]
 	return {"user": user_moved(), "yaw": v["yaw"], "pitch": v["pitch"], "dist": v["dist"], "target": [t.x, t.y, t.z],
-		"home_dist": home["dist"]}
+		"home_dist": home["dist"], "robot_px": robot_px()}
+
+
+## On-screen length of the robot's frame, in view pixels.
+func robot_px() -> float:
+	if robot == null or not camera.is_inside_tree():
+		return 0.0
+	var o := robot.global_transform.origin
+	var side := camera.global_transform.basis.x * ROBOT_LENGTH_M
+	var px := camera.unproject_position(o).distance_to(camera.unproject_position(o + side))
+	return px * size.x / maxf(float(viewport.size.x), 1.0)
 
 
 ## Horizontal direction from the field center to the alliance's driver

@@ -15,7 +15,7 @@ extends RefCounted
 ##     spread horizontally from `from` to `to` px apart while their midpoint moves by pan
 ##   {"mouse": true|false}  {"window": "touch"|"hud"}  {"mark": "name"}
 ##   {"expect": {"dotted.path": value | {"ne": v} | {"le": v} | {"ge": v} | {"near": v, "tol": t}
-##     | {"changed_since": "mark"} | {"same_as": "mark", "tol": t}}}
+##     | {"changed_since": "mark"} | {"same_as": "mark", "tol": t} | {"ratio_since": "mark", "ge": r}}}
 ##   {"wait_for": {same as expect}, "timeout_ms": 3000} polls every frame until all
 ##     hold (elapsed ms goes to the trace) or fails at the timeout
 ##   {"inject": {topic: value}} offline NT values, as a fixture's nt_steps
@@ -339,6 +339,9 @@ func _check(i: int, exp: Dictionary) -> void:
 			ok = not same(got, dig(marks.get(str(want["changed_since"]), {}), path), 1e-6)
 		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("same_as"):
 			ok = same(got, dig(marks.get(str(want["same_as"]), {}), path), float(want.get("tol", 1e-4)))
+		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("ratio_since"):
+			var before: Variant = dig(marks.get(str(want["ratio_since"]), {}), path)
+			ok = got != null and before != null and float(before) > 0.0 and float(got) / float(before) >= float(want["ge"])
 		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("le"):
 			ok = got != null and float(got) <= float(want["le"])
 		elif typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("ge"):

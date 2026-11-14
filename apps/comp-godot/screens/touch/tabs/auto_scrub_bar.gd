@@ -16,6 +16,9 @@ const KNOB_R := 11.0
 const TICK_HALF := 13.0
 const LABEL_PX := 13
 const DIAMOND := 6.0
+const COMPACT_LANE_H := 8.0
+const COMPACT_LANE_GAP := 2.0
+const COMPACT_TICK_HALF := 9.0
 
 var clock: AutoClock
 var duration := 0.0
@@ -23,6 +26,7 @@ var path_ranges: Array = []
 var spans: Array = []
 var ticks: Array = []
 var lanes := 0
+var compact := false
 var _pressed := false
 
 
@@ -60,12 +64,32 @@ func set_auto(m: AutoMechanisms) -> void:
 			span["lane"] = lane
 			spans.append(span)
 		lanes = lane_end.size()
-	custom_minimum_size.y = maxi(lanes, 1) * (LANE_H + LANE_GAP) + 6.0 + DIAMOND * 2.0 + TICK_HALF * 2.0 + 4.0
+	_fit_height()
 	queue_redraw()
 
 
+## Thin unlabelled lanes and no diamonds, for the expanded preview, where the
+## 3D view's event feed names each command as it starts.
+func set_compact(on: bool) -> void:
+	compact = on
+	_fit_height()
+	queue_redraw()
+
+
+func _fit_height() -> void:
+	if compact:
+		custom_minimum_size.y = maxi(lanes, 1) * (COMPACT_LANE_H + COMPACT_LANE_GAP) + 4.0 + COMPACT_TICK_HALF * 2.0 + 2.0
+	else:
+		custom_minimum_size.y = maxi(lanes, 1) * (LANE_H + LANE_GAP) + 6.0 + DIAMOND * 2.0 + TICK_HALF * 2.0 + 4.0
+	update_minimum_size()
+
+
+func _tick_half() -> float:
+	return COMPACT_TICK_HALF if compact else TICK_HALF
+
+
 func track_y() -> float:
-	return size.y - TICK_HALF - 4.0
+	return size.y - _tick_half() - (2.0 if compact else 4.0)
 
 
 func track_x0() -> float:
@@ -88,9 +112,10 @@ func x_to_t(x: float) -> float:
 
 
 func _lane_rect(lane: int, t0: float, t1: float) -> Rect2:
-	var y := lane * (LANE_H + LANE_GAP)
+	var h := COMPACT_LANE_H if compact else LANE_H
+	var y := lane * (h + (COMPACT_LANE_GAP if compact else LANE_GAP))
 	var x0 := t_to_x(t0)
-	return Rect2(x0, y, maxf(t_to_x(t1) - x0, 3.0), LANE_H)
+	return Rect2(x0, y, maxf(t_to_x(t1) - x0, 3.0), h)
 
 
 static func short_name(n: String) -> String:
@@ -138,7 +163,9 @@ func _draw() -> void:
 	for s: Dictionary in spans:
 		var r := _lane_rect(s["lane"], s["t0"], s["t1"])
 		var col := AutoPathOverlay.kind_color(s)
-		UiDraw.box(ci, r, Color(col, 0.85) if s["runs"] else Color(col, 0.18), 4.0, 0 if s["runs"] else 1, col)
+		UiDraw.box(ci, r, Color(col, 0.85) if s["runs"] else Color(col, 0.18), 2.0 if compact else 4.0, 0 if s["runs"] else 1, col)
+		if compact:
+			continue
 		var label: String = short_name(s["name"]) + ("  (" + s["note"] + ")" if s["note"] != "" else "")
 		var text_col: Color = Color.BLACK if s["runs"] else Tokens.ZINC_300
 		var max_w := r.size.x - 10.0
@@ -151,14 +178,18 @@ func _draw() -> void:
 		UiDraw.rect(ci, Rect2(t_to_x(pr[0]), ty - TRACK_H * 0.5, t_to_x(pr[1]) - t_to_x(pr[0]), TRACK_H), Tokens.ZINC_700)
 	var t := clock.t if clock != null else 0.0
 	UiDraw.rect(ci, Rect2(x0, ty - TRACK_H * 0.5, t_to_x(t) - x0, TRACK_H), Color(Tokens.ACCENT, 0.9))
+	var th := _tick_half()
 	for k: Dictionary in ticks:
 		var x := t_to_x(k["t0"])
 		var col := AutoPathOverlay.kind_color(k)
-		UiDraw.rect(ci, Rect2(x - 1.5, ty - TICK_HALF, 3.0, TICK_HALF * 2.0), col)
+		UiDraw.rect(ci, Rect2(x - 1.5, ty - th, 3.0, th * 2.0), col)
+		if compact:
+			continue
 		UiDraw.diamond(ci, Vector2(x, ty - TICK_HALF - DIAMOND), int(DIAMOND), col, 0.0 if k["runs"] else 2.0)
 	var kx := t_to_x(t)
-	UiDraw.circle(ci, Vector2(kx, ty), KNOB_R, Color.WHITE)
-	UiDraw.circle(ci, Vector2(kx, ty), KNOB_R - 3.0, Tokens.ACCENT if clock != null and clock.playing else Tokens.ZINC_400)
+	var kr := KNOB_R - 2.0 if compact else KNOB_R
+	UiDraw.circle(ci, Vector2(kx, ty), kr, Color.WHITE)
+	UiDraw.circle(ci, Vector2(kx, ty), kr - 3.0, Tokens.ACCENT if clock != null and clock.playing else Tokens.ZINC_400)
 
 
 func report() -> Dictionary:
@@ -170,4 +201,4 @@ func report() -> Dictionary:
 		var r := _lane_rect(s["lane"], s["t0"], s["t1"])
 		out_spans.append({"name": s["name"], "t0": s["t0"], "t1": s["t1"], "x0": r.position.x, "x1": r.end.x, "lane": s["lane"], "runs": s["runs"]})
 	return {"duration": duration, "x0": track_x0(), "x1": track_x1(), "ticks": out_ticks, "spans": out_spans,
-		"lanes": lanes, "progress_x": t_to_x(clock.t if clock != null else 0.0), "rect": [get_global_rect().position.x, get_global_rect().position.y, size.x, size.y]}
+		"lanes": lanes, "compact": compact, "progress_x": t_to_x(clock.t if clock != null else 0.0), "rect": [get_global_rect().position.x, get_global_rect().position.y, size.x, size.y]}

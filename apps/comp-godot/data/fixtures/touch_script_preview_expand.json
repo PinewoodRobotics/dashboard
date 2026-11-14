@@ -8,7 +8,8 @@
   {"tap": "find:Expand"},
   {"wait_ms": 200},
   {"expect": {"auto_tab.expanded": true, "auto_tab.list_visible": false, "auto_tab.preview.expanded": true,
-    "auto_tab.preview.view_size.0": {"ge": 1500}}},
+    "auto_tab.preview.view_size.0": {"ge": 1500}, "auto_tab.preview.view_size.1": {"ge": 380},
+    "auto_tab.preview.scrub.compact": true, "auto_tab.preview.view_camera.robot_px": {"ratio_since": "small", "ge": 1.3}}},
   {"screenshot": "expanded"},
   {"drag": {"from": {"node": "find:PreviewView", "offset": [-150, 0]}, "to": {"node": "find:PreviewView", "offset": [50, -40]}, "ms": 300}},
   {"expect": {"auto_tab.preview.view_camera.user": true, "auto_tab.preview.reset_view": true, "auto_tab.preview.view_camera.yaw": {"changed_since": "small"},
@@ -24,5 +25,6 @@
   {"expect": {"auto_tab.preview.view_camera.user": false, "auto_tab.preview.reset_view": false}},
   {"tap": "find:Expand"},
   {"wait_ms": 200},
-  {"expect": {"auto_tab.expanded": false, "auto_tab.list_visible": true, "auto_tab.preview.view_size.0": {"le": 800}}}
+  {"expect": {"auto_tab.expanded": false, "auto_tab.list_visible": true, "auto_tab.preview.view_size.0": {"le": 800},
+    "auto_tab.preview.scrub.compact": false, "auto_tab.preview.view_camera.robot_px": {"same_as": "small", "tol": 0.5}}}
  ]}
