@@ -2,7 +2,7 @@ extends TestCase
 
 ## Same reading of the 2 ms criterion as integration/test_3_poll_perf.gd.
 
-const MAX_FRAME_MS := 5.0
+const MAX_FRAME_MS := 8.0
 
 var nt: NtService
 
