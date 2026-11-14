@@ -3,7 +3,9 @@ extends Control
 
 ## Visual settings (VisualTab.tsx, adapted): render scale, MSAA and frame cap
 ## apply live to every 3D viewport in both windows and persist; models can be
-## reloaded from disk; live renderer diagnostics. Settings apply live instead
+## reloaded from disk; live renderer diagnostics. Displays: which screen each
+## window takes (Auto = the exact display size) and a re-tile button, the
+## touch equivalent of Ctrl/Cmd+Shift+F. Settings apply live instead
 ## of through the web draft/Save flow. Log depth and panel blur are dropped.
 
 const SCALE_HINTS := [
@@ -17,6 +19,12 @@ const MSAA_OPTIONS := [
 	{"value": 2, "text": "2x", "hint": "Smooth edges, light GPU cost"},
 	{"value": 4, "text": "4x", "hint": "Smoothest edges, highest GPU cost"},
 ]
+const SCREEN_OPTIONS := [
+	{"value": -1, "text": "Auto", "hint": "Auto: the display with the exact size"},
+	{"value": 0, "text": "1", "hint": "Display 1"},
+	{"value": 1, "text": "2", "hint": "Display 2"},
+	{"value": 2, "text": "3", "hint": "Display 3"},
+]
 const FPS_OPTIONS := [
 	{"value": 30, "text": "30", "hint": "30 fps: half the GPU load"},
 	{"value": 60, "text": "60", "hint": "60 fps: smooth motion"},
@@ -28,6 +36,9 @@ var render_scale: PwSlider
 var msaa: PwSelector
 var fps: PwSelector
 var reload: PwButton
+var hud_screen: PwSelector
+var touch_screen: PwSelector
+var tiling: Label
 var reload_status: Label
 var diag: Label
 var _diag_t := 0.0
@@ -76,6 +87,29 @@ func _ready() -> void:
 	c4["box"].add_child(UiKit.wrapped("Applies to both windows. A lower cap leaves GPU headroom on weak driver station laptops.", 16))
 	cols.add_child(c4["panel"])
 
+	var c5 := UiKit.column("Displays", true, 24, 20)
+	var w := settings.windows()
+	hud_screen = PwSelector.new().configure("HUD Display", SCREEN_OPTIONS, w["hud_screen"])
+	hud_screen.name = "HudScreen"
+	hud_screen.selected.connect(func(x: Variant) -> void: settings.set_windows({"hud_screen": x}))
+	c5["box"].add_child(hud_screen)
+	touch_screen = PwSelector.new().configure("Touchscreen Display", SCREEN_OPTIONS, w["touch_screen"])
+	touch_screen.name = "TouchScreen"
+	touch_screen.selected.connect(func(x: Variant) -> void: settings.set_windows({"touch_screen": x}))
+	c5["box"].add_child(touch_screen)
+	cols.add_child(c5["panel"])
+
+	var c6 := UiKit.column("Window Tiling", true, 24, 20)
+	c6["box"].add_child(UiKit.wrapped("Places both windows on their displays, borderless fullscreen. Same as Ctrl+Shift+F.", 18))
+	var retile := PwButton.new("Re-tile Windows", PwButton.Style.DARK, Vector2(0, 64))
+	retile.name = "Retile"
+	retile.icon_name = "monitor"
+	retile.pressed.connect(func() -> void: get_tree().call_group(KioskController.GROUP, "retile"))
+	c6["box"].add_child(retile)
+	tiling = UiKit.wrapped("", 16)
+	c6["box"].add_child(tiling)
+	cols.add_child(c6["panel"])
+
 	var c2 := UiKit.column("Assets", true, 24, 20)
 	c2["box"].add_child(UiKit.wrapped("Robot and field models are bundled with the app. Reload them from disk after replacing the files in assets/models.", 18))
 	reload = PwButton.new("Reload Models", PwButton.Style.DARK, Vector2(0, 64))
@@ -101,6 +135,9 @@ func _ready() -> void:
 
 
 func _on_changed(section: String) -> void:
+	if section == "windows":
+		hud_screen.select_value(settings.windows()["hud_screen"])
+		touch_screen.select_value(settings.windows()["touch_screen"])
 	if section != "visual":
 		return
 	var v := settings.visual()
@@ -130,6 +167,14 @@ func _process(delta: float) -> void:
 
 
 func _update_diag() -> void:
+	var kiosk := get_tree().get_first_node_in_group(KioskController.GROUP) as KioskController
+	if kiosk != null:
+		var parts := PackedStringArray(["%d display(s)" % DisplayServer.get_screen_count()])
+		for key: String in kiosk.last_plan:
+			var p: Dictionary = kiosk.last_plan[key]
+			var where := "display %d" % (int(p["screen"]) + 1) if p["mode"] == "fullscreen" else "windowed"
+			parts.append("%s: %s (%s)" % ["HUD" if key == "hud" else "Touch", where, p["reason"]])
+		tiling.text = "\n".join(parts) if not kiosk.last_plan.is_empty() else "Not tiled yet: windows stay where they opened"
 	var rs := RenderingServer
 	var lines := PackedStringArray([
 		"Renderer   %s" % rs.get_current_rendering_driver_name(),

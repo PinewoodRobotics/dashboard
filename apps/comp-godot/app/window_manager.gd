@@ -51,3 +51,21 @@ static func create_touch_window(root: Window, full_size: bool = false) -> Window
 	w.wrap_controls = false
 	w.close_requested.connect(func() -> void: root.get_tree().quit())
 	return w
+
+
+## MODE_FULLSCREEN is borderless and not exclusive, so focusing one window
+## never minimizes the other. A borderless window sized to the screen is not a
+## substitute: macOS treats it as occluded and stops drawing it.
+static func apply_placement(key: String, window: Window, p: Dictionary) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if p["mode"] == "fullscreen":
+		if window.mode != Window.MODE_WINDOWED:
+			window.mode = Window.MODE_WINDOWED
+		window.current_screen = int(p["screen"])
+		window.mode = Window.MODE_FULLSCREEN
+		return
+	if window.mode != Window.MODE_WINDOWED:
+		window.mode = Window.MODE_WINDOWED
+		window.size = dev_size(key)
+		window.move_to_center()

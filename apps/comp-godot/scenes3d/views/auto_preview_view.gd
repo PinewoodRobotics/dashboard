@@ -62,7 +62,7 @@ func show_frame(f: Dictionary, m: AutoMechanisms) -> void:
 	var framing := "%s|%s|%s" % [overlay.key, camera_mode, size]
 	if apply_camera_override():
 		_framed_key = ""
-	elif framing != _framed_key:
+	elif framing != _framed_key and size.x >= 1.0 and size.y >= 1.0:
 		_framed_key = framing
 		_place_camera(m, side)
 

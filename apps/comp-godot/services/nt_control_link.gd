@@ -4,11 +4,17 @@ extends ControlLink
 ## ControlLink over an NtService: one desired-state publisher per topic.
 
 var nt: NtService
+var read_only := false
 var _pubs := {}
 
 
-func _init(p_nt: NtService) -> void:
+func _init(p_nt: NtService, p_read_only: bool = false) -> void:
 	nt = p_nt
+	read_only = p_read_only
+
+
+func publisher_count() -> int:
+	return _pubs.size()
 
 
 func connected() -> bool:
@@ -24,6 +30,8 @@ func value(topic: String, default: Variant = null) -> Variant:
 
 
 func publish(topic: String, type: String, v: Variant) -> bool:
+	if read_only:
+		return false
 	var pub: NtPublisher = _pubs.get(topic)
 	if pub == null or pub.type != type:
 		if pub != null:

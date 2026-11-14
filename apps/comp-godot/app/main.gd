@@ -7,6 +7,14 @@ extends Node
 ##                             (with --live: fixture views and probes over live NT)
 ##   --debug-overlay           show the F3 NetworkTables overlay at start
 ##   --design-size             open windows at the design size instead of two thirds of it
+##   --kiosk                   tile at start and again whenever the screen list changes
+##   --windowed                never tile at start (default: tile once, like the Electron app,
+##                             unless a fixture or dev run is active)
+##   --hud-screen=N --touch-screen=N   screen index overrides for this run (beat the settings)
+##   --render-scale=X          3D render scale for this run (0.25..1.0, not saved)
+##   --vsync=hud|both|off      which windows wait for vertical sync (default hud)
+##   --max-fps=N               frame cap for this run (0 = uncapped)
+## Ctrl/Cmd+Shift+F re-tiles the windows (see app/window_placement.gd).
 ## Screenshot, perf and probe flags are documented in services/dev_service.gd.
 
 var screen := "both"
@@ -17,6 +25,7 @@ const TOUCH_SCREEN := "res://screens/touch/touch_screen.gd"
 var touch: Control
 var _overlay: DebugOverlay
 var _args := {}
+var kiosk: KioskController
 
 
 func _ready() -> void:
@@ -40,6 +49,8 @@ func _ready() -> void:
 			var vs := DisplayServer.VSYNC_ENABLED if str(_args.get("vsync", "hud")) == "both" else DisplayServer.VSYNC_DISABLED
 			DisplayServer.window_set_vsync_mode(vs, w.get_window_id())
 
+	_setup_kiosk()
+
 	_overlay = DebugOverlay.new(NT)
 	_overlay.visible = _args.has("debug_overlay")
 	add_child(_overlay)
@@ -53,6 +64,32 @@ func _ready() -> void:
 		host.add_child(touch)
 
 	Dev.attach(self)
+
+
+func _setup_kiosk() -> void:
+	kiosk = KioskController.new()
+	kiosk.windows = windows
+	kiosk.overrides_source = _screen_overrides
+	kiosk.watch_screens = _args.has("kiosk")
+	add_child(kiosk)
+	for w: Window in windows.values():
+		w.window_input.connect(func(event: InputEvent) -> void:
+			if kiosk.handle_input(event):
+				w.set_input_as_handled())
+	Settings.changed.connect(func(section: String) -> void:
+		if section == "windows":
+			kiosk.retile())
+	var dev_run := Dev.has_fixture() or Dev.wants_run()
+	if _args.has("kiosk") or not (_args.has("windowed") or dev_run):
+		kiosk.retile()
+
+
+func _screen_overrides() -> Dictionary:
+	var w := Settings.windows()
+	return {
+		"hud": CliArgs.get_int(_args, "hud_screen", int(w["hud_screen"])),
+		"touch": CliArgs.get_int(_args, "touch_screen", int(w["touch_screen"])),
+	}
 
 
 func _start_nt() -> void:

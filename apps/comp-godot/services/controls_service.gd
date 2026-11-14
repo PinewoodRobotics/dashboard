@@ -6,6 +6,8 @@ extends Node
 ## them to the NT autoload, persists the selected auto and the intake override
 ## in Settings, follows the auto library and moves the request topics when the
 ## connection settings change.
+## In --screen=hud (the HUD half of the two-process fallback) it is read-only:
+## the touchscreen process alone owns the request topics.
 
 var nt: NtService
 var settings: SettingsService
@@ -15,6 +17,7 @@ var link: ControlLink
 var sync: AutoSelectionSync
 var intake: IntakeSpeed
 var trim: AimTrim
+var read_only := false
 
 
 func _init() -> void:
@@ -28,8 +31,10 @@ func _ready() -> void:
 		settings = get_node_or_null("/root/Settings") as SettingsService
 	if autos == null:
 		autos = get_node_or_null("/root/Autos") as AutosService
+	if WindowManager.parse_screen(CliArgs.parse(OS.get_cmdline_user_args())) == "hud":
+		read_only = true
 	if link == null:
-		link = NtControlLink.new(nt)
+		link = NtControlLink.new(nt, read_only)
 	var conn := _nt_conf()
 	var stored := settings.controls() if settings != null else AppSettings.DEFAULT_CONTROLS
 	sync = AutoSelectionSync.new(link, clock, Topics.selected_auto_topics(conn), str(stored.get("selected_auto", "")))
@@ -66,6 +71,8 @@ func _process(_delta: float) -> void:
 
 
 func step() -> void:
+	if read_only:
+		return
 	sync.update()
 	intake.update()
 	trim.update()
@@ -90,4 +97,5 @@ func apply_fixture(fx: Dictionary) -> void:
 
 
 func snapshot() -> Dictionary:
-	return {"auto": sync.snapshot(), "intake": intake.snapshot(), "trim": trim.snapshot(), "readouts": readouts()}
+	return {"auto": sync.snapshot(), "intake": intake.snapshot(), "trim": trim.snapshot(), "readouts": readouts(),
+		"read_only": read_only, "publishers": link.publisher_count() if link is NtControlLink else -1}

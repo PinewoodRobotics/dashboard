@@ -19,6 +19,10 @@ const DEFAULT_VISUAL := {"render_scale": 1.0, "msaa": 2, "fps_cap": 60}
 ## intake_speed: null = use the robot's compiled constant, else 0..1.
 const DEFAULT_CONTROLS := {"selected_auto": "", "intake_speed": null}
 
+## Screen index per window, -1 = automatic (exact display size). See WindowPlacement.
+const DEFAULT_WINDOWS := {"hud_screen": -1, "touch_screen": -1}
+const MAX_SCREEN_INDEX := 7
+
 
 static func _unit(v: Variant, default: float) -> float:
 	if _is_num(v):
@@ -71,6 +75,17 @@ static func normalize_controls(raw: Variant) -> Dictionary:
 	return out
 
 
+static func normalize_windows(raw: Variant) -> Dictionary:
+	var out := DEFAULT_WINDOWS.duplicate()
+	if typeof(raw) != TYPE_DICTIONARY:
+		return out
+	for key: String in out:
+		var v: Variant = raw.get(key)
+		if _is_num(v) and float(v) == floorf(float(v)):
+			out[key] = clampi(int(v), -1, MAX_SCREEN_INDEX)
+	return out
+
+
 static func normalize_layout(raw: Variant) -> Dictionary:
 	if typeof(raw) != TYPE_DICTIONARY:
 		return default_layout()
@@ -85,7 +100,8 @@ static func default_layout() -> Dictionary:
 
 
 static func defaults() -> Dictionary:
-	return {"map": DEFAULT_MAP.duplicate(), "visual": DEFAULT_VISUAL.duplicate(), "layout": default_layout(), "controls": DEFAULT_CONTROLS.duplicate()}
+	return {"map": DEFAULT_MAP.duplicate(), "visual": DEFAULT_VISUAL.duplicate(), "layout": default_layout(), "controls": DEFAULT_CONTROLS.duplicate(),
+		"windows": DEFAULT_WINDOWS.duplicate()}
 
 
 ## Unknown sections are kept so newer builds' settings survive a round trip.
@@ -100,4 +116,5 @@ static func normalize(raw: Variant) -> Dictionary:
 	out["visual"] = normalize_visual(raw.get("visual"))
 	out["layout"] = normalize_layout(raw.get("layout"))
 	out["controls"] = normalize_controls(raw.get("controls"))
+	out["windows"] = normalize_windows(raw.get("windows"))
 	return out

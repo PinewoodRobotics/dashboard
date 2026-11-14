@@ -46,6 +46,7 @@ const ICONS = [
   "crosshair",
   "zap",
   "arrow-down-to-line",
+  "monitor",
 ];
 
 const icons = {};

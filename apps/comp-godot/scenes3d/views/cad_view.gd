@@ -50,7 +50,7 @@ func _ready() -> void:
 	robot = ROBOT_SCENE.instantiate() as RobotModel
 	viewport.add_child(robot)
 	if settings_service != null:
-		apply_visual(settings_service.visual())
+		apply_visual(settings_service.effective_visual())
 		settings_service.changed.connect(_on_settings_changed)
 	if with_field and models != null:
 		models.when_ready("field", _attach_field)
@@ -77,7 +77,7 @@ func _attach_field(scene: PackedScene) -> void:
 
 func _on_settings_changed(section: String) -> void:
 	if section == "visual":
-		apply_visual(settings_service.visual())
+		apply_visual(settings_service.effective_visual())
 
 
 func apply_visual(v: Dictionary) -> void:

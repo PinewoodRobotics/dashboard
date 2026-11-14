@@ -20,6 +20,8 @@ var persist := true
 var data := AppSettings.defaults()
 var connection_store: SharedSettingsStore
 var _save_due_msec := -1
+## --render-scale=X (0.25..1.0) wins over the stored render scale without being saved.
+var visual_overrides := {}
 
 
 func _ready() -> void:
@@ -27,6 +29,9 @@ func _ready() -> void:
 	var offline := false
 	if dev != null:
 		offline = dev.offline_fixture()
+		var rs := CliArgs.get_float(dev.args, "render_scale", 0.0)
+		if rs > 0.0:
+			visual_overrides["render_scale"] = clampf(rs, 0.25, 1.0)
 		if dev.args.has("settings"):
 			path = str(dev.args["settings"])
 		elif offline:
@@ -95,6 +100,23 @@ func visual() -> Dictionary:
 
 func set_visual(patch: Dictionary) -> void:
 	_patch("visual", patch, AppSettings.normalize_visual)
+
+
+func windows() -> Dictionary:
+	return data["windows"]
+
+
+func set_windows(patch: Dictionary) -> void:
+	_patch("windows", patch, AppSettings.normalize_windows)
+
+
+## The Visual settings with the --render-scale CLI override applied (not persisted).
+func effective_visual() -> Dictionary:
+	if visual_overrides.is_empty():
+		return data["visual"]
+	var v: Dictionary = data["visual"].duplicate()
+	v.merge(visual_overrides, true)
+	return v
 
 
 func layout() -> Dictionary:

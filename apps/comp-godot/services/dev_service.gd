@@ -221,6 +221,9 @@ func probe_state() -> Dictionary:
 	if ts != null:
 		out.merge(ts.call("probe"), true)
 		out["telemetry"] = {"manual": Telemetry.manual_joints.duplicate(), "targets": Telemetry.joint_targets.duplicate()}
+	var kiosk: KioskController = _main.get("kiosk") if _main != null else null
+	if kiosk != null:
+		out["kiosk"] = {"retiles": kiosk.retiles, "plan": kiosk.last_plan.duplicate(true), "watch": kiosk.watch_screens}
 	var mm: MinimapView = _main.call("minimap") if _main != null else null
 	if mm != null:
 		var p := mm.camera.global_position
@@ -301,6 +304,9 @@ func _run() -> void:
 	if ts != null:
 		report["touch"] = ts.call("layout_report")
 	report["os_windows"] = Array(DisplayServer.get_window_list())
+	var kiosk: KioskController = _main.get("kiosk")
+	if kiosk != null:
+		report["kiosk"] = {"retiles": kiosk.retiles, "plan": var_to_str(kiosk.last_plan), "watch": kiosk.watch_screens}
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
 	report["controls"] = Controls.snapshot()
 	report["autos"] = Autos.snapshot()
@@ -330,6 +336,11 @@ func _run() -> void:
 			"design": [win.content_scale_size.x, win.content_scale_size.y],
 			"window_id": win.get_window_id(),
 			"embedded": win.is_embedded(),
+			"mode": win.mode,
+			"borderless": win.borderless,
+			"position": [win.position.x, win.position.y],
+			"os_size": [win.size.x, win.size.y],
+			"current_screen": win.current_screen,
 		}
 		if prefix != "":
 			var png := "%s_%s.png" % [prefix, key]

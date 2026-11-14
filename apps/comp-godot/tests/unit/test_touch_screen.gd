@@ -20,7 +20,7 @@ func before_each() -> void:
 	ts.settings = settings
 	host.add_child(ts)
 	ts.set_process(false)
-	ts.size = Tokens.TOUCH_DESIGN
+	ts.set_deferred("size", Tokens.TOUCH_DESIGN)
 	ts.step(0.0)
 
 
