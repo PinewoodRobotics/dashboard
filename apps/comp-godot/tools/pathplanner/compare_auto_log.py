@@ -79,7 +79,7 @@ class Series:
 
 
 WANTED = {
-    "DS/Enabled", "DS/Autonomous", "DS/AllianceStation", "FMS/IsRedAlliance", "is_red_alliance",
+    "DS/Enabled", "DS/Autonomous", "DS/RobotMode", "DS/AllianceStation", "FMS/IsRedAlliance", "is_red_alliance",
     "PathPlanner/CurrentSelectedAuto", "Odometry/Position", "Odometry/Robot", "Global/pose",
     "IntakeSubsystem/WristPosition", "Shooter/IsSpunUp", "Shooter/RequestedVelocityRPM", "MatchStatus/isShooting",
     "Turret/PositionRot",
@@ -127,13 +127,16 @@ def read_log(path: Path) -> dict[str, Series]:
 
 
 def auto_windows(log: dict[str, Series]) -> list[tuple[float, float]]:
-    en, au = log.get("DS/Enabled"), log.get("DS/Autonomous")
+    # WPILib 2027 logs DriverStation/RobotMode ("AUTONOMOUS", ...) instead of the Autonomous flag.
+    en = log.get("DS/Enabled")
+    au = log.get("DS/Autonomous") or log.get("DS/RobotMode")
     if en is None or au is None:
         return []
     times = sorted(set(en.t) | set(au.t))
     windows, start = [], None
     for t in times:
-        on = bool(en.at(t, False)) and bool(au.at(t, False))
+        mode = au.at(t, False)
+        on = bool(en.at(t, False)) and (mode == "AUTONOMOUS" if isinstance(mode, str) else bool(mode))
         if on and start is None:
             start = t
         elif not on and start is not None:
