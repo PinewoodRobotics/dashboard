@@ -56,7 +56,6 @@ func _on_settings_changed(section: String) -> void:
 		settings.set_perf_caps({})
 
 
-## The user changed a Visual setting: start over from full quality.
 func restart() -> void:
 	governor.reset()
 	if settings != null and not settings.perf_caps.is_empty():

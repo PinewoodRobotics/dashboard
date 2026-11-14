@@ -153,7 +153,6 @@ func _ready() -> void:
 	_update_diag()
 
 
-## A choice made here starts the automatic fallback over from full quality.
 func _set_visual(patch: Dictionary) -> void:
 	settings.set_visual(patch)
 	var perf := get_tree().get_first_node_in_group(PerfGovernor.GROUP) as PerfGovernor

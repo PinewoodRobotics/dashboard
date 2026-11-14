@@ -1,7 +1,6 @@
 extends TestCase
 
 
-## Feeds frames at the fps that `fps_at(level)` returns for `seconds`.
 func _run(g: FrameGovernor, seconds: float, fps_at: Callable, target: float = 60.0, rendering: bool = true, base: Dictionary = {}) -> Array:
 	var changes: Array = []
 	var t := 0.0

@@ -23,7 +23,6 @@ enum State { WATCHING, TRYING, HELD, GAVE_UP }
 var level := 0
 var state := State.WATCHING
 var last_fps := 0.0
-## Average fps of the window that triggered the current level.
 var before_fps := 0.0
 var history: Array = []
 var _undo_level := 0
@@ -41,13 +40,11 @@ func reset() -> void:
 	_restart(WARMUP_S)
 
 
-## Caps on top of the saved visual settings, {} at full quality.
 func caps() -> Dictionary:
 	return LEVELS[level]
 
 
-## One frame of dt seconds; target_fps is the frame cap (60 when uncapped);
-## base holds the saved render_scale and msaa. Returns true when caps() changed.
+## base holds the saved render_scale and msaa; true when caps() changed.
 func feed(dt: float, target_fps: float, rendering_3d: bool, base: Dictionary = {}) -> bool:
 	if state == State.GAVE_UP or not rendering_3d or dt <= 0.0:
 		return false

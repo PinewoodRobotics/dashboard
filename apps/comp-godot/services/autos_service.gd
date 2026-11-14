@@ -144,8 +144,6 @@ func _update_frame() -> void:
 	frame = frame_at(m, clock.t, alliance()) if m != null else {}
 
 
-## The auto the robot reports in its State, when it names a library auto or
-## one the robot lists that the export lacks (no preview).
 func robot_auto() -> String:
 	if controls == null or controls.sync == null or not controls.sync.robot_known():
 		return ""
@@ -156,8 +154,7 @@ func robot_auto() -> String:
 	return m if m != "" else AutoSelectionSync.find_match(r, controls.sync.robot_only_names())
 
 
-## StartPoseCheck.compare of the live robot pose with the auto's first pose
-## for the current alliance; {} without a live pose or a path.
+## {} without a live pose or a path.
 func start_check(auto_name: String) -> Dictionary:
 	_bind()
 	if auto_name == "" or telemetry == null or not telemetry.pose_live():

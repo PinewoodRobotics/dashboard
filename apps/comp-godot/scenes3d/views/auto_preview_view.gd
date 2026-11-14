@@ -31,7 +31,6 @@ var overlay: AutoPathOverlay
 var camera_mode := CameraMode.PATH
 ## Framed view {target, yaw, pitch, dist}; the user view starts from it.
 var home := {}
-## {} while the framed view is shown.
 var user_view := {}
 var _framed_key := ""
 var _base_key := ""
@@ -175,7 +174,6 @@ func orbit(dx_px: float, dy_px: float) -> void:
 	v["pitch"] = clampf(float(v["pitch"]) + dy_px * ORBIT_RAD_PER_PX, MIN_VIEW_PITCH, MAX_VIEW_PITCH)
 
 
-## factor < 1 moves closer.
 func zoom_by(factor: float) -> void:
 	if home.is_empty() or not is_finite(factor) or factor <= 0.0:
 		return
@@ -183,7 +181,6 @@ func zoom_by(factor: float) -> void:
 	v["dist"] = clampf(float(v["dist"]) * factor, MIN_DIST, MAX_DIST)
 
 
-## Moves the target on the carpet so the scene follows a drag of (dx, dy) px.
 func pan(dx_px: float, dy_px: float) -> void:
 	if home.is_empty() or size.y < 1.0:
 		return

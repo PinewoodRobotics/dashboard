@@ -59,7 +59,6 @@ var _detail_margin: MarginContainer
 var _robot_only_key := ""
 
 
-## Live robot pose against the viewed auto's start pose.
 class StartChip:
 	extends PanelContainer
 	var icon := PwIcon.new("crosshair", 20, AutoCard.AMBER)
@@ -355,7 +354,6 @@ func _build_no_preview() -> Control:
 	return box
 
 
-## Preview over the whole tab: the list and the detail column hide.
 func set_expanded(on: bool) -> void:
 	if on == expanded:
 		return
@@ -556,7 +554,6 @@ func probe() -> Dictionary:
 	}
 
 
-## Whether the label's text does not fit its box (ellipsis or hidden lines).
 static func _clipped(l: Label) -> bool:
 	if l.get_line_count() > l.get_visible_line_count():
 		return true

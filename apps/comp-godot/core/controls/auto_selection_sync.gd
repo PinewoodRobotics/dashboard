@@ -120,7 +120,6 @@ func _refresh_robot_names() -> void:
 			robot_names = l
 
 
-## Autos the robot has (as last listed) that the export lacks, robot order.
 func robot_only_names() -> PackedStringArray:
 	var out := PackedStringArray()
 	for n in robot_names:

@@ -56,7 +56,6 @@ class AutoLabel:
 		position = Vector2(roundf(HudLayout.MINIMAP.get_center().x - size.x * 0.5), HudLayout.MINIMAP.position.y + 14.0)
 
 
-## Live robot pose against the shown auto's start pose, under the auto label.
 class StartChip:
 	extends PanelContainer
 	const AMBER := Color("#fbbf24")
