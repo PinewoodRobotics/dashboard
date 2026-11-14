@@ -14,6 +14,7 @@ signal changed(section: String)
 
 const DEFAULT_PATH := "user://settings.json"
 const SAVE_DELAY_S := 0.25
+const MIGRATION_CONNECT_TIMEOUT := "connect_timeout_2s"
 
 var path := DEFAULT_PATH
 var persist := true
@@ -66,6 +67,28 @@ func set_connection(conn: Dictionary) -> bool:
 
 func reset_connection() -> bool:
 	return set_connection(ConnectionSettings.defaults())
+
+
+## Once per install: a shared file still holding the old 10 s default (written
+## by every earlier save, from either app) gets the new 2 s connect timeout.
+## A value chosen after this ran is never touched again.
+func migrate_connect_timeout() -> bool:
+	if not persist or connection_store.memory_only:
+		return false
+	var done: Array = data.get("migrations") if typeof(data.get("migrations")) == TYPE_ARRAY else []
+	if done.has(MIGRATION_CONNECT_TIMEOUT):
+		return false
+	var migrated := false
+	if int(connection().get("reconnectTimeoutSeconds", 0)) == ConnectionSettings.LEGACY_DEFAULT_RECONNECT_TIMEOUT_S:
+		var next := connection().duplicate(true)
+		next["reconnectTimeoutSeconds"] = ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S
+		if not set_connection(next):
+			return false
+		print("settings: connect timeout %d s -> %d s (old default)" % [ConnectionSettings.LEGACY_DEFAULT_RECONNECT_TIMEOUT_S, ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S])
+		migrated = true
+	data["migrations"] = done + [MIGRATION_CONNECT_TIMEOUT]
+	save_now()
+	return migrated
 
 
 func controls() -> Dictionary:

@@ -72,3 +72,40 @@ func test_corrupt_file_loads_defaults_and_layout_round_trips() -> void:
 	s.free()
 	s2.free()
 	DirAccess.remove_absolute(path)
+
+
+func _service_with_shared(timeout_s: int, settings_path: String) -> SettingsService:
+	var shared := dir.path_join("shared_%d.json" % Time.get_ticks_usec())
+	var f := FileAccess.open(shared, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": 3, "settings": {"host": "10.47.65.7", "port": 8080, "reconnectTimeoutSeconds": timeout_s,
+		"networkTables": {"host": "10.47.65.2", "port": 5810}}}))
+	f.close()
+	var s := SettingsService.new()
+	s.path = settings_path
+	s.load_file()
+	s.connection_store = SharedSettingsStore.new(shared)
+	s.connection_store.reload()
+	return s
+
+
+func test_connect_timeout_migrates_old_default_once() -> void:
+	var path := dir.path_join("settings_%d.json" % Time.get_ticks_usec())
+	var s := _service_with_shared(10, path)
+	check(s.migrate_connect_timeout(), "old 10 s default migrated")
+	check_eq(s.connection()["reconnectTimeoutSeconds"], 2)
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(s.connection_store.path))
+	check_eq(raw["settings"]["reconnectTimeoutSeconds"], 2.0, "written to the shared file")
+	check_eq(raw["settings"]["host"], "10.47.65.7", "other keys kept")
+	check(s.connection_store.save({"nt": s.connection()["nt"], "reconnectTimeoutSeconds": 10}))
+	var s2 := SettingsService.new()
+	s2.path = path
+	s2.load_file()
+	s2.connection_store = s.connection_store
+	check(not s2.migrate_connect_timeout(), "a 10 chosen after the migration stays")
+	check_eq(s2.connection()["reconnectTimeoutSeconds"], 10)
+	var s3 := _service_with_shared(5, dir.path_join("settings_b_%d.json" % Time.get_ticks_usec()))
+	check(not s3.migrate_connect_timeout(), "a non-default value is left alone")
+	check_eq(s3.connection()["reconnectTimeoutSeconds"], 5)
+	for svc: SettingsService in [s, s2, s3]:
+		DirAccess.remove_absolute(svc.path)
+		svc.free()

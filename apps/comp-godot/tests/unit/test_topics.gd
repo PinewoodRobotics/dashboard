@@ -35,10 +35,10 @@ func test_subscription_groups() -> void:
 
 
 func test_connection_settings_normalization() -> void:
-	check_eq(ConnectionSettings.normalize_reconnect_timeout(1), 10)
-	check_eq(ConnectionSettings.normalize_reconnect_timeout(2), 2)
+	check_eq(ConnectionSettings.normalize_reconnect_timeout(1), 1)
+	check_eq(ConnectionSettings.normalize_reconnect_timeout(0), 2)
 	check_eq(ConnectionSettings.normalize_reconnect_timeout(59.6), 60)
-	check_eq(ConnectionSettings.normalize_reconnect_timeout("5"), 10)
+	check_eq(ConnectionSettings.normalize_reconnect_timeout("5"), 2)
 	var nt := ConnectionSettings.normalize_nt({"host": " 127.0.0.1 ", "port": 5811.0, "sharedTable": ""})
 	check_eq(nt["host"], "127.0.0.1")
 	check_eq(nt["port"], 5811)

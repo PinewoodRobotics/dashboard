@@ -7,8 +7,12 @@ extends RefCounted
 ## Connection Settings form rules of useTouchscreenSettingsForm.ts.
 
 const ENV_PATH := "PWRUP_SHARED_SETTINGS_PATH"
-const DEFAULT_RECONNECT_TIMEOUT_S := 10
-const TIMEOUT_MIN_S := 2
+## `reconnectTimeoutSeconds` is the connect timeout in both dashboards: an
+## attempt that has not connected after this long is dropped and retried. The
+## Electron app keeps its own default (10) and reads values below 2 as 10.
+const DEFAULT_RECONNECT_TIMEOUT_S := 2
+const LEGACY_DEFAULT_RECONNECT_TIMEOUT_S := 10
+const TIMEOUT_MIN_S := 1
 const TIMEOUT_MAX_S := 60
 const TIMEOUT_UI_MAX_S := 30
 

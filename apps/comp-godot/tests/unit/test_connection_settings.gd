@@ -44,7 +44,7 @@ func _read() -> Dictionary:
 
 
 func test_schema_defaults() -> void:
-	check_eq(ConnectionSettings.defaults(), {"nt": {"host": "10.47.65.2", "port": 5810, "sharedTable": "Shared", "selectedPathTopic": "PathPlanner/SelectedPath"}, "reconnectTimeoutSeconds": 10})
+	check_eq(ConnectionSettings.defaults(), {"nt": {"host": "10.47.65.2", "port": 5810, "sharedTable": "Shared", "selectedPathTopic": "PathPlanner/SelectedPath"}, "reconnectTimeoutSeconds": 2})
 	check_eq(ConnectionSettings.shared_file_path(), file, "env override")
 
 
@@ -58,8 +58,10 @@ func test_normalization_rules() -> void:
 	check_eq(n["selectedPathTopic"], "Auto/Sel", "legacy entry key")
 	n = ConnectionSettings.normalize_nt({"currentPathTopic": "/Tbl/Some/Entry"})
 	check_eq([n["sharedTable"], n["selectedPathTopic"]], ["Tbl", "Some/Entry"], "legacy full topic path")
-	check_eq(ConnectionSettings.normalize_reconnect_timeout(61), 10)
+	check_eq(ConnectionSettings.normalize_reconnect_timeout(61), 2)
 	check_eq(ConnectionSettings.normalize_reconnect_timeout(30.4), 30)
+	check_eq(ConnectionSettings.normalize_reconnect_timeout(1), 1)
+	check_eq(ConnectionSettings.normalize_reconnect_timeout(0.4), 2)
 
 
 func test_form_validation_like_the_web() -> void:

@@ -139,6 +139,15 @@ func test_validity_warning_on_card_and_detail() -> void:
 	check_eq(t.detail_warning.text, "Not in the robot's auto list")
 
 
+func test_settings_status_text() -> void:
+	check_eq(SettingsTab.status_text({"state": "READY", "attempt": 0}), "Connected")
+	check_eq(SettingsTab.status_text({"state": "CONNECTING", "attempt": 3, "attempt_age_s": 0.42}), "Connecting, attempt 3 (0.4 s)")
+	check_eq(SettingsTab.status_text({"state": "SYNCING", "attempt": 1}), "Syncing, attempt 1")
+	check_eq(SettingsTab.status_text({"state": "BACKOFF", "attempt": 4, "backoff_left_s": 0.5}), "Attempt 4 failed, retrying in 0.5 s")
+	check_eq(SettingsTab.status_text({"state": "BACKOFF", "attempt": 0, "backoff_left_s": 0.1}), "Link lost, retrying in 0.1 s")
+	check_eq(SettingsTab.status_text({"state": "IDLE", "attempt": 0}), "Disconnected")
+
+
 func test_settings_form_save_and_reset() -> void:
 	var nt := NtService.new()
 	tree.root.add_child(nt)
@@ -149,6 +158,7 @@ func test_settings_form_save_and_reset() -> void:
 	check(st.save.disabled, "nothing changed")
 	check_eq(st.status_label.text, "Disconnected")
 	check(st.reconnect.visible, "Reconnect shown while disconnected")
+	check_eq(st.timeout.label, "Connect Timeout")
 	st.host.set_text("127.0.0.1", true)
 	check(not st.save.disabled)
 	st.port.set_text("", true)
@@ -166,7 +176,7 @@ func test_settings_form_save_and_reset() -> void:
 	st._on_reset()
 	check_eq(st.drafts["host"], "10.47.65.2")
 	check_eq(st.drafts["sharedTable"], "Shared")
-	check_eq(st.timeout.value, 10.0)
+	check_eq(st.timeout.value, 2.0)
 	nt.queue_free()
 
 

@@ -111,6 +111,7 @@ func _start_nt() -> void:
 	if Dev.offline_fixture():
 		NT.inject(Dev.fixture_nt(), Dev.fixture.get("nt_link", "up") != "down")
 		return
+	Settings.migrate_connect_timeout()
 	_apply_connection()
 	Settings.changed.connect(func(section: String) -> void:
 		if section == "connection":

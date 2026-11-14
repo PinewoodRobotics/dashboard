@@ -5,9 +5,13 @@ extends Control
 ## column). Drafts are validated like useTouchscreenSettingsForm.ts: Save is
 ## enabled only when the form is valid and differs from the saved settings,
 ## Reset writes the schema defaults, and every save goes to the shared file.
-## The header shows the NetworkTables state and Reconnect restarts the client.
+## The header shows the NetworkTables state with the current attempt, and
+## Reconnect (always shown) drops the connection and opens a new one at once.
 
-const TIMEOUT_HINTS := [{"min": 0.0, "text": "Closes a stuck connection after this long"}]
+const TIMEOUT_HINTS := [
+	{"min": 0.0, "text": "Drops a connection attempt that has not connected after this long and retries at once"},
+	{"min": 3.0, "text": "Slower: a robot that boots can take this long to reconnect (2 s recommended)"},
+]
 const COLUMN_W := {"Robot": 380, "Topics": 420, "Connection": 380, "NT Preview": 572}
 
 var settings: SettingsService
@@ -56,7 +60,8 @@ func _ready() -> void:
 	reconnect.icon_name = "refresh-cw"
 	reconnect.pressed.connect(func() -> void:
 		if nt != null:
-			nt.reconnect())
+			nt.reconnect()
+		_update_status())
 	header.add_child(reconnect)
 	reset = PwButton.new("Reset", PwButton.Style.OUTLINE, Vector2(130, 48))
 	reset.name = "Reset"
@@ -86,7 +91,7 @@ func _ready() -> void:
 	_add_column(cols, c2)
 
 	var c3 := UiKit.column("Connection", true, 24, 20)
-	timeout = PwSlider.new().configure({"label": "Reconnect Timeout", "min_value": float(ConnectionSettings.TIMEOUT_MIN_S),
+	timeout = PwSlider.new().configure({"label": "Connect Timeout", "min_value": float(ConnectionSettings.TIMEOUT_MIN_S),
 		"max_value": float(ConnectionSettings.TIMEOUT_UI_MAX_S), "step": 1.0, "decimals": 0, "value_label": "{v}s",
 		"hints": TIMEOUT_HINTS, "value": float(ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S)})
 	timeout.name = "Timeout"
@@ -198,24 +203,39 @@ func is_connected_nt() -> bool:
 	return nt != null and nt.is_ready()
 
 
+## "Connected", or what the client is doing: "Connecting, attempt 3 (0.4 s)".
+static func status_text(d: Dictionary) -> String:
+	var attempt := int(d.get("attempt", 0))
+	match str(d.get("state", "")):
+		"READY":
+			return "Connected"
+		"CONNECTING":
+			return "Connecting, attempt %d (%.1f s)" % [attempt, maxf(0.0, float(d.get("attempt_age_s", 0.0)))]
+		"SYNCING":
+			return "Syncing, attempt %d" % attempt
+		"BACKOFF":
+			var left := float(d.get("backoff_left_s", 0.0))
+			if attempt == 0:
+				return "Link lost, retrying in %.1f s" % left
+			return "Attempt %d failed, retrying in %.1f s" % [attempt, left]
+	return "Disconnected"
+
+
 func _update_status() -> void:
 	var ok := is_connected_nt()
 	status_dot.color = Tokens.ACCENT if ok else Tokens.ERROR
-	status_label.text = "Connected" if ok else "Disconnected"
 	status_label.add_theme_color_override("font_color", Tokens.ACCENT if ok else Tokens.ERROR_TEXT)
-	reconnect.visible = not ok
-	if nt == null:
-		diag.text = ""
-		return
-	if nt.fixture_mode:
-		diag.text = "State      %s (fixture)" % ("READY" if ok else "IDLE")
+	if nt == null or nt.fixture_mode:
+		status_label.text = "Connected" if ok else "Disconnected"
+		diag.text = "" if nt == null else "State      %s (fixture)" % ("READY" if ok else "IDLE")
 		return
 	var d := nt.diagnostics()
+	status_label.text = status_text(d)
 	var lines := PackedStringArray([
 		"State      %s" % d.get("state", ""),
 		"Server     %s:%d" % [nt.client.host, nt.client.port],
 		"RTT        %s" % ("%.1f ms" % (float(d["rtt_us"]) / 1000.0) if ok and int(d.get("rtt_us", -1)) >= 0 else "--"),
-		"Reconnects %d" % int(d.get("reconnects", 0)),
+		"Reconnects %d (manual %d)" % [int(d.get("reconnects", 0)), int(d.get("manual_reconnects", 0))],
 	])
 	var last := str(d.get("last_close", ""))
 	if last != "" and not ok:
