@@ -308,3 +308,31 @@ func test_robot_only_autos_get_cards_without_preview() -> void:
 	t.refresh()
 	check(t.card("Fresh Auto") != null, "kept while the robot is away")
 	autos.queue_free()
+
+
+func test_unconfirmed_saved_choice_is_not_labeled_as_on_the_robot() -> void:
+	var autos := AutosService.new()
+	tree.root.add_child(autos)
+	controls.autos = autos
+	controls.sync.selected = "Gone Auto"
+	controls.sync.set_library(autos.library.names())
+	var t := AutoTab.new()
+	t.controls = controls
+	t.autos = autos
+	t.size = host.size
+	host.add_child(t)
+	t.set_process(false)
+	t.refresh()
+	var c := t.card("Gone Auto")
+	check(c != null and c.file.text == AutoTab.UNCONFIRMED_FILE, c.file.text if c != null else "no card")
+	t.view("Gone Auto")
+	check_eq(t.detail_file.text, AutoTab.UNCONFIRMED_FILE)
+	check(t.no_preview.visible)
+	link.up = true
+	link.values[STATE] = "Stay And Shoot"
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(autos.library.names())
+	controls.step()
+	t.refresh()
+	check_eq(controls.sync.selected, "")
+	check(t.card("Gone Auto") == null, "dropped once the robot's list lacks it")
+	autos.queue_free()

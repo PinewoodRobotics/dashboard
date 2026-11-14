@@ -18,6 +18,10 @@ const THROTTLE_US := 700_000
 const FLICKER_WINDOW_US := 10_000_000
 const FLICKER_THRESHOLD := 10
 const PENDING_TIMEOUT_US := 1_500_000
+## Robot code that never publishes ValidNames/Autos: once its State has been
+## live this long without the list, a stored choice outside the export is
+## dropped, as it was before robot-only autos existed.
+const ROBOT_LIST_WAIT_US := 3_000_000
 
 const LOCK_TOPIC := "/matchhud/state/enabled"
 
@@ -43,6 +47,7 @@ var _was_connected := false
 var _last_sync_us := -THROTTLE_US
 var _prev_robot := NONE
 var _mismatch_us: Array[int] = []
+var _known_since_us := -1
 
 
 func _init(p_link: ControlLink, p_clock: Clock, topics: Dictionary, stored: String = "") -> void:
@@ -64,23 +69,37 @@ func set_topics(topics: Dictionary) -> void:
 
 
 ## Library names. A stored choice that matches neither them nor the robot's
-## live auto list is cleared; without a live list it waits, unpublished.
+## auto list is cleared; until the robot's list (or its absence) is known it
+## waits, unpublished.
 func set_library(p_names: PackedStringArray) -> void:
 	names = p_names
 	_resolve_selected()
 
 
 func _resolve_selected() -> void:
+	_refresh_robot_names()
 	if names.is_empty() or selected == "" or selected == NONE:
 		return
 	var m := find_match(selected, names)
-	if m == "" and robot_list_live():
-		m = find_match(selected, robot_list())
-		if m == "":
+	if m == "":
+		m = find_match(selected, robot_names)
+		if m == "" and _robot_list_settled():
 			_set_selected("")
 			return
 	if m != "" and m != selected:
 		_set_selected(m)
+
+
+func _robot_list_settled() -> bool:
+	if robot_list_live():
+		return true
+	return _known_since_us >= 0 and clock.now_us() - _known_since_us >= ROBOT_LIST_WAIT_US
+
+
+func awaiting_robot_list() -> bool:
+	if selected == "" or selected == NONE:
+		return false
+	return find_match(selected, names) == "" and find_match(selected, robot_names) == ""
 
 
 func robot_list_live() -> bool:
@@ -237,8 +256,11 @@ func update() -> void:
 	_was_connected = connected
 	var is_locked := locked()
 	var known := robot_known()
+	if not known:
+		_known_since_us = -1
+	elif _known_since_us < 0:
+		_known_since_us = now
 	var robot := robot_auto()
-	_refresh_robot_names()
 	_resolve_selected()
 	var enforce := enforceable()
 

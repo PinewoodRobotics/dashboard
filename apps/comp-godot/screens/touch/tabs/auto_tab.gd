@@ -19,6 +19,8 @@ const RETRY := "<retry>"
 const NO_AUTO_DETAIL := "Do not run an autonomous routine. The robot will stay still during autonomous."
 const ROBOT_ONLY_FILE := "On the robot: no preview, not exported"
 const ROBOT_ONLY_DETAIL := "The robot has this auto, but the dashboard's export does not, so there is no preview."
+const UNCONFIRMED_FILE := "Saved choice: not exported, robot list unknown"
+const UNCONFIRMED_DETAIL := "This saved choice is not in the dashboard's export. It is held back until the robot's auto list confirms it, and dropped if the robot does not have it."
 const AMBER_BG := Color(0.961, 0.62, 0.043, 0.15)
 const AMBER_LINE := Color(0.984, 0.749, 0.141, 0.6)
 const AMBER_TEXT := Color("#fef3c7")
@@ -189,21 +191,25 @@ func _names() -> PackedStringArray:
 
 
 func _robot_only() -> PackedStringArray:
-	if controls == null:
+	return controls.sync.robot_only_names() if controls != null else PackedStringArray()
+
+
+func _unconfirmed() -> PackedStringArray:
+	if controls == null or not controls.sync.awaiting_robot_list():
 		return PackedStringArray()
-	var out := controls.sync.robot_only_names()
-	var sel := controls.sync.selected
-	if sel != "" and sel != NONE and AutoSelectionSync.find_match(sel, _names()) == "" and AutoSelectionSync.find_match(sel, out) == "":
-		out.append(sel)
-	return out
+	return PackedStringArray([controls.sync.selected])
+
+
+func _extra_names() -> PackedStringArray:
+	return _robot_only() + _unconfirmed()
 
 
 func _all_names() -> PackedStringArray:
-	return _names() + _robot_only()
+	return _names() + _extra_names()
 
 
 func is_robot_only(auto_name: String) -> bool:
-	return auto_name != NONE and auto_name != "" and not _names().has(auto_name) and _robot_only().has(auto_name)
+	return auto_name != NONE and auto_name != "" and not _names().has(auto_name) and _extra_names().has(auto_name)
 
 
 func _rebuild_cards() -> void:
@@ -217,9 +223,9 @@ func _rebuild_cards() -> void:
 		cards.append(c)
 		list.add_item(c)
 	var robot_only := _robot_only()
-	_robot_only_key = "\n".join(robot_only)
-	for n in robot_only:
-		var c := AutoCard.new(n, n, ROBOT_ONLY_FILE, "")
+	_robot_only_key = "\n".join(_extra_names())
+	for n in _extra_names():
+		var c := AutoCard.new(n, n, ROBOT_ONLY_FILE if robot_only.has(n) else UNCONFIRMED_FILE, "")
 		c.mark_robot_only()
 		cards.append(c)
 		list.add_item(c)
@@ -462,7 +468,7 @@ func refresh() -> void:
 		return
 	var sync := controls.sync
 	var active := sync.active_name()
-	if _robot_only_key != "\n".join(_robot_only()):
+	if _robot_only_key != "\n".join(_extra_names()):
 		_rebuild_cards()
 	if viewing == "":
 		viewing = active if active != "" else (_names()[0] if not _names().is_empty() else NONE)
@@ -496,8 +502,9 @@ func _refresh_detail(active: String) -> void:
 	var robot_only := is_robot_only(viewing)
 	if viewing == NONE or robot_only:
 		detail_title.text = "No Auto" if viewing == NONE else viewing
-		detail_file.text = ROBOT_ONLY_FILE if robot_only else ""
-		detail_desc.text = ROBOT_ONLY_DETAIL if robot_only else NO_AUTO_DETAIL
+		var listed := _robot_only().has(viewing)
+		detail_file.text = "" if not robot_only else (ROBOT_ONLY_FILE if listed else UNCONFIRMED_FILE)
+		detail_desc.text = NO_AUTO_DETAIL if not robot_only else (ROBOT_ONLY_DETAIL if listed else UNCONFIRMED_DETAIL)
 		preview.visible = false
 		no_preview.visible = robot_only
 		start_chip.show_check({})
@@ -543,7 +550,7 @@ func probe() -> Dictionary:
 		"detail_file": detail_file.text, "preview": preview.probe() if preview.visible else {},
 		"expanded": expanded, "list_visible": _list_pane.visible, "no_preview": no_preview.visible,
 		"start_chip": start_chip.text.text if start_chip.visible else "", "start_level": start_chip.level,
-		"summary": list_summary.text, "robot_only": Array(_robot_only()),
+		"summary": list_summary.text, "robot_only": Array(_robot_only()), "unconfirmed": Array(_unconfirmed()),
 		"title_lines": detail_title.get_line_count(), "title_clipped": _clipped(detail_title),
 		"file_clipped": _clipped(detail_file), "robot_clipped": _clipped(detail_robot),
 	}

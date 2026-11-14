@@ -228,6 +228,34 @@ func test_library_clears_unknown_and_fixes_case() -> void:
 	check_eq(s3.selected, "NONE", "No Auto survives a library change")
 
 
+func test_stored_choice_is_dropped_when_the_robot_never_lists_autos() -> void:
+	var s := AutoSelectionSync.new(link, clock, T, "Gone Auto")
+	s.set_library(PackedStringArray(NAMES))
+	check(s.awaiting_robot_list())
+	link.up = true
+	_tick(s, 5.0)
+	check_eq(s.selected, "Gone Auto", "a connection without the robot's State proves nothing")
+	link.values[T["state"]] = "Stay And Shoot"
+	_tick(s, 2.0)
+	check_eq(s.selected, "Gone Auto", "the list may still be on its way")
+	_tick(s, 1.5)
+	check_eq(s.selected, "", "robot code without ValidNames/Autos")
+	check(not s.awaiting_robot_list())
+	check_eq(link.count(T["request"]), 0)
+
+
+func test_a_previously_listed_choice_is_kept_without_the_list() -> void:
+	link.up = true
+	link.values[T["state"]] = "NONE"
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(["New Auto"])
+	var s := _sync("New Auto")
+	s.update()
+	check(not s.awaiting_robot_list())
+	link.values.erase(Topics.PP_VALID_AUTOS)
+	_tick(s, 5.0)
+	check_eq(s.selected, "New Auto")
+
+
 func test_validity_from_robot_lists() -> void:
 	var s := _sync("Ball Shooter Left")
 	check_eq(s.validity("Ball Shooter Left"), AutoSelectionSync.Validity.UNKNOWN, "unknown while disconnected")
