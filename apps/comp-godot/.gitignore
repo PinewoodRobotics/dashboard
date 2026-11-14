@@ -1,0 +1,7 @@
+.godot/
+.screenshots/
+build/
+tools/**/node_modules/
+tools/**/.venv/
+__pycache__/
+*.tmp
