@@ -17,6 +17,11 @@ the dashboard talks to.
 - /fake/uptime_s and /fake/request_log (every Request value received, in order)
 - optional /fake/load/* doubles so the server holds --total-topics topics,
   changing at --load-hz (runtime override: /fake/control/load_hz)
+- a scripted full match (--match, or /fake/control/match_speed > 0 at runtime):
+  pre-match, 20 s auto, a disabled gap, 140 s teleop (transition, 4 shifts,
+  endgame), post-match, with every /matchhud/state value computed like
+  MatchStatusCalculator.java, sped up by --speed; aim mode and the lane
+  alignment signal (AdjustingVelocity) change between phases
 - robot pose and the AdvantageKit joint topics (wrist, turret; climber only with
   --climber since the FIR robot has no climber output). Default: parked at 5, 5
   with a spinning heading; --pose X,Y,H parks it; --motion drives a loop on the
@@ -128,6 +133,114 @@ VALID_AUTOS = [
 
 INTAKE_DEFAULT_SPEED = 0.5
 
+LANE_TOPIC = "/AdvantageKit/RealOutputs/SwerveSubsystem/AdjustingVelocity"
+
+AUTO_S = 20.0
+TRANSITION_S = 10.0
+SHIFT_S = 25.0
+ENDGAME_S = 30.0
+TELEOP_S = TRANSITION_S + 4 * SHIFT_S + ENDGAME_S
+FULL_S = AUTO_S + TELEOP_S
+WARNING_S = 3.0
+PRE, AUTO, TRANSITION, SHIFT1, SHIFT2, SHIFT3, SHIFT4, ENDGAME, POST = range(9)
+HUB_NONE, HUB_BOTH, HUB_ACTIVE, HUB_WARNING, HUB_INACTIVE = range(5)
+HEADER_HIDDEN, HEADER_GREEN, HEADER_YELLOW, HEADER_PURPLE = range(4)
+AIM_BY_PHASE = {AUTO: 1, TRANSITION: 2, SHIFT1: 1, SHIFT2: 1, SHIFT3: 2, SHIFT4: 0, ENDGAME: 1}
+
+
+def teleop_phase(e: float) -> int:
+    if e < TRANSITION_S:
+        return TRANSITION
+    for i in range(4):
+        if e < TRANSITION_S + (i + 1) * SHIFT_S:
+            return SHIFT1 + i
+    return ENDGAME if e < TELEOP_S else POST
+
+
+def phase_end(phase: int) -> float:
+    """Teleop-elapsed seconds at which a teleop phase ends."""
+    if phase == TRANSITION:
+        return TRANSITION_S
+    if SHIFT1 <= phase <= SHIFT4:
+        return TRANSITION_S + (phase - SHIFT1 + 1) * SHIFT_S
+    return TELEOP_S
+
+
+def our_hub_active(phase: int, inactive_in_shift1: bool) -> bool:
+    if phase in (SHIFT1, SHIFT3):
+        return not inactive_in_shift1
+    if phase in (SHIFT2, SHIFT4):
+        return inactive_in_shift1
+    return True
+
+
+def match_values(t: float, pre_s: float, gap_s: float, is_red: bool, game_data: str) -> dict:
+    """/matchhud/state values at robot-time t (s) of a scripted FULL_MATCH session."""
+    gsm = game_data.strip().upper() or ("R" if is_red else "B")
+    inactive_in_shift1 = is_red if gsm == "R" else not is_red
+    v = {
+        "enabled": False, "autonomous": False, "game_specific_message": gsm, "match_phase": PRE,
+        "hub_status": HUB_NONE, "header_color": HEADER_HIDDEN, "total_time_remaining_s": 0.0,
+        "period_time_remaining_s": 0.0, "shift_time_remaining_s": 0.0, "shift_time_with_buffer_s": 0.0,
+        "buffer_remaining_s": 0.0, "show_shift_indicator": False, "show_buffer": False, "aim_mode": 0,
+    }
+    m = t - pre_s
+    if m < 0:
+        return v
+    if m < AUTO_S:
+        v.update(enabled=True, autonomous=True, match_phase=AUTO, hub_status=HUB_BOTH, header_color=HEADER_PURPLE,
+                 total_time_remaining_s=FULL_S - m, period_time_remaining_s=AUTO_S - m, show_shift_indicator=True,
+                 aim_mode=AIM_BY_PHASE[AUTO])
+        return v
+    if m < AUTO_S + gap_s:
+        v.update(match_phase=AUTO, hub_status=HUB_BOTH, header_color=HEADER_PURPLE, total_time_remaining_s=TELEOP_S,
+                 show_shift_indicator=True, aim_mode=AIM_BY_PHASE[AUTO])
+        return v
+    e = m - AUTO_S - gap_s
+    phase = teleop_phase(e)
+    if phase == POST:
+        return v | {"match_phase": POST}
+    remaining = max(0.0, phase_end(phase) - e)
+    phase_elapsed = e - (phase_end(phase) - (TRANSITION_S if phase == TRANSITION else ENDGAME_S if phase == ENDGAME else SHIFT_S))
+    shift_phase = TRANSITION <= phase <= SHIFT4
+    shift = remaining if shift_phase else 0.0
+    with_buffer = shift
+    nxt = phase + 1
+    if shift_phase and nxt not in (ENDGAME, POST) and not our_hub_active(nxt, inactive_in_shift1):
+        with_buffer = shift + WARNING_S
+    if phase in (TRANSITION, ENDGAME):
+        hub = HUB_BOTH
+    elif our_hub_active(phase, inactive_in_shift1):
+        hub = HUB_ACTIVE
+    elif phase_elapsed < WARNING_S:
+        hub = HUB_WARNING
+    else:
+        hub = HUB_INACTIVE
+    header = HEADER_YELLOW if hub == HUB_WARNING else HEADER_GREEN if hub in (HUB_ACTIVE, HUB_BOTH) else HEADER_HIDDEN
+    v.update(enabled=True, match_phase=phase, hub_status=hub, header_color=header,
+             total_time_remaining_s=max(0.0, TELEOP_S - e), period_time_remaining_s=remaining,
+             shift_time_remaining_s=shift, shift_time_with_buffer_s=with_buffer,
+             buffer_remaining_s=max(0.0, WARNING_S - phase_elapsed) if hub == HUB_WARNING else 0.0,
+             show_shift_indicator=phase != ENDGAME, show_buffer=hub == HUB_WARNING, aim_mode=AIM_BY_PHASE[phase])
+    return v
+
+
+class MatchScript:
+    """Wall-clock driven match; robot time runs `speed` times faster."""
+
+    def __init__(self, speed: float, pre_s: float, gap_s: float, post_s: float, loop: bool):
+        self.speed, self.pre_s, self.gap_s, self.post_s, self.loop = speed, pre_s, gap_s, post_s, loop
+        self.start = time.monotonic()
+
+    def robot_time(self, now: float) -> float:
+        t = (now - self.start) * self.speed
+        total = self.pre_s + AUTO_S + self.gap_s + TELEOP_S + self.post_s
+        if self.loop and t >= total:
+            self.start = now
+            t = 0.0
+        return t
+
+
 WRIST_TOPIC = "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition"
 TURRET_TOPIC = "/AdvantageKit/RealOutputs/Turret/PositionRot"
 CLIMBER_TOPIC = "/AdvantageKit/RealOutputs/Climber/CurrentHeightMeters"
@@ -192,6 +305,13 @@ def main() -> int:
     ap.add_argument("--wrist", type=float, default=0.0, help="wrist rotations when not in --motion")
     ap.add_argument("--turret", type=float, default=0.0, help="turret rotations when not in --motion")
     ap.add_argument("--climber", type=float, default=None, help="publish the climber topic with this height (m)")
+    ap.add_argument("--match", action="store_true", help="run a scripted full match from launch")
+    ap.add_argument("--speed", type=float, default=1.0, help="match time speed-up (8 = a 160 s match in 20 s)")
+    ap.add_argument("--pre-s", type=float, default=2.0, help="pre-match length in match seconds")
+    ap.add_argument("--gap-s", type=float, default=2.0, help="disabled gap between auto and teleop, match seconds")
+    ap.add_argument("--post-s", type=float, default=4.0, help="post-match length before a --loop restart, match seconds")
+    ap.add_argument("--loop", action="store_true", help="restart the match after post-match")
+    ap.add_argument("--game-data", default="B", help="game-specific message R or B (sets which hub is inactive first)")
     ap.add_argument(
         "--no-flush",
         action="store_true",
@@ -256,6 +376,12 @@ def main() -> int:
     pp_names.set(VALID_AUTOS)
 
     load_hz_sub = inst.getDoubleTopic("/fake/control/load_hz").subscribe(args.load_hz)
+    match_speed_ctl = inst.getDoubleTopic("/fake/control/match_speed").subscribe(math.nan)
+    lane_pub = inst.getBooleanTopic(LANE_TOPIC).publish()
+    lane_pub.set(False)
+    match_time_pub = inst.getDoubleTopic("/fake/match/robot_time_s").publish()
+    script = MatchScript(args.speed, args.pre_s, args.gap_s, args.post_s, args.loop) if args.match else None
+    last_speed_req = math.nan
 
     base_count = len(match_pubs) + len(type_pubs) + 8
     load_pubs = []
@@ -306,6 +432,20 @@ def main() -> int:
             climber_pub.set(args.climber if math.isnan(c) else c)
         alliance = alliance_ctl.get() or args.alliance
         match_pubs["is_red_alliance"].set(alliance == "red")
+        speed_req = match_speed_ctl.get()
+        if not math.isnan(speed_req) and speed_req != last_speed_req:
+            last_speed_req = speed_req
+            script = MatchScript(speed_req, args.pre_s, args.gap_s, args.post_s, args.loop) if speed_req > 0 else None
+            if script is None:
+                for k in match_values(0.0, 1.0, 0.0, False, "B"):
+                    match_pubs[k].set(STATIC_MATCH_VALUES[k])
+        if script is not None:
+            rt = script.robot_time(now)
+            match_time_pub.set(rt)
+            values = match_values(rt, args.pre_s, args.gap_s, alliance == "red", args.game_data)
+            for k, v in values.items():
+                match_pubs[k].set(v)
+            lane_pub.set(values["aim_mode"] == 1)
         uptime_pub.set(uptime)
 
         for v in auto_req.readQueue():

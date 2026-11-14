@@ -1,0 +1,39 @@
+{
+  "nt": {
+    "/matchhud/state/seq": 4242,
+    "/matchhud/state/connected": true,
+    "/matchhud/state/is_red_alliance": false,
+    "/matchhud/state/enabled": true,
+    "/matchhud/state/autonomous": false,
+    "/matchhud/state/game_specific_message": "B",
+    "/matchhud/state/robot_time_us": 100000000,
+    "/matchhud/state/match_phase": 0,
+    "/matchhud/state/hub_status": 0,
+    "/matchhud/state/header_color": 0,
+    "/matchhud/state/aim_mode": 0,
+    "/matchhud/state/total_time_remaining_s": 0.0,
+    "/matchhud/state/period_time_remaining_s": 0.0,
+    "/matchhud/state/shift_time_remaining_s": 0.0,
+    "/matchhud/state/shift_time_with_buffer_s": 0.0,
+    "/matchhud/state/buffer_remaining_s": 0.0,
+    "/matchhud/state/show_shift_indicator": false,
+    "/matchhud/state/show_buffer": false,
+    "/matchhud/state/is_shooting": false,
+    "/matchhud/state/robot_pose_x_m": 4.2,
+    "/matchhud/state/robot_pose_y_m": 2.6,
+    "/matchhud/state/robot_heading_rad": 0.6,
+    "/matchhud/state/robot_pose_valid": true,
+    "/matchhud/state/auto_align_active": false,
+    "/matchhud/state/auto_align_distance_m": 0.0,
+    "/matchhud/state/auto_align_ready": false,
+    "/matchhud/state/driver_override": false,
+    "/AdvantageKit/RealOutputs/Turret/PositionRot": 0.1,
+    "/AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition": 0.0,
+    "/AdvantageKit/RealOutputs/SwerveSubsystem/AdjustingVelocity": false
+  },
+  "map": {
+    "mode": "follow",
+    "angle": 0.3,
+    "zoom": 0.5
+  }
+}

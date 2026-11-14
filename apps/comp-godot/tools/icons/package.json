@@ -1,0 +1,11 @@
+{
+  "name": "comp-godot-icons",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build_icons.mjs"
+  },
+  "dependencies": {
+    "lucide-static": "1.60.0"
+  }
+}

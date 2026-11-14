@@ -54,6 +54,12 @@ func ensure_bumper_material() -> void:
 		bumper.set_surface_override_material(i, bumper_material)
 
 
+func set_dim(factor: float) -> void:
+	ensure_bumper_material()
+	if bumper_material != null:
+		bumper_material.set_shader_parameter("dim", factor)
+
+
 ## true = red, false = blue, null = unknown (model color).
 func set_alliance(is_red: Variant) -> void:
 	ensure_bumper_material()

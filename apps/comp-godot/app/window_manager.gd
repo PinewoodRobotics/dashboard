@@ -33,19 +33,19 @@ static func dev_size(screen_name: String) -> Vector2i:
 
 
 ## Root window: resized to the screen it hosts (the project default is the HUD).
-static func setup_root(root: Window, screen_name: String) -> void:
+static func setup_root(root: Window, screen_name: String, full_size: bool = false) -> void:
 	configure(root, screen_name)
 	root.title = "PWRUP Comp - %s" % ("Touchscreen" if screen_name == "touch" else "HUD")
 	if DisplayServer.get_name() != "headless":
-		root.size = dev_size(screen_name)
+		root.size = design_size(screen_name) if full_size else dev_size(screen_name)
 
 
-static func create_touch_window(root: Window) -> Window:
+static func create_touch_window(root: Window, full_size: bool = false) -> Window:
 	var w := Window.new()
 	w.name = "TouchWindow"
 	w.title = "PWRUP Comp - Touchscreen"
 	configure(w, "touch")
-	w.size = dev_size("touch")
+	w.size = design_size("touch") if full_size else dev_size("touch")
 	w.position = root.position + Vector2i(0, root.size.y + 40)
 	w.transient = false
 	w.wrap_controls = false

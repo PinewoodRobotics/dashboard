@@ -129,25 +129,26 @@ func off_value(topic: String, callback: Callable) -> void:
 
 ## Offline fixture mode (screenshots, tests): the values become cached and live
 ## as if a connected robot had sent them, with no socket. A null value removes
-## the topic's value.
-func inject(values: Dictionary) -> void:
+## the topic's value. With connected false they are cached like values kept
+## from a lost connection: has_value but not live, and is_ready() stays false.
+func inject(values: Dictionary, connected: bool = true) -> void:
 	fixture_mode = true
+	if connected and not _ready_flag:
+		_ready_flag = true
+		connection_changed.emit(true)
 	var now := Time.get_ticks_usec()
 	for topic: String in values:
 		var slot := _slot_for(topic)
 		var v: Variant = values[topic]
 		_values[slot] = v
 		_has[slot] = 0 if v == null else 1
-		_fresh[slot] = _has[slot]
+		_fresh[slot] = _has[slot] if connected else 0
 		_local_ts[slot] = now
 		_updates[slot] += 1
 		var cbs: Variant = _callbacks[slot]
 		if cbs != null and v != null:
 			for cb: Callable in cbs:
 				cb.call(v)
-	if not _ready_flag:
-		_ready_flag = true
-		connection_changed.emit(true)
 
 
 func diagnostics() -> Dictionary:

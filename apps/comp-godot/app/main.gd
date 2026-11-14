@@ -6,6 +6,7 @@ extends Node
 ##   --fixture=NAME|PATH       offline: inject a fixture's NT values, never open a socket
 ##                             (with --live: fixture views and probes over live NT)
 ##   --debug-overlay           show the F3 NetworkTables overlay at start
+##   --design-size             open windows at the design size instead of two thirds of it
 ## Screenshot, perf and probe flags are documented in services/dev_service.gd.
 
 var screen := "both"
@@ -20,7 +21,7 @@ func _ready() -> void:
 	_args = CliArgs.parse(OS.get_cmdline_user_args())
 	screen = WindowManager.parse_screen(_args)
 	var root := get_window()
-	WindowManager.setup_root(root, screen)
+	WindowManager.setup_root(root, screen, _args.has("design_size"))
 	_apply_frame_policy()
 	_start_nt()
 
@@ -33,7 +34,7 @@ func _ready() -> void:
 		add_child(hud)
 		windows["hud"] = root
 		if screen == "both":
-			var w := WindowManager.create_touch_window(root)
+			var w := WindowManager.create_touch_window(root, _args.has("design_size"))
 			add_child(w)
 			touch = TouchScreen.new()
 			w.add_child(touch)
@@ -50,7 +51,7 @@ func _ready() -> void:
 
 func _start_nt() -> void:
 	if Dev.offline_fixture():
-		NT.inject(Dev.fixture_nt())
+		NT.inject(Dev.fixture_nt(), Dev.fixture.get("nt_link", "up") != "down")
 		return
 	var conn := ConnectionSettings.load_shared()
 	var nt_conf: Dictionary = conn["nt"]
@@ -71,6 +72,10 @@ func _apply_frame_policy() -> void:
 
 func minimap() -> MinimapView:
 	return hud.minimap if hud != null else null
+
+
+func hud_screen() -> HudScreen:
+	return hud
 
 
 func orbit() -> RobotOrbitView:

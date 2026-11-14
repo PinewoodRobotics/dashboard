@@ -11,6 +11,7 @@ signal model_attached
 var model: Node3D
 var rig: RobotRig
 var _pending_alliance: Variant = null
+var dimmed := false
 
 
 func _ready() -> void:
@@ -25,8 +26,9 @@ func attach(scene: PackedScene) -> void:
 	model = scene.instantiate() as Node3D
 	cad_up.add_child(model)
 	rig = RobotRig.new(model)
-	CadMaterials.apply(model, [rig.bumper])
+	CadMaterials.apply(model, [rig.bumper], dimmed)
 	rig.set_alliance(_pending_alliance)
+	rig.set_dim(CadMaterials.DIM if dimmed else 1.0)
 	model_attached.emit()
 
 
@@ -43,6 +45,15 @@ func set_alliance(is_red: Variant) -> void:
 	_pending_alliance = is_red
 	if rig != null:
 		rig.set_alliance(is_red)
+
+
+func set_dimmed(on: bool) -> void:
+	if on == dimmed:
+		return
+	dimmed = on
+	if rig != null:
+		CadMaterials.apply(model, [rig.bumper], on)
+		rig.set_dim(CadMaterials.DIM if on else 1.0)
 
 
 func set_field_pose(x: float, y: float, heading: float) -> void:

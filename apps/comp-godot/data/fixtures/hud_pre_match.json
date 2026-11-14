@@ -1,0 +1,201 @@
+{
+  "extends": "hud_base",
+  "nt": {
+    "/matchhud/state/match_phase": 0,
+    "/matchhud/state/hub_status": 0,
+    "/matchhud/state/header_color": 0,
+    "/matchhud/state/total_time_remaining_s": 0.0,
+    "/matchhud/state/enabled": false
+  },
+  "probes": [
+    {
+      "name": "header absent (left)",
+      "window": "hud",
+      "at": [
+        0,
+        0,
+        480,
+        180
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "header absent (right)",
+      "window": "hud",
+      "at": [
+        1440,
+        0,
+        480,
+        180
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "timer white",
+      "window": "hud",
+      "at": [
+        700,
+        20,
+        520,
+        150
+      ],
+      "kind": "color",
+      "color": "#ffffff",
+      "tol": 0.02,
+      "min_fraction": 0.03
+    },
+    {
+      "name": "no shift indicator",
+      "window": "hud",
+      "at": [
+        690,
+        200,
+        540,
+        260
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "no buffer line",
+      "window": "hud",
+      "at": [
+        1220,
+        224,
+        400,
+        86
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "minimap field drawn",
+      "window": "hud",
+      "at": [
+        740,
+        640,
+        440,
+        260
+      ],
+      "kind": "nonblack",
+      "min_fraction": 0.5
+    },
+    {
+      "name": "minimap top-left corner rounded off",
+      "window": "hud",
+      "at": [
+        540,
+        480,
+        50,
+        40
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "minimap top-right corner rounded off",
+      "window": "hud",
+      "at": [
+        1330,
+        480,
+        50,
+        40
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "minimap soft left edge",
+      "window": "hud",
+      "at": [
+        540,
+        760,
+        8,
+        200
+      ],
+      "kind": "mean_luma",
+      "max": 0.06
+    },
+    {
+      "name": "minimap interior lit",
+      "window": "hud",
+      "at": [
+        900,
+        760,
+        40,
+        200
+      ],
+      "kind": "mean_luma",
+      "min": 0.25
+    },
+    {
+      "name": "minimap soft bottom edge",
+      "window": "hud",
+      "at": [
+        740,
+        1074,
+        440,
+        6
+      ],
+      "kind": "mean_luma",
+      "max": 0.12
+    },
+    {
+      "name": "left column black",
+      "window": "hud",
+      "at": [
+        0,
+        470,
+        530,
+        610
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "right column black",
+      "window": "hud",
+      "at": [
+        1390,
+        470,
+        530,
+        610
+      ],
+      "kind": "color",
+      "color": "#000000",
+      "tol": 0.003,
+      "min_fraction": 0.999
+    },
+    {
+      "name": "no banner",
+      "window": "hud",
+      "at": [
+        880,
+        1018,
+        40,
+        40
+      ],
+      "kind": "color",
+      "color": "#ef4444",
+      "tol": 0.03,
+      "min_fraction": 0.0,
+      "max_fraction": 0.0
+    }
+  ]
+}

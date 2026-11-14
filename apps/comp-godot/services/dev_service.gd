@@ -16,10 +16,14 @@ extends Node
 ## The process exits non-zero when a probe fails or the models never appear.
 ##
 ## Fixture: {"extends": "base", "nt": {topic: value}, "map": {mode, angle, zoom},
+##   "nt_link": "up"|"down" (down: values cached as if the connection dropped),
+##   "nt_steps": [{topic: value}, ...] injected in order after start (e.g. toasts),
+##   "match": {"advance_s": S} advance the frozen match clock after the steps,
 ##   "orbit_preset": 0, "camera": {"hud"|"touch": {"position": [x,y,z], "target": [..], "up": [..]}},
 ##   "probes": [{"name": "..", "window": "hud"|"touch", "at": "robot" | "node:<Name>" | [x, y, w, h],
-##     "half": 40, "kind": "hue"|"nonblack"|"color", "hue": "red"|"blue",
+##     "half": 40, "kind": "hue"|"nonblack"|"color"|"mean_luma", "hue": "red"|"blue",
 ##     "color": "#rrggbb", "tol": 0.1, "min_fraction": 0.02}]}
+##   mean_luma probes compare the region's mean luma with "min" / "max" instead.
 ## Rects and "half" are in design pixels of the window (1920x1080 HUD, 1920x515 touch).
 
 const FIXTURE_DIR := "res://data/fixtures"
@@ -115,8 +119,15 @@ func _windows() -> Dictionary:
 
 func _apply_fixture_views() -> void:
 	var views := _views()
-	if fixture.has("map") and views.has("hud"):
-		(views["hud"] as MinimapView).settings.merge(fixture["map"], true)
+	if fixture.has("map"):
+		Settings.set_map(fixture["map"])
+	if offline_fixture():
+		for step: Dictionary in fixture.get("nt_steps", []):
+			NT.inject(step, fixture.get("nt_link", "up") != "down")
+		var adv := float(fixture.get("match", {}).get("advance_s", 0.0))
+		if adv > 0.0 and Match.clock.is_frozen():
+			Match.clock.advance_s(adv)
+			Match.model.step(Match.clock.now_us())
 	var cams: Dictionary = fixture.get("camera", {})
 	for key: String in cams:
 		if views.has(key):
@@ -189,6 +200,21 @@ func _run() -> void:
 	report["os_windows"] = Array(DisplayServer.get_window_list())
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
 	report["anchors"] = _anchor_positions(images)
+	var hud: HudScreen = _main.call("hud_screen")
+	if hud != null:
+		report["hud_layout"] = hud.layout_report()
+		var m := Match.model
+		report["match"] = {
+			"phase": MatchEnums.PHASE_NAMES[m.phase],
+			"hub": MatchEnums.HUB_NAMES[m.hub],
+			"header": MatchEnums.HEADER_NAMES[m.header],
+			"aim": MatchEnums.AIM_NAMES[m.aim],
+			"banner": MatchModel.Banner.keys()[m.banner()],
+			"link_ok": m.link_ok(),
+			"pose_trusted": m.pose_trusted(),
+			"robot_dimmed": hud.minimap.robot.dimmed,
+		}
+		report["map_settings"] = Settings.map().duplicate()
 	report["windows"] = {}
 	var prefix := str(args.get("screenshot", ""))
 	for key: String in images:
@@ -342,6 +368,15 @@ func _evaluate_probes(images: Dictionary) -> Array:
 			results.append({"name": name, "pass": false, "error": "anchor not visible"})
 			_failures.append("probe %s: anchor %s not visible" % [name, pr.get("at")])
 			continue
+		if str(pr.get("kind", "")) == "mean_luma":
+			var luma := _mean_luma(img, rect)
+			var lo := float(pr.get("min", 0.0))
+			var hi := float(pr.get("max", 1.0))
+			var luma_ok := luma >= lo and luma <= hi
+			results.append({"name": name, "pass": luma_ok, "mean_luma": luma, "rect": [rect.position.x, rect.position.y, rect.size.x, rect.size.y]})
+			if not luma_ok:
+				_failures.append("probe %s: mean luma %.4f outside [%.4f, %.4f]" % [name, luma, lo, hi])
+			continue
 		var fraction := _match_fraction(img, rect, pr)
 		var min_fraction := float(pr.get("min_fraction", 0.02))
 		var max_fraction := float(pr.get("max_fraction", 1.0))
@@ -366,6 +401,16 @@ func _probe_rect(pr: Dictionary, key: String, img: Image, anchors: Dictionary) -
 		var half := Vector2.ONE * float(pr.get("half", 40)) * scale
 		r = Rect2(c - half, half * 2.0)
 	return Rect2i(r).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
+
+
+static func _mean_luma(img: Image, rect: Rect2i) -> float:
+	var sum := 0.0
+	var total := 0
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			sum += img.get_pixel(x, y).get_luminance()
+			total += 1
+	return sum / maxf(1.0, total)
 
 
 static func _match_fraction(img: Image, rect: Rect2i, pr: Dictionary) -> float:

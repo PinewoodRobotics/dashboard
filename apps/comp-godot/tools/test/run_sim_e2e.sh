@@ -12,8 +12,11 @@
 # The FIR checkout above the robot project may have no commits, with every
 # file untracked, so "unchanged" means git status before and after this run
 # match, for it and for the robot project's own repo.
-# Usage: tools/test/run_sim_e2e.sh [--filter=substr] [--no-screenshot] [--capture-golden]
+# Usage: tools/test/run_sim_e2e.sh [--filter=substr] [--no-screenshot] [--capture-golden] [--match]
 # --capture-golden rewrites tests/golden/sim_*.json from this run.
+# --match adds a sim-only driver to the scratch copy that plays a full match
+# through DriverStationSim (5 s disabled, 20 s auto, 2 s gap, 140 s teleop),
+# so tests/sim sees the real MatchStatusCalculator in every phase (~3 min).
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
@@ -23,12 +26,14 @@ FIR_SIM_DIR="${FIR_SIM_DIR:-$TMP_ROOT/fir-sim}"
 SIM_JAVA_HOME="${SIM_JAVA_HOME:-$HOME/.wpilib/2027_alpha7/jdk}"
 PORT=5810
 SCREENSHOT=1
+SIM_MATCH=0
 CAPTURE_GOLDEN="${PWRUP_SIM_CAPTURE_GOLDEN:-0}"
 ARGS=()
 for a in "$@"; do
   case "$a" in
     --no-screenshot) SCREENSHOT=0 ;;
     --capture-golden) CAPTURE_GOLDEN=1 ;;
+    --match) SIM_MATCH=1 ;;
     *) ARGS+=("$a") ;;
   esac
 done
@@ -71,6 +76,18 @@ sed -i '' -E 's/camera\("([a-z_]+)", true,/camera("\1", false,/' \
   "$FIR_SIM_DIR/src/main/java/frc/robot/constant/VisionConstants.java"
 sed -i '' -E 's/wpi\.sim\.addGui\(\)\.defaultEnabled = true/wpi.sim.addGui().defaultEnabled = false/' \
   "$FIR_SIM_DIR/build.gradle"
+
+if [[ $SIM_MATCH == 1 ]]; then
+  cp "$APP/tools/sim/SimMatchDriver.java" "$FIR_SIM_DIR/src/main/java/frc/robot/SimMatchDriver.java"
+  python3 - "$FIR_SIM_DIR/src/main/java/frc/robot/Robot.java" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+i = s.rstrip().rfind("}")
+s = s[:i] + "  @Override\n  public void simulationPeriodic() {\n    SimMatchDriver.periodic();\n  }\n}\n"
+open(p, "w").write(s)
+PY
+fi
 
 LOG="$FIR_SIM_DIR/sim-e2e.log"
 (
@@ -118,7 +135,7 @@ echo "sim is listening"
 
 "$GODOT" --headless --path "$APP" --import >/dev/null 2>&1 || true
 set +e
-PWRUP_SIM_PORT="$PORT" PWRUP_SIM_CAPTURE_GOLDEN="$CAPTURE_GOLDEN" \
+PWRUP_SIM_PORT="$PORT" PWRUP_SIM_CAPTURE_GOLDEN="$CAPTURE_GOLDEN" PWRUP_SIM_MATCH="$SIM_MATCH" \
   "$GODOT" --headless --path "$APP" --script res://tests/run_tests.gd -- --dir=sim "${ARGS[@]+"${ARGS[@]}"}"
 STATUS=$?
 if [[ $SCREENSHOT == 1 ]]; then

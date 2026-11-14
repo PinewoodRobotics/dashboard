@@ -16,6 +16,8 @@ NT="*res://services/nt_service.gd"
 Models="*res://services/models_service.gd"
 Telemetry="*res://services/telemetry_service.gd"
 Dev="*res://services/dev_service.gd"
+Settings="*res://services/settings_service.gd"
+Match="*res://services/match_service.gd"
 
 [display]
 
