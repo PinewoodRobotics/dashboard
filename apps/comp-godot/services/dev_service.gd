@@ -16,6 +16,7 @@ extends Node
 ##   --run-s=S            keep running S seconds after the frames, input and perf
 ##                        sampling, recording memory, object counts, NT state and
 ##                        match phases every --sample-s (default 10) into "soak"
+##   --quit-file=PATH     end a --run-s run early once PATH exists
 ##   --nt-trace=PATH      append every NT client state change as a JSON line
 ##                        {"unix": seconds, "state": name}, from launch on
 ## The process exits non-zero when a probe fails or the models never appear.
@@ -85,9 +86,9 @@ func _start_nt_trace(path: String) -> void:
 		_failures.append("cannot write the NT trace " + path)
 		return
 	var write := func(s: int) -> void:
-		f.store_line(JSON.stringify({"unix": Time.get_unix_time_from_system(), "state": Nt4Client.State.keys()[s]}))
+		f.store_line(JSON.stringify({"unix": Time.get_unix_time_from_system(), "state": Nt4Client.STATE_NAMES[s]}))
 		f.flush()
-	write.call(NT.client.state)
+	write.call(NT.client.get_state())
 	NT.client.state_changed.connect(func(s: int, _prev: int) -> void: write.call(s))
 
 
@@ -473,7 +474,9 @@ func _soak(seconds: float, sample_s: float) -> Dictionary:
 	var reconnects_before := int(NT.diagnostics().get("reconnects", 0))
 	var worst_frame_ms := 0.0
 	var last_us := Time.get_ticks_usec()
-	var autos_seen := {}
+	var quit_file := str(args.get("quit_file", ""))
+	var preview_loops := 0
+	var last_preview_t := Autos.clock.t
 	while true:
 		await tree.process_frame
 		frames += 1
@@ -484,7 +487,9 @@ func _soak(seconds: float, sample_s: float) -> Dictionary:
 		var el := (Time.get_ticks_msec() - t0) / 1000.0
 		phases[MatchEnums.PHASE_NAMES[Match.model.phase]] = true
 		nt_states[NT.client.state_name()] = true
-		autos_seen["%s@%d" % [Autos.preview_name, int(Autos.clock.t)]] = true
+		if Autos.clock.t < last_preview_t - 1.0:
+			preview_loops += 1
+		last_preview_t = Autos.clock.t
 		if el >= next:
 			var row := _object_counts()
 			row["t"] = el
@@ -494,11 +499,11 @@ func _soak(seconds: float, sample_s: float) -> Dictionary:
 			row["preview_t"] = Autos.clock.t
 			samples.append(row)
 			next += sample_s
-		if el >= seconds:
+		if el >= seconds or (quit_file != "" and frames % 30 == 0 and FileAccess.file_exists(quit_file)):
 			break
-	return {"seconds": seconds, "frames": frames, "samples": samples, "phases": phases.keys(), "nt_states": nt_states.keys(),
+	return {"seconds": (Time.get_ticks_msec() - t0) / 1000.0, "frames": frames, "samples": samples, "phases": phases.keys(), "nt_states": nt_states.keys(),
 		"reconnects": int(NT.diagnostics().get("reconnects", 0)) - reconnects_before, "worst_frame_ms": worst_frame_ms,
-		"preview_positions": autos_seen.size()}
+		"preview_loops": preview_loops}
 
 
 ## Mesh RIDs of every robot instance, per node name; shared = all identical.
