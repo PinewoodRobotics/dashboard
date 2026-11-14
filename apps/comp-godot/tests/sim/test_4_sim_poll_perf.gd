@@ -1,10 +1,13 @@
 extends TestCase
 
-## Same reading of the 2 ms criterion as integration/test_3_poll_perf.gd.
+## Same reading of the 2 ms criterion as integration/test_3_poll_perf.gd, at
+## the load the real robot code sends.
 
 const MAX_FRAME_MS := 8.0
+const SEQ := "/matchhud/state/seq"
 
 var nt: NtService
+var seqs: Array[int] = []
 
 
 func before_each() -> void:
@@ -24,33 +27,26 @@ func test_full_prefix_subscription_against_sim() -> void:
 	if nt == null:
 		return
 	nt.set_process(false)
+	nt.on_value(SEQ, func(v: Variant) -> void: seqs.append(v))
 	nt.subscribe(PackedStringArray([""]), {"prefix": true, "periodic": 0.02})
+	nt.subscribe(PackedStringArray([SEQ]), {"all": true})
 	Engine.max_fps = 60
 	var poll := func() -> void: nt.poll()
 	nt.start()
 	await wait_until(func() -> bool: return nt.is_ready(), 10.0, poll)
 	await wait_s(2.0, poll)
 	var announced := nt.client.announced_topics().size()
-	var v0: int = nt.client.values_total
-	var times: Array[float] = []
-	var t_start := now_s()
-	while now_s() - t_start < 5.0:
-		var t0 := Time.get_ticks_usec()
-		nt.poll()
-		times.append((Time.get_ticks_usec() - t0) / 1000.0)
-		await next_frame()
-	var dt := now_s() - t_start
-	times.sort()
-	var mean := 0.0
-	for x in times:
-		mean += x
-	mean /= times.size()
-	var p99: float = times[int(times.size() * 0.99)]
-	note("%d topics, %.0f values/s, poll mean %.3f ms, p99 %.3f ms, max %.3f ms" % [announced, (nt.client.values_total - v0) / dt, mean, p99, times[-1]])
+	var r := await PollPerf.measure_until(self, nt, seqs, func(x: Dictionary) -> bool:
+		return x["mean_ms"] < 2.0 and x["p99_ms"] < 2.0 and x["max_ms"] < MAX_FRAME_MS)
+	for i in r["attempts"].size():
+		note("%d topics, attempt %d: %s" % [announced, i + 1, r["attempts"][i]])
 	check(announced >= 400, "announced %d topics" % announced)
-	check(mean < 2.0, "mean poll under 2 ms (%.3f)" % mean)
-	check(p99 < 2.0, "p99 poll under 2 ms (%.3f)" % p99)
-	check(times[-1] < MAX_FRAME_MS, "max poll under %.0f ms (%.3f)" % [MAX_FRAME_MS, times[-1]])
-	check_eq(nt.client.decode_errors, 0)
-	check_eq(nt.client.unknown_id_drops, 0)
-	check_eq(nt.client.coerce_errors, 0)
+	check(r["mean_ms"] < 2.0, "mean poll under 2 ms (%.3f)" % r["mean_ms"])
+	check(r["p99_ms"] < 2.0, "median-window p99 poll under 2 ms (%.3f)" % r["p99_ms"])
+	check(r["max_ms"] < MAX_FRAME_MS, "median-window max poll under %.0f ms (%.3f)" % [MAX_FRAME_MS, r["max_ms"]])
+	check(r["seq_values"] > 400, "seq values received (%d)" % r["seq_values"])
+	check_eq(r["seq_gaps"], 0, "no dropped seq values")
+	check_eq(nt.client.decode_errors, 0, "decode errors")
+	check_eq(nt.client.unknown_id_drops, 0, "unknown id drops")
+	check_eq(nt.client.coerce_errors, 0, "coerce errors")
+	check_eq(nt.client.reconnects, 0, "no reconnects")

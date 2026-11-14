@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Starts tools/sim/fake_robot.py (real ntcore) on a free port, runs the
 # headless tests in tests/integration against it, and always tears it down.
+# Env: PWRUP_TMP_DIR (scratch root, default apps/comp-godot/.scratch), GODOT.
 # Usage: tools/test/run_integration.sh [--filter=substr]
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
 FAKE="$APP/tools/sim/fake_robot.py"
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/comp-godot-it.XXXXXX")"
+TMP_ROOT="${PWRUP_TMP_DIR:-$APP/.scratch}"
+WORK="$TMP_ROOT/integration"
+mkdir -p "$WORK"
+touch "$TMP_ROOT/.gdignore"
+export TMPDIR="$WORK/"
 TAG="comp-godot-it-$$"
 
 free_port() {
@@ -32,7 +37,7 @@ trap cleanup EXIT
 uv run --quiet --script "$FAKE" --help >/dev/null
 
 PORT="$(free_port)"
-CMD=(uv run --quiet --script "$FAKE" --port "$PORT" --total-topics 438 --pid-file "$WORK/fake_robot.pid" --tag "$TAG")
+CMD=(uv run --quiet --script "$FAKE" --port "$PORT" --total-topics 438 --pid-file "$WORK/fake_robot.pid" --persist-dir "$WORK/nt-persist" --tag "$TAG")
 "${CMD[@]}" >"$WORK/fake_robot.log" 2>&1 &
 
 for _ in $(seq 1 100); do

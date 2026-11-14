@@ -5,15 +5,21 @@
 # and a windowed overlay screenshot, then stops the sim and checks that port
 # 5810 is free and the FIR repo is unchanged.
 #
-# Env: FIR_SRC (robot project), FIR_SIM_DIR (scratch copy, outside both repos),
-#      SIM_JAVA_HOME (WPILib JDK), GODOT.
+# Env: FIR_SRC (robot project), PWRUP_TMP_DIR (scratch root, default
+#      apps/comp-godot/.scratch), FIR_SIM_DIR (scratch copy, default
+#      $PWRUP_TMP_DIR/fir-sim, never inside the FIR repo), SIM_JAVA_HOME
+#      (WPILib JDK), GODOT.
+# The FIR checkout above the robot project may have no commits, with every
+# file untracked, so "unchanged" means git status before and after this run
+# match, for it and for the robot project's own repo.
 # Usage: tools/test/run_sim_e2e.sh [--filter=substr] [--no-screenshot] [--capture-golden]
 # --capture-golden rewrites tests/golden/sim_*.json from this run.
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
 FIR_SRC="${FIR_SRC:-$HOME/Developer/FIR/src/2026Rebuilt}"
-FIR_SIM_DIR="${FIR_SIM_DIR:-${TMPDIR:-/tmp}/pwrup-comp-godot-fir-sim}"
+TMP_ROOT="${PWRUP_TMP_DIR:-$APP/.scratch}"
+FIR_SIM_DIR="${FIR_SIM_DIR:-$TMP_ROOT/fir-sim}"
 SIM_JAVA_HOME="${SIM_JAVA_HOME:-$HOME/.wpilib/2027_alpha7/jdk}"
 PORT=5810
 SCREENSHOT=1
@@ -27,13 +33,18 @@ for a in "$@"; do
   esac
 done
 
+FIR_ROOT="$(dirname "$(dirname "$FIR_SRC")")"
 case "$FIR_SIM_DIR" in
-  "$FIR_SRC"*|"$APP"*) echo "FIR_SIM_DIR must be outside the FIR and dashboard repos" >&2; exit 2 ;;
+  "$FIR_SRC"*|"$FIR_ROOT"/*) echo "FIR_SIM_DIR must be outside the FIR checkout" >&2; exit 2 ;;
+  "$APP/.scratch"/*) ;;
+  "$APP"*) echo "FIR_SIM_DIR inside the dashboard must be under .scratch (gitignored)" >&2; exit 2 ;;
 esac
+mkdir -p "$TMP_ROOT"
+touch "$TMP_ROOT/.gdignore"
+export TMPDIR="$TMP_ROOT/"
 
-# The robot project is its own repo nested inside the FIR checkout; watch both.
 FIR_REPOS=()
-for d in "$FIR_SRC" "$(dirname "$(dirname "$FIR_SRC")")"; do
+for d in "$FIR_SRC" "$FIR_ROOT"; do
   root="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null || true)"
   [[ -n "$root" && ! " ${FIR_REPOS[*]-} " =~ " $root " ]] && FIR_REPOS+=("$root")
 done

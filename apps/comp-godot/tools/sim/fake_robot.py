@@ -154,6 +154,7 @@ def main() -> int:
     ap.add_argument("--port3", type=int, default=0, help="NT3 port (0 picks any free port)")
     ap.add_argument("--listen", default="127.0.0.1")
     ap.add_argument("--pid-file", default="")
+    ap.add_argument("--persist-dir", default="", help="where ntcore keeps networktables.json (default: a new temp dir)")
     ap.add_argument("--total-topics", type=int, default=0, help="pad with /fake/load/* doubles up to this many topics")
     ap.add_argument("--hz", type=float, default=50.0)
     ap.add_argument(
@@ -174,7 +175,11 @@ def main() -> int:
         with open(args.pid_file, "w") as f:
             f.write(str(os.getpid()))
 
-    persist_dir = tempfile.mkdtemp(prefix="fake-robot-nt-")
+    if args.persist_dir:
+        os.makedirs(args.persist_dir, exist_ok=True)
+        persist_dir = args.persist_dir
+    else:
+        persist_dir = tempfile.mkdtemp(prefix="fake-robot-nt-")
     inst = ntcore.NetworkTableInstance.create()
     inst.startServer(os.path.join(persist_dir, "networktables.json"), args.listen, args.port3, args.port)
 
