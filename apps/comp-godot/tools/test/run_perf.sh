@@ -50,6 +50,13 @@ printf '%s\n' '{}' >"$WORK/settings_governor.json"
 "$GODOT" --path "$APP" -- --screen=both --design-size --fixture=both_script_preview --settings="$WORK/settings_governor.json" \
   --auto-quality=on --simulate-gpu-ms=20 --frames=5 --perf-frames=1500 \
   --screenshot="$OUT/governor" >"$OUT/governor.log" 2>&1 || { echo "FAIL governor run"; status=1; }
+# Same with MSAA already off in the saved settings: the MSAA-only level changes
+# nothing, so the governor must skip it and lower the render scale instead of
+# giving up.
+printf '%s\n' '{"visual": {"msaa": 0}}' >"$WORK/settings_governor_msaa0.json"
+"$GODOT" --path "$APP" -- --screen=both --design-size --fixture=both_script_preview --settings="$WORK/settings_governor_msaa0.json" \
+  --auto-quality=on --simulate-gpu-ms=24 --frames=5 --perf-frames=1500 \
+  --screenshot="$OUT/governor_msaa0" >"$OUT/governor_msaa0.log" 2>&1 || { echo "FAIL governor msaa0 run"; status=1; }
 
 # The driver-station benchmark (PWRUP-Comp-Benchmark.bat) end to end, short passes.
 "$GODOT" --path "$APP" -- --design-size --benchmark="$OUT/bench" --benchmark-name=test --benchmark-frames=120 \
@@ -80,6 +87,14 @@ print(f"{'ok  ' if ok else 'FAIL'} auto quality under a slow GPU stand-in: {pg['
       f"{pg['last_fps']:.1f} fps in the last window)")
 if not ok:
     fails.append("auto quality")
+g0 = json.load(open(f"{out}/governor_msaa0.json"))
+pg0 = g0["perf_governor"]
+steps0 = [h["level"] for h in pg0["history"]]
+ok = (pg0["state"] == "HELD" and steps0[:1] == [2] and 1 not in steps0 and pg0["last_fps"] >= 55
+      and g0["effective_visual"]["render_scale"] <= 0.75 and g0["effective_visual"]["msaa"] == 0)
+print(f"{'ok  ' if ok else 'FAIL'} auto quality with MSAA saved off: {pg0['status']} (steps {steps0}, {pg0['last_fps']:.1f} fps)")
+if not ok:
+    fails.append("auto quality msaa0")
 def check(cond, msg):
     print(("ok   " if cond else "FAIL ") + msg)
     if not cond:
