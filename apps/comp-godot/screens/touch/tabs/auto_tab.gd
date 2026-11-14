@@ -282,7 +282,6 @@ func _build_detail() -> Control:
 	left.add_child(detail_file)
 	detail_desc = UiKit.wrapped("", 20, Tokens.ZINC_300)
 	detail_desc.custom_minimum_size.x = DETAIL_LEFT_W
-	detail_desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	left.add_child(detail_desc)
 	var warn_row := UiKit.hbox(8)
 	warn_row.name = "DetailWarningRow"
@@ -528,6 +527,8 @@ func _refresh_detail(active: String) -> void:
 ## The description takes whatever height the other rows leave above Select,
 ## so a long one is cut only when it truly cannot fit.
 func _fit_desc() -> void:
+	if _detail_pane.size.y <= 0.0:
+		return
 	var avail := _detail_pane.size.y - 2.0 * _detail_margin.get_theme_constant("margin_top")
 	var used := 0.0
 	var shown := 0
@@ -542,6 +543,8 @@ func _fit_desc() -> void:
 	var lines := maxi(1, floori((avail - used) / line_h))
 	if detail_desc.max_lines_visible != lines:
 		detail_desc.max_lines_visible = lines
+		# Label does not recompute its minimum height for a new max_lines_visible.
+		detail_desc.update_minimum_size()
 
 
 func file_line(auto_name: String) -> String:
