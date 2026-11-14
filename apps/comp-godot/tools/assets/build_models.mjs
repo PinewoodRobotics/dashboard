@@ -30,7 +30,7 @@ const ROBOT = {
   bumperMesh: 'Plane',
   bumperNode: 'BumperPlane',
   anchors: ['IndexWristRControl', 'TurretRControl', 'TurretGearRControl', 'ClimberControlInner', 'ClimberControlOuter', 'FrameControl'],
-  // Error is the absolute meshopt error in meters; it grows by `errorGrowth`
+  // Error is the absolute meshopt error in meters; it grows by ERROR_GROWTH
   // until the anchor fits its triangle target. minPart drops whole parts whose
   // bounding-box diagonal is below it (fasteners, washers, inserts).
   simplify: {
@@ -56,7 +56,6 @@ const ERROR_GROWTH = 1.2;
 const MAX_PASSES = 24;
 const BISECT_STEPS = 5;
 
-// ---------- small matrix helpers (column-major mat4, as glTF) ----------
 
 function mul(a, b) {
   const o = new Array(16).fill(0);
@@ -100,7 +99,6 @@ function maxScale(m) {
   return Math.max(s(0), s(4), s(8));
 }
 
-// ---------- reading ----------
 
 async function makeIO() {
   return new NodeIO()
@@ -118,8 +116,6 @@ function materialColor(material) {
   return { rgba: [c[0], c[1], c[2], c[3]], blend: material.getAlphaMode() === 'BLEND' };
 }
 
-// Geometry of one primitive in its mesh-local frame: compact Float32 positions,
-// normals and a Uint32 index list.
 function primitiveGeometry(prim) {
   if (prim.getMode() !== 4) return null;
   const pos = prim.getAttribute('POSITION');
@@ -166,7 +162,6 @@ function computeNormals(positions, indices, normals) {
   }
 }
 
-// Every mesh primitive under `top` (inclusive), with its transform relative to `frame`.
 function collectParts(top, frameWorld, skip) {
   const inv = invert(frameWorld);
   const parts = [];
@@ -183,7 +178,6 @@ function collectParts(top, frameWorld, skip) {
   return parts;
 }
 
-// ---------- simplification ----------
 
 const geomCache = new Map();
 function geometryOf(prim) {
@@ -227,7 +221,6 @@ function partBounds(geom, m) {
   return { min, max, diag: Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) };
 }
 
-// Bakes simplified parts into one vertex/index stream per opacity group.
 function bakeGroup(parts, errorMeters) {
   const groups = { opaque: [], blend: [] };
   for (const part of parts) {
@@ -257,7 +250,7 @@ function bakeGroup(parts, errorMeters) {
     list.forEach(({ part, geom, idx }, li) => {
       const { remap, n } = remaps[li];
       const m = part.matrix;
-      const nm = invert(m); // normal matrix = transpose(inverse(m)) applied below
+      const nm = invert(m); // normals use transpose(inverse(m)); the transpose is folded into the indexing below
       const flip = det3(m) < 0;
       const rgba = part.color.rgba.map((c) => Math.round(Math.min(1, Math.max(0, c)) * 255));
       for (let v = 0; v < remap.length; v++) {
@@ -342,7 +335,6 @@ function fitToTarget(label, parts, cfg) {
   return { baked, error, triangles: tris(baked) };
 }
 
-// ---------- writing ----------
 
 function addPrimitive(doc, buffer, mesh, group, material) {
   const pos = doc.createAccessor().setType('VEC3').setArray(group.positions).setBuffer(buffer);
@@ -380,7 +372,6 @@ async function writeGlb(io, doc) {
   return Buffer.from(await io.writeBinary(doc));
 }
 
-// ---------- robot ----------
 
 async function buildRobot(io) {
   const srcPath = path.join(SRC_DIR, ROBOT.source);
@@ -442,7 +433,6 @@ async function buildRobot(io) {
   return { bytes, triangles: total, surfaces: countSurfaces(doc), sha: sha256(srcPath), ...manifest };
 }
 
-// ---------- field ----------
 
 async function buildField(io) {
   const srcPath = path.join(SRC_DIR, FIELD.source);
@@ -489,7 +479,6 @@ async function buildField(io) {
   };
 }
 
-// ---------- reference export ----------
 
 async function writeReference(io, dir) {
   mkdirSync(dir, { recursive: true });
@@ -504,7 +493,6 @@ async function writeReference(io, dir) {
   }
 }
 
-// ---------- main ----------
 
 function checkBudget(label, result, budget, failures) {
   if (result.triangles > budget.triangles) failures.push(`${label}: ${result.triangles} triangles > ${budget.triangles}`);

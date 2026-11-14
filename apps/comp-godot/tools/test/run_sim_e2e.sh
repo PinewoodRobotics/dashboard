@@ -2,7 +2,7 @@
 # End-to-end against the real robot code: refreshes a scratch copy of the FIR
 # robot project (never the repo itself), disables the PhotonVision cameras and
 # the sim GUI there, runs the WPILib sim (NT4 server on 5810), runs tests/sim
-# and a windowed overlay screenshot, then stops the sim and checks that port
+# and windowed screenshots (F3 overlay, both 3D windows), then stops the sim and checks that port
 # 5810 is free and the FIR repo is unchanged.
 #
 # Env: FIR_SRC (robot project), PWRUP_TMP_DIR (scratch root, default
@@ -124,8 +124,11 @@ STATUS=$?
 if [[ $SCREENSHOT == 1 ]]; then
   mkdir -p "$APP/.screenshots"
   PWRUP_SHARED_SETTINGS_PATH="$FIR_SIM_DIR/no-shared-settings.json" \
-    "$GODOT" --path "$APP" -- --nt-host=127.0.0.1 --nt-port="$PORT" --debug-overlay \
-    --screenshot="$APP/.screenshots/sim_overlay.png" --screenshot-delay=4 || STATUS=1
+    "$GODOT" --path "$APP" -- --screen=hud --nt-host=127.0.0.1 --nt-port="$PORT" --debug-overlay \
+    --live --frames=240 --screenshot="$APP/.screenshots/sim_overlay" || STATUS=1
+  PWRUP_SHARED_SETTINGS_PATH="$FIR_SIM_DIR/no-shared-settings.json" \
+    "$GODOT" --path "$APP" -- --screen=both --nt-host=127.0.0.1 --nt-port="$PORT" \
+    --live --frames=60 --screenshot="$APP/.screenshots/sim_3d" || STATUS=1
 fi
 set -e
 

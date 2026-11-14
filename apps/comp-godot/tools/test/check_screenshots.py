@@ -36,10 +36,15 @@ def rect_diff(args: list[str]) -> float:
     return float(line.split()[1])
 
 
-for name in ["m2_overview_blue", "m2_overview_red", "m2_close", "m2_close_turret_q", "m2_close_wrist", "m2_perf"]:
+for name in ["m2_overview_blue", "m2_overview_red", "m2_close", "m2_close_turret_q", "m2_close_wrist", "m2_perf", "live_blue", "live_red"]:
     r = report(name)
     check(not r["failures"], f"{name}: no probe failures {r['failures']}")
     check(set(r["windows"]) == {"hud", "touch"}, f"{name}: both windows captured")
+
+for name in ["live_blue", "live_red"]:
+    r = report(name)
+    check(r["nt"]["state"] == "READY" and not r["nt"]["fixture_mode"], f"{name}: pose and alliance came from the fake robot over NT")
+    check(abs(r["anchors"]["hud"]["robot"][0] - report("m2_overview_blue")["anchors"]["hud"]["robot"][0]) < 2, f"{name}: robot drawn where the fixture puts pose (2.0, 4.03)")
 
 blue = report("m2_overview_blue")
 hud_w = blue["windows"]["hud"]["size"][0]

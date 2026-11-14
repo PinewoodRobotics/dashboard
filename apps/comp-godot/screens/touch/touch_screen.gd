@@ -1,8 +1,8 @@
 class_name TouchScreen
 extends Control
 
-## Touchscreen window content at the 1920x515 design size. M2: the robot orbit
-## view as the base layer; the dock, rail and tabs arrive in M4.
+## Touchscreen window content at the 1920x515 design size, with the robot
+## orbit view as the base layer.
 
 var orbit: RobotOrbitView
 var _status: Label

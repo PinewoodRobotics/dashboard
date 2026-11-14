@@ -1,8 +1,5 @@
 extends TestCase
 
-## Pose, alliance and joints from the fake robot (real ntcore) drive Telemetry
-## and the robot model nodes.
-
 var robot: FakeRobotProc
 var nt: NtService
 var telemetry: TelemetryService

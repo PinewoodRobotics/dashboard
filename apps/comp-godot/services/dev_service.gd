@@ -4,6 +4,8 @@ extends Node
 ## Development hooks, inactive unless a flag asks (all after `--`):
 ##   --fixture=NAME|PATH  res://data/fixtures/NAME.json or a file; NT values are
 ##                        injected offline (no socket), see the format below
+##   --live               keep the fixture's views and probes but take NT values
+##                        from the live connection (waits for pose and alliance)
 ##   --screenshot=PREFIX  save PREFIX_<window>.png for every window, then quit
 ##   --frames=N           frames to wait once the models are visible (default 30)
 ##   --perf-frames=N      sample RenderingServer counters over N frames first
@@ -49,6 +51,10 @@ func _on_first_frame() -> void:
 
 func has_fixture() -> bool:
 	return not fixture.is_empty()
+
+
+func offline_fixture() -> bool:
+	return has_fixture() and not args.has("live")
 
 
 func fixture_nt() -> Dictionary:
@@ -148,6 +154,12 @@ func _run() -> void:
 			_failures.append("models not visible after %d ms" % timeout_ms)
 			break
 		await tree.process_frame
+	if args.has("live"):
+		while not (Telemetry.has_pose and Telemetry.alliance_red != null):
+			if Time.get_ticks_msec() - t0 > timeout_ms:
+				_failures.append("no live pose and alliance after %d ms" % timeout_ms)
+				break
+			await tree.process_frame
 	await RenderingServer.frame_post_draw
 	models_visible_msec = Time.get_ticks_msec()
 

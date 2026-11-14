@@ -1,8 +1,8 @@
 class_name HudScreen
 extends Control
 
-## HUD window content at the 1920x1080 design size. M2: the minimap in its
-## final rectangle plus an NT status line; the match HUD arrives in M3.
+## HUD window content at the 1920x1080 design size: the minimap in its final
+## rectangle plus an NT status line.
 
 const MINIMAP_RECT := Rect2(540, 480, 840, 600)
 

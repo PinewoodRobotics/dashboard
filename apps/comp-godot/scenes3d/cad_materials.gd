@@ -25,7 +25,6 @@ static func blend() -> ShaderMaterial:
 	return _blend
 
 
-## A per-instance opaque material whose tint can be changed (bumpers).
 static func tintable() -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = OPAQUE_SHADER
@@ -37,7 +36,6 @@ static func is_blend_surface(mesh: Mesh, surface: int) -> bool:
 	return m is BaseMaterial3D and (m as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 
 
-## Overrides every surface below `root`, except the meshes listed in `skip`.
 static func apply(root: Node, skip: Array = []) -> void:
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		if skip.has(mi) or mi.mesh == null:

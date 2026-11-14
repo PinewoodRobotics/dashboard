@@ -4,6 +4,7 @@ extends Node
 ##   --screen=both|hud|touch   both: HUD in the root window, touchscreen in a second OS window
 ##   --nt-host=H --nt-port=P   override the shared connection settings without persisting
 ##   --fixture=NAME|PATH       offline: inject a fixture's NT values, never open a socket
+##                             (with --live: fixture views and probes over live NT)
 ##   --debug-overlay           show the F3 NetworkTables overlay at start
 ## Screenshot, perf and probe flags are documented in services/dev_service.gd.
 
@@ -48,7 +49,7 @@ func _ready() -> void:
 
 
 func _start_nt() -> void:
-	if Dev.has_fixture():
+	if Dev.offline_fixture():
 		NT.inject(Dev.fixture_nt())
 		return
 	var conn := ConnectionSettings.load_shared()

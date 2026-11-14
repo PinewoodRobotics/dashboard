@@ -3,7 +3,7 @@ extends RefCounted
 
 ## One process, up to two OS windows: the root window shows the first screen,
 ## a non-embedded child Window shows the touchscreen when --screen=both.
-## Display placement (kiosk) is M8; development runs are windowed.
+## Windows open windowed at two thirds of the design size.
 
 const HUD_DESIGN := Vector2i(1920, 1080)
 const TOUCH_DESIGN := Vector2i(1920, 515)

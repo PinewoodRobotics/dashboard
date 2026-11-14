@@ -40,7 +40,6 @@ func _ready() -> void:
 	_setup()
 
 
-## Applies camera_override; returns false when there is none.
 func apply_camera_override() -> bool:
 	if camera_override.is_empty():
 		return false

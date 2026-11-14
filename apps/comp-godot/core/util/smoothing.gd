@@ -6,6 +6,5 @@ static func dt_lerp(rate: float, dt: float) -> float:
 	return 1.0 - pow(1.0 - rate, dt * 60.0)
 
 
-## Shortest-arc angle interpolation.
 static func lerp_angle(a: float, b: float, t: float) -> float:
 	return a + wrapf(b - a, -PI, PI) * t
