@@ -72,9 +72,15 @@ func _process(delta: float) -> void:
 	if not enabled():
 		return
 	var target := float(Engine.max_fps) if Engine.max_fps > 0 else 60.0
-	if governor.feed(delta, target, not CadView.rendering_views(get_tree()).is_empty()):
+	if governor.feed(delta, target, not CadView.rendering_views(get_tree()).is_empty(), _saved_visual()):
 		settings.set_perf_caps(governor.caps())
 		print("perf: %s" % governor.status_text())
+
+
+func _saved_visual() -> Dictionary:
+	var v: Dictionary = settings.visual().duplicate()
+	v.merge(settings.visual_overrides, true)
+	return v
 
 
 func _log_frame(delta: float) -> void:
