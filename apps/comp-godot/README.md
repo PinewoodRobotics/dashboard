@@ -36,6 +36,35 @@ log to `logs/godot.log` in the same folder.
 
 F3 toggles the NetworkTables overlay (client state, RTT, every cached topic).
 
+### Robot connection
+
+The dashboard is READY within about 1 s of the robot's NT server answering
+again, whether the robot code restarted, the robot was power cycled, or the
+link died without closing:
+
+- After a lost connection or a failed attempt it retries after 0.1 s, 0.25 s,
+  then every 0.5 s. A refused connect is one SYN and one RST on the robot LAN.
+- Connect Timeout (Settings tab; `reconnectTimeoutSeconds` in the shared file,
+  1 to 60 s, default 2): an attempt that has not connected after this long is
+  dropped and a new one starts at once. While a robot boots its SYNs go
+  unanswered and the OS retransmits them further and further apart (1.9 s
+  apart on macOS after the first few; Windows doubles from 1 s), so a fresh
+  attempt every 2 s keeps the gap near 1 s. Larger values make a booting robot reconnect slower. The Electron app
+  reads the same value as its own connect watchdog but ignores values below 2
+  (it then uses its 10 s default). The first start of this version moves a
+  shared file still holding the old 10 s default to 2 s, once.
+- An RTT probe goes out every 250 ms and an open socket that stays silent for
+  2 s is dropped, so a link outage shorter than that resumes without a
+  reconnect. A slow or stalled frame counts as one probe period, so it cannot
+  drop a healthy link; robot GC pauses do not stop ntcore's network thread.
+- Reconnect in the Settings header is always shown. It drops whatever the
+  client is doing (open socket, hung connect, pending retry), resets the
+  attempt count and opens a new connection in the same frame. Saving a changed
+  host, port or timeout does the same. The header shows the state with the
+  attempt number and its age, or the failed attempt and the time to the next.
+- Closing a hung attempt never waits on its worker thread (it may sit in a
+  hostname lookup); the thread is joined once it returns.
+
 ### Auto tab
 
 - The list starts with which export is loaded (built-in or event update, with
@@ -191,7 +220,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | Command | What it covers | Time |
 |---|---|---|
 | `run_unit.sh` | headless unit tests (`tests/unit`), runner self-test | 5 s |
-| `run_integration.sh` | NT4 client, telemetry, HUD and controls against `tools/sim/fake_robot.py` (real ntcore) | 2 min |
+| `run_integration.sh` | NT4 client, telemetry, HUD and controls against `tools/sim/fake_robot.py` (real ntcore); time to READY through `tools/sim/net_proxy.py` for refused connects, dropped SYNs, a hung upgrade, a silently dead link and a fake-robot restart (within 1.5 s; the hung upgrade within the connect timeout), and Reconnect from every client state | 4 min |
 | `run_screenshots.sh` | 3D views, joints, mesh sharing, startup timing (windowed) | 1 min |
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
 | `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, drag scrolling of the panels and tabs (touch and mouse, strokes starting on sliders and buttons), restart persistence, the touch test | 2 min |
