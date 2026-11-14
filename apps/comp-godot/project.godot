@@ -18,6 +18,7 @@ Telemetry="*res://services/telemetry_service.gd"
 Dev="*res://services/dev_service.gd"
 Settings="*res://services/settings_service.gd"
 Match="*res://services/match_service.gd"
+Autos="*res://services/autos_service.gd"
 
 [display]
 
