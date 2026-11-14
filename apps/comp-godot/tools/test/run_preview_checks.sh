@@ -32,7 +32,7 @@ done
 for fx in hud_auto_path hud_auto_mirror hud_auto_gone hud_auto_start_off; do
   run "$fx" "$fx" --screen=hud
 done
-for fx in touch_auto_long_names touch_auto_robot_only touch_script_preview_expand; do
+for fx in touch_auto_long_names touch_auto_long_desc touch_auto_robot_only touch_script_preview_expand; do
   run "$fx" "$fx" --screen=touch
 done
 USER_AUTOS="$OUT/user_autos"

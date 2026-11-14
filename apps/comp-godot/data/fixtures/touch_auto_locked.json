@@ -1,1 +1,1 @@
-{"extends": "touch_m6_base", "nt": {"/matchhud/state/enabled": true}, "touch": {"active_tab": "auto", "view_auto": "Ball Shooter Right"}}
+{"extends": "touch_m6_base", "nt": {"/matchhud/state/enabled": true}, "touch": {"active_tab": "auto", "view_auto": "Ball Shooter Right"}, "input": [{"expect": {"auto_tab.banner": true, "auto_tab.start_chip": "", "auto_tab.start_level": -1}}]}

@@ -5,7 +5,7 @@
  "touch": {"active_tab": "auto", "view_auto": "Move Forward And Shoot Center"},
  "input": [
   {"expect": {"auto_tab.detail_title": "Move Forward And Shoot Center", "auto_tab.title_clipped": false, "auto_tab.title_lines": 2,
-    "auto_tab.file_clipped": false, "auto_tab.robot_clipped": false,
+    "auto_tab.file_clipped": false, "auto_tab.robot_clipped": false, "auto_tab.desc_clipped": false,
     "auto_tab.detail_file": "Move Forward And Shoot Center.auto\npath 2.5 s  ·  runs to 20.0 s",
     "auto_tab.detail_robot": "Robot reports: Move Forward And Shoot Center"}}
  ]}

@@ -173,15 +173,23 @@ static func hud_state(pre_match: bool, confirmed: String, preview_auto: String, 
 	return {"auto": confirmed, "mirror": false}
 
 
+func pre_match() -> bool:
+	_bind()
+	return match_service == null or match_service.model.phase == MatchEnums.Phase.PRE_MATCH
+
+
 func _update_hud() -> void:
-	var pre := match_service == null or match_service.model.phase == MatchEnums.Phase.PRE_MATCH
-	hud = hud_state(pre, robot_auto(), preview_name if frame.size() > 0 else "", clock.active())
+	hud = hud_state(pre_match(), robot_auto(), preview_name if frame.size() > 0 else "", clock.active())
 	hud["red"] = alliance_red()
 	hud["start"] = start_check(hud["auto"]) if hud["auto"] != "" and not hud["mirror"] else {}
 
 
-## Dev fixture "preview": {"auto", "t", "playing", "speed", "loop", "alliance": "red"|"blue", "realtime"}.
+## Dev fixture "preview": {"auto", "t", "playing", "speed", "loop", "alliance": "red"|"blue", "realtime",
+## "meta": {auto: {"name", "description"}} merged over the display names and descriptions}.
 func apply_fixture(fx: Dictionary) -> void:
+	if fx.has("meta"):
+		library.meta.merge(fx["meta"], true)
+		library_changed.emit()
 	if fx.has("auto"):
 		set_preview(str(fx["auto"]))
 	if fx.has("alliance"):

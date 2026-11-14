@@ -30,6 +30,7 @@ const LIST_W_FRACTION := 1.0 / 3.0
 const BANNER_H := 44.0
 const LIST_HEADER_H := 52.0
 const DETAIL_LEFT_W := 360.0
+const DETAIL_GAP := 6
 
 var controls: ControlsService
 var autos: AutosService
@@ -158,7 +159,9 @@ func _build_list_header() -> Control:
 	row.name = "ListHeader"
 	list_summary = UiKit.label("", 16, 500, Tokens.ZINC_400)
 	list_summary.name = "ListSummary"
+	list_summary.max_lines_visible = 2
 	list_summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	list_summary.add_theme_constant_override("line_spacing", -2)
 	list_summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list_summary.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(list_summary)
@@ -182,7 +185,7 @@ static func summary_text(lib: AutoLibrary) -> String:
 		return "No auto export loaded"
 	var where := "built-in" if lib.dir == AutoLibrary.BUILTIN_DIR else "event update"
 	var at := lib.exported_at().replace("T", " ").trim_suffix("Z")
-	return "%d autos · %s · %s UTC" % [lib.names().size(), where, at.left(16)]
+	return "%d autos · %s\nexported %s UTC" % [lib.names().size(), where, at.left(16)]
 
 
 func _names() -> PackedStringArray:
@@ -261,7 +264,7 @@ func _build_detail() -> Control:
 	pane.name = "DetailPane"
 	pane.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var row := UiKit.hbox(24)
-	var left := UiKit.vbox(6)
+	var left := UiKit.vbox(DETAIL_GAP)
 	left.name = "DetailLeft"
 	_detail_left = left
 	left.custom_minimum_size.x = DETAIL_LEFT_W
@@ -279,7 +282,7 @@ func _build_detail() -> Control:
 	left.add_child(detail_file)
 	detail_desc = UiKit.wrapped("", 20, Tokens.ZINC_300)
 	detail_desc.custom_minimum_size.x = DETAIL_LEFT_W
-	detail_desc.max_lines_visible = 3
+	detail_desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	left.add_child(detail_desc)
 	var warn_row := UiKit.hbox(8)
 	warn_row.name = "DetailWarningRow"
@@ -507,6 +510,7 @@ func _refresh_detail(active: String) -> void:
 		no_preview.visible = robot_only
 		start_chip.show_check({})
 		set_expanded(false)
+		_fit_desc()
 		return
 	if autos == null:
 		return
@@ -517,7 +521,27 @@ func _refresh_detail(active: String) -> void:
 	detail_title.text = autos.library.display_name(viewing)
 	detail_file.text = file_line(viewing)
 	detail_desc.text = autos.library.description(viewing)
-	start_chip.show_check(autos.start_check(viewing))
+	start_chip.show_check(autos.start_check(viewing) if autos.pre_match() and not sync.locked() else {})
+	_fit_desc()
+
+
+## The description takes whatever height the other rows leave above Select,
+## so a long one is cut only when it truly cannot fit.
+func _fit_desc() -> void:
+	var avail := _detail_pane.size.y - 2.0 * _detail_margin.get_theme_constant("margin_top")
+	var used := 0.0
+	var shown := 0
+	for c in _detail_left.get_children():
+		var ctl := c as Control
+		if ctl == null or not ctl.visible or ctl == detail_desc or ctl.size_flags_vertical == Control.SIZE_EXPAND_FILL:
+			continue
+		used += ctl.get_combined_minimum_size().y
+		shown += 1
+	used += DETAIL_GAP * shown
+	var line_h := maxf(1.0, detail_desc.get_line_height() + detail_desc.get_theme_constant("line_spacing"))
+	var lines := maxi(1, floori((avail - used) / line_h))
+	if detail_desc.max_lines_visible != lines:
+		detail_desc.max_lines_visible = lines
 
 
 func file_line(auto_name: String) -> String:
@@ -551,6 +575,8 @@ func probe() -> Dictionary:
 		"summary": list_summary.text, "robot_only": Array(_robot_only()), "unconfirmed": Array(_unconfirmed()),
 		"title_lines": detail_title.get_line_count(), "title_clipped": _clipped(detail_title),
 		"file_clipped": _clipped(detail_file), "robot_clipped": _clipped(detail_robot),
+		"desc_lines": detail_desc.get_line_count(), "desc_clipped": _clipped(detail_desc),
+		"summary_clipped": _clipped(list_summary),
 	}
 
 

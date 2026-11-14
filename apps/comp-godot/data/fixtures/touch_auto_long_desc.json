@@ -1,0 +1,11 @@
+{"extends": "touch_m6_base",
+ "nt": {"/Shared/PathPlanner/SelectedPath/State": "Move Forward And Shoot Center",
+   "/AdvantageKit/RealOutputs/PathPlanner/CurrentSelectedAuto": "Move Forward And Shoot Center"},
+ "controls": {"selected_auto": "Move Forward And Shoot Center"},
+ "touch": {"active_tab": "auto", "view_auto": "Move Forward And Shoot Center"},
+ "preview": {"meta": {"Move Forward And Shoot Center": {"name": "Move Forward And Shoot Center",
+   "description": "From the center of the alliance area, drives forward, aims the turret at the hub and shoots the preloaded fuel, then backs off toward the neutral zone line and waits there for teleop"}}},
+ "input": [
+  {"expect": {"auto_tab.desc_clipped": false, "auto_tab.title_clipped": false, "auto_tab.robot_clipped": false,
+    "auto_tab.start_chip": {"ne": ""}}}
+ ]}
