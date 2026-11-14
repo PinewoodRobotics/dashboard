@@ -1,0 +1,92 @@
+name: Comp dashboard (Godot) Windows build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/comp-godot/**"
+      - ".github/workflows/comp-godot-windows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: comp-godot-windows-main
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.7.2"
+  APP: apps/comp-godot
+  RELEASE_TAG: comp-godot-latest
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Godot and Windows export templates
+        id: godot-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-windows-templates
+
+      - name: Download Godot and Windows export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot/templates
+          cd ~/godot
+          curl -fsSLO "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          curl -fsSLO "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q -j "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" \
+            'templates/version.txt' 'templates/windows_*_x86_64*' 'templates/icudt_godot.dat' -d templates
+          rm -f ./*.zip ./*.tpz
+
+      - name: Install Godot
+        run: |
+          tpl="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$tpl"
+          cp ~/godot/templates/* "$tpl/"
+          chmod +x ~/godot/godot
+          echo "$HOME/godot" >> "$GITHUB_PATH"
+
+      - name: Import project
+        run: godot --headless --path "$APP" --import
+
+      - name: Unit tests
+        run: GODOT=godot "$APP/tools/test/run_unit.sh"
+
+      - name: Export Windows build
+        run: |
+          mkdir -p "$APP/build/windows"
+          godot --headless --path "$APP" --export-release "Windows Desktop" build/windows/PWRUP-Comp.exe
+          test -s "$APP/build/windows/PWRUP-Comp.exe"
+          test -s "$APP/build/windows/PWRUP-Comp.pck"
+          cp "$APP"/tools/windows/*.bat "$APP/build/windows/"
+          cd "$APP/build/windows"
+          zip -q -r "$GITHUB_WORKSPACE/PWRUP-Comp-windows-x64.zip" .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: PWRUP-Comp-windows-x64
+          path: PWRUP-Comp-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish rolling release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          short="${GITHUB_SHA::7}"
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
+          gh release create "$RELEASE_TAG" PWRUP-Comp-windows-x64.zip \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Comp dashboard (Godot), latest main ($short)" \
+            --notes "Windows x64 build of apps/comp-godot from ${short}. Unzip and run PWRUP-Comp.bat."
