@@ -1,0 +1,2 @@
+{"extends": "touch_m6_base", "nt": {"/Shared/Intake/Speed/State": 0.42, "/AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg": 2.5},
+ "controls": {"intake_speed": 0.42}, "touch": {"open_panel": "intakeSpeed"}}

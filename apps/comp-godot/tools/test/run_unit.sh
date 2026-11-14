@@ -3,6 +3,8 @@
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
+mkdir -p "$APP/.scratch/shared"
+export PWRUP_SHARED_SETTINGS_PATH="${PWRUP_SHARED_SETTINGS_PATH:-$APP/.scratch/shared/unit-connection-settings.json}"
 
 "$GODOT" --headless --path "$APP" --import >/dev/null 2>&1 || true
 

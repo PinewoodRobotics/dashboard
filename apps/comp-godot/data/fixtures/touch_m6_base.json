@@ -1,0 +1,25 @@
+{
+  "extends": "touch_base",
+  "nt": {
+    "/matchhud/state/enabled": false,
+    "/Shared/PathPlanner/SelectedPath/State": "Ball Shooter Left",
+    "/AdvantageKit/RealOutputs/PathPlanner/CurrentSelectedAuto": "Ball Shooter Left",
+    "/AdvantageKit/RealOutputs/PathPlanner/SelectedAutoValid": true,
+    "/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos": ["Ball Shooter Left", "Ball Shooter Right", "Climber Right Left",
+      "Climber Right Middle", "Climber Right Right", "Move Forward And Shoot Center", "Move Forward And Shoot Left",
+      "Move Forward And Shoot Right", "Stay And Shoot"],
+    "/Shared/Intake/Speed/State": 0.5,
+    "/AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg": 0.0,
+    "/AdvantageKit/RealOutputs/ShooterSubsystem/GPSAssistFeaturesEnabled": true,
+    "/AdvantageKit/RealOutputs/Turret/DistanceToTarget": 3.456,
+    "/AdvantageKit/RealOutputs/Shooter/RequestedVelocityRPM": 3200.0,
+    "/AdvantageKit/RealOutputs/Shooter/VelocityRPM": 3187.6,
+    "/AdvantageKit/RealOutputs/Shooter/LeaderVelocityRPM": 3190.2,
+    "/AdvantageKit/RealOutputs/Shooter/FollowerVelocityRPM": 3185.1,
+    "/AdvantageKit/RealOutputs/Shooter/IsSpunUp": true,
+    "/AdvantageKit/RealOutputs/MatchStatus/isShooting": false,
+    "/AdvantageKit/RealOutputs/Turret/PositionDeg": -42.37,
+    "/AdvantageKit/RealOutputs/Turret/Angle": -0.7401
+  },
+  "controls": {"selected_auto": "Ball Shooter Left"}
+}

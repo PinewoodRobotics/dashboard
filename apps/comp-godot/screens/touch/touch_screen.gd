@@ -4,7 +4,7 @@ extends Control
 ## Touchscreen window at the 1920x515 design size (TouchscreenDashboard.tsx).
 ## Back to front: driver view, overlay tabs (slide up and down in 200 ms),
 ## dock click-catcher, left rail, right drawer (84/540 px, 200 ms), dock
-## (100 ms), drag ghost, on-screen keyboard. TouchLayoutState holds the state;
+## (100 ms), drag ghost, NT Disconnected pill, on-screen keyboard. TouchLayoutState holds the state;
 ## this node animates from it, routes swipe gestures and keeps at most one
 ## touch 3D view rendering (the HUD minimap is the other).
 
@@ -21,6 +21,7 @@ var drawer: RightDrawer
 var dock: DockDrawer
 var ghost: DragGhost
 var keyboard: PwKeyboard
+var pill: NtPill
 var dnd: TouchDnd
 ## Tab id -> {"node": Control, "y": UiAnim}; includes tabs sliding out.
 var overlays := {}
@@ -103,6 +104,9 @@ func _ready() -> void:
 	dnd.ghost = ghost
 	dnd.tab_tapped.connect(state.switch_tab)
 
+	pill = NtPill.new()
+	add_child(pill)
+
 	keyboard = PwKeyboard.new()
 	keyboard.name = "Keyboard"
 	add_child(keyboard)
@@ -119,6 +123,8 @@ func _make_panel(id: String) -> Control:
 			var p := MapSettingsPanel.new()
 			p.settings = settings
 			return p
+		"intakeSpeed":
+			return IntakePanel.new()
 	return PlaceholderPanel.new(str(TabDefs.PANEL_INFO.get(id, {}).get("label", id)) + " Settings")
 
 
@@ -127,9 +133,11 @@ func make_tab(id: String) -> Control:
 		"effects":
 			return PlaceholderTab.new("Special effects tab is coming soon")
 		"auto":
-			return PlaceholderTab.new("Auto selector is coming soon")
+			return AutoTab.new()
 		"settings":
-			return PlaceholderTab.new("Connection settings are coming soon")
+			var st := SettingsTab.new()
+			st.settings = settings
+			return st
 		"howard":
 			return HowardTab.new()
 		"robot3d":
@@ -280,6 +288,7 @@ func step(dt: float) -> void:
 
 func _layout() -> void:
 	drawer.set_width(drawer_w.value)
+	pill.right_edge = Tokens.TOUCH_DESIGN.x - drawer_w.value
 	for id: String in overlays:
 		_place_overlay(overlays[id])
 	dock.position = Vector2((Tokens.TOUCH_DESIGN.x - dock.size.x) * 0.5, H - dock.size.y * dock_t.value)
@@ -370,6 +379,8 @@ static func gesture_context(root: Node, pos: Vector2) -> Dictionary:
 			ctx["on_grab_widget"] = true
 		if ctl is ScrollContainer and (ctl as ScrollContainer).scroll_vertical > 0:
 			ctx["scroll_not_at_top"] = true
+		if ctl.is_in_group("pw_scroll") and float(ctl.get("scroll_offset")) > 0.0:
+			ctx["scroll_not_at_top"] = true
 	return ctx
 
 
@@ -421,6 +432,13 @@ func apply_fixture(tf: Dictionary) -> void:
 			input.open_keyboard()
 	if tf.has("orbit_preset"):
 		orbit.apply_preset(int(tf["orbit_preset"]))
+	var intake := drawer.panel("intakeSpeed") as IntakePanel
+	if tf.has("panel_scroll") and intake != null:
+		await get_tree().process_frame
+		intake.scroll.scroll_vertical = int(tf["panel_scroll"])
+	if tf.has("view_auto") and content is AutoTab:
+		(content as AutoTab).view(str(tf["view_auto"]))
+		(content as AutoTab).list.reveal((content as AutoTab).cards.find((content as AutoTab).card(str(tf["view_auto"]))))
 
 
 ## State for Dev scripted-input expectations.
@@ -434,6 +452,14 @@ func probe() -> Dictionary:
 			"host": g.host.text, "port": g.port.text, "presses": g.presses}
 	if content is HowardTab:
 		out["howard"] = {"index": (content as HowardTab).index}
+	if content is AutoTab:
+		out["auto_tab"] = (content as AutoTab).probe()
+	if content is SettingsTab:
+		out["settings_tab"] = (content as SettingsTab).probe()
+	var intake := drawer.panel("intakeSpeed")
+	if intake is IntakePanel and intake.visible:
+		out["intake_panel"] = (intake as IntakePanel).probe()
+	out["pill"] = pill.visible
 	if content is Robot3DTab:
 		var rows := {}
 		for key: String in (content as Robot3DTab).rows:

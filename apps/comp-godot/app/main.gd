@@ -59,14 +59,15 @@ func _start_nt() -> void:
 	if Dev.offline_fixture():
 		NT.inject(Dev.fixture_nt(), Dev.fixture.get("nt_link", "up") != "down")
 		return
-	var conn := ConnectionSettings.load_shared()
-	var nt_conf: Dictionary = conn["nt"]
-	var host: String = _args.get("nt_host", nt_conf["host"])
-	var port := CliArgs.get_int(_args, "nt_port", nt_conf["port"])
-	NT.nt_settings = nt_conf
-	NT.configure(host, port, conn["reconnectTimeoutSeconds"])
-	NT.subscribe_groups(Topics.subscription_groups(nt_conf))
+	_apply_connection()
+	Settings.changed.connect(func(section: String) -> void:
+		if section == "connection":
+			_apply_connection())
 	NT.start()
+
+
+func _apply_connection() -> void:
+	NT.apply_connection(Settings.connection(), str(_args.get("nt_host", "")), CliArgs.get_int(_args, "nt_port", 0))
 
 
 ## --max-fps=N (0 = uncapped) overrides the Visual settings frame cap,

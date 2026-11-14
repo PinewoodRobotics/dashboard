@@ -3,11 +3,14 @@ extends Node
 
 signal connection_changed(connected: bool)
 signal state_changed(state: int)
+## The shared table or selected-path entry changed: request/state topic names moved.
+signal topics_changed
 
 var client := Nt4Client.new()
 var fixture_mode := false
 var nt_settings := ConnectionSettings.DEFAULT_NT.duplicate()
 
+var _group_subuids: Array[int] = []
 var _slots := {}
 var _ready_flag := false
 var _poll_now_us := 0
@@ -70,7 +73,33 @@ func unsubscribe(subuid: int) -> void:
 
 func subscribe_groups(groups: Array) -> void:
 	for g: Dictionary in groups:
-		client.subscribe(g["topics"], g["options"])
+		_group_subuids.append(client.subscribe(g["topics"], g["options"]))
+
+
+## Applies shared connection settings ({"nt": {...}, "reconnectTimeoutSeconds"})
+## with optional --nt-host/--nt-port overrides. A host or port change closes
+## the old socket before opening the new one; a topic change re-subscribes.
+func apply_connection(conn: Dictionary, host_override: String = "", port_override: int = 0) -> void:
+	var conf: Dictionary = conn["nt"]
+	var topics_moved: bool = conf.get("sharedTable") != nt_settings.get("sharedTable") \
+		or conf.get("selectedPathTopic") != nt_settings.get("selectedPathTopic")
+	nt_settings = conf.duplicate()
+	var host: String = host_override if host_override != "" else str(conf["host"])
+	var port: int = port_override if port_override > 0 else int(conf["port"])
+	configure(host, port, float(conn.get("reconnectTimeoutSeconds", ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S)))
+	if topics_moved or _group_subuids.is_empty():
+		for uid in _group_subuids:
+			client.unsubscribe(uid)
+		_group_subuids.clear()
+		subscribe_groups(Topics.subscription_groups(nt_settings))
+		if topics_moved:
+			topics_changed.emit()
+
+
+func reconnect() -> void:
+	if fixture_mode:
+		return
+	client.restart()
 
 
 func publisher(topic: String, type: String, properties: Dictionary = {}) -> NtPublisher:

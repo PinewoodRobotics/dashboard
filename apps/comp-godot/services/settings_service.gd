@@ -1,11 +1,14 @@
 class_name SettingsService
 extends Node
 
-## Owner of user://settings.json. Readers pull the current values every frame
-## (map() is a live dictionary), so a change shows up on the next frame in every
-## window; `changed` is for listeners that cache. Writes are debounced and atomic.
+## Owner of user://settings.json and of the shared connection settings file.
+## Readers pull the current values every frame (map() is a live dictionary), so
+## a change shows up on the next frame in every window; `changed` is for
+## listeners that cache. Writes are debounced and atomic.
 ## --settings=PATH uses another file; offline fixtures read and write one only
-## when --settings is given (scripted restart runs).
+## when --settings is given (scripted restart runs). Offline fixtures keep the
+## connection settings in memory unless PWRUP_SHARED_SETTINGS_PATH is set, so a
+## screenshot run can never rewrite the real shared file.
 
 signal changed(section: String)
 
@@ -15,19 +18,55 @@ const SAVE_DELAY_S := 0.25
 var path := DEFAULT_PATH
 var persist := true
 var data := AppSettings.defaults()
+var connection_store: SharedSettingsStore
 var _save_due_msec := -1
 
 
 func _ready() -> void:
 	var dev := get_node_or_null("/root/Dev") as DevService
+	var offline := false
 	if dev != null:
+		offline = dev.offline_fixture()
 		if dev.args.has("settings"):
 			path = str(dev.args["settings"])
-		elif dev.offline_fixture():
+		elif offline:
 			persist = false
 	if persist:
 		load_file()
-	set_process(false)
+	if connection_store == null:
+		var memory := offline and OS.get_environment(ConnectionSettings.ENV_PATH).strip_edges() == ""
+		connection_store = SharedSettingsStore.new("", memory)
+		connection_store.reload()
+		if dev != null and offline and typeof(dev.fixture.get("connection")) == TYPE_DICTIONARY:
+			connection_store.current = ConnectionSettings.from_settings(dev.fixture["connection"])
+
+
+## {"nt": {host, port, sharedTable, selectedPathTopic}, "reconnectTimeoutSeconds": int}
+func connection() -> Dictionary:
+	return connection_store.current
+
+
+## Writes the shared file now (atomic, version + 1). False when the write failed.
+func set_connection(conn: Dictionary) -> bool:
+	var before := connection_store.current.duplicate(true)
+	if not connection_store.save(conn):
+		push_warning("settings: " + connection_store.last_error)
+		return false
+	if connection_store.current != before:
+		changed.emit("connection")
+	return true
+
+
+func reset_connection() -> bool:
+	return set_connection(ConnectionSettings.defaults())
+
+
+func controls() -> Dictionary:
+	return data["controls"]
+
+
+func set_controls(patch: Dictionary) -> void:
+	_patch("controls", patch, AppSettings.normalize_controls)
 
 
 func load_file() -> void:
@@ -86,17 +125,18 @@ func _schedule_save() -> void:
 	if not persist:
 		return
 	_save_due_msec = Time.get_ticks_msec() + int(SAVE_DELAY_S * 1000.0)
-	set_process(true)
 
 
 func _process(_delta: float) -> void:
-	if _save_due_msec >= 0 and Time.get_ticks_msec() >= _save_due_msec:
+	var now := Time.get_ticks_msec()
+	if _save_due_msec >= 0 and now >= _save_due_msec:
 		save_now()
+	if connection_store != null and connection_store.poll(now):
+		changed.emit("connection")
 
 
 func save_now() -> bool:
 	_save_due_msec = -1
-	set_process(false)
 	if not persist:
 		return false
 	var dir := path.get_base_dir()

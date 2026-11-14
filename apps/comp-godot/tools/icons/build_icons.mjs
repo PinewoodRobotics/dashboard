@@ -34,6 +34,11 @@ const ICONS = [
   "refresh-cw",
   "chevron-left",
   "chevron-right",
+  "triangle-alert",
+  "lock",
+  "rotate-ccw",
+  "circle-check",
+  "unplug",
 ];
 
 const icons = {};

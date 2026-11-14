@@ -12,6 +12,7 @@ WORK="$TMP_ROOT/integration"
 mkdir -p "$WORK"
 touch "$TMP_ROOT/.gdignore"
 export TMPDIR="$WORK/"
+export PWRUP_SHARED_SETTINGS_PATH="${PWRUP_SHARED_SETTINGS_PATH:-$WORK/connection-settings.json}"
 TAG="comp-godot-it-$$"
 
 free_port() {

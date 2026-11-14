@@ -21,7 +21,9 @@ extends Node
 ##   "match": {"advance_s": S} advance the frozen match clock after the steps,
 ##   "orbit_preset": 0, "camera": {"hud"|"touch": {"position": [x,y,z], "target": [..], "up": [..]}},
 ##   "touch": {"active_tab": id, "open_panel": id, "dock_open": bool, "dev_tab": "gallery",
-##     "keyboard": "<gallery input name>", "keyboard_text": "..", "howard_index": N}
+##     "keyboard": "<gallery input name>", "keyboard_text": "..", "howard_index": N, "view_auto": name}
+##   "controls": {"selected_auto": name|"NONE", "intake_speed": x, "conflict": bool, "trim_requested": deg},
+##   "connection": {shared-file "settings" object} (offline: replaces the connection settings in memory),
 ##     (applied, then every transition finished, before the run),
 ##   "input": [steps] scripted touch or mouse input with expectations (services/dev_input.gd),
 ##   "probes": [{"name": "..", "window": "hud"|"touch", "at": "robot" | "node:<Name>" | [x, y, w, h],
@@ -158,6 +160,9 @@ func _apply_fixture_views() -> void:
 			}
 	if fixture.has("orbit_preset") and views.has("touch"):
 		(views["touch"] as RobotOrbitView).apply_preset(int(fixture["orbit_preset"]))
+	if fixture.has("controls"):
+		Controls.apply_fixture(fixture["controls"])
+		Controls.step()
 	var ts := touch_screen()
 	if ts != null and fixture.has("touch"):
 		ts.call("apply_fixture", fixture["touch"])
@@ -183,9 +188,15 @@ func save_settings() -> void:
 	Settings.save_now()
 
 
+func inject_nt(values: Dictionary) -> void:
+	if offline_fixture():
+		NT.inject(values, fixture.get("nt_link", "up") != "down")
+
+
 ## What scripted-input expectations can look at.
 func probe_state() -> Dictionary:
 	var out := {"settings": Settings.data.duplicate(true), "max_rendering_views": max_rendering_views,
+		"controls": Controls.snapshot(), "connection": Settings.connection().duplicate(true), "nt_ready": NT.is_ready(),
 		"models": {"generation": Models.generation.duplicate()}, "engine": {"max_fps": Engine.max_fps}}
 	var views: Array = []
 	for v: CadView in get_tree().get_nodes_in_group(CadView.GROUP):
@@ -275,6 +286,7 @@ func _run() -> void:
 		report["touch"] = ts.call("layout_report")
 	report["os_windows"] = Array(DisplayServer.get_window_list())
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
+	report["controls"] = Controls.snapshot()
 	report["anchors"] = _anchor_positions(images)
 	var hud: HudScreen = _main.call("hud_screen")
 	if hud != null:

@@ -14,6 +14,9 @@ extends RefCounted
 ##   {"mouse": true|false}  {"window": "touch"|"hud"}  {"mark": "name"}
 ##   {"expect": {"dotted.path": value | {"ne": v} | {"le": v} | {"ge": v} | {"near": v, "tol": t}
 ##     | {"changed_since": "mark"} | {"same_as": "mark", "tol": t}}}
+##   {"wait_for": {same as expect}, "timeout_ms": 3000} polls every frame until all
+##     hold (elapsed ms goes to the trace) or fails at the timeout
+##   {"inject": {topic: value}} offline NT values, as a fixture's nt_steps
 ##   {"screenshot": "name"}  {"call": "save_settings"}
 ## A failed expectation is recorded with the step index; the run continues.
 
@@ -62,6 +65,11 @@ func run(steps: Array, prefix: String) -> void:
 			marks[str(s["mark"])] = dev.probe_state().duplicate(true)
 		if s.has("call"):
 			dev.call(str(s["call"]))
+		if s.has("inject"):
+			dev.inject_nt(s["inject"])
+			await _frames(2)
+		if s.has("wait_for"):
+			await _wait_for(i, s["wait_for"], float(s.get("timeout_ms", 3000)))
 		if s.has("expect"):
 			await _frames(1)
 			_check(i, s["expect"])
@@ -240,6 +248,38 @@ static func same(a: Variant, b: Variant, tol: float = 1e-4) -> bool:
 				return false
 		return true
 	return typeof(a) == typeof(b) and a == b
+
+
+func _wait_for(i: int, exp: Dictionary, timeout_ms: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while true:
+		var st := dev.probe_state()
+		var all := true
+		for path: String in exp:
+			if not _holds(st, path, exp[path]):
+				all = false
+				break
+		if all:
+			trace.append({"step": i, "wait_for": exp.keys(), "ms": Time.get_ticks_msec() - t0, "ok": true})
+			return
+		if Time.get_ticks_msec() - t0 > timeout_ms:
+			break
+		await tree.process_frame
+	trace.append({"step": i, "wait_for": exp.keys(), "ms": Time.get_ticks_msec() - t0, "ok": false})
+	_check(i, exp)
+
+
+func _holds(st: Dictionary, path: String, want: Variant) -> bool:
+	var got: Variant = dig(st, path)
+	if typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("ne"):
+		return not same(got, want["ne"])
+	if typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("le"):
+		return got != null and float(got) <= float(want["le"])
+	if typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("ge"):
+		return got != null and float(got) >= float(want["ge"])
+	if typeof(want) == TYPE_DICTIONARY and (want as Dictionary).has("near"):
+		return same(got, want["near"], float(want.get("tol", 1e-3)))
+	return same(got, want)
 
 
 func _check(i: int, exp: Dictionary) -> void:

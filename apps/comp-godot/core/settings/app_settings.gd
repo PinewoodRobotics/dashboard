@@ -3,7 +3,9 @@ extends RefCounted
 
 ## Godot-only settings in user://settings.json, normalized like
 ## settings-schema.ts (mapSettings defaults follow / 0.3 / 0.5) and
-## layoutStorage.ts (unknown tab ids dropped, dock completed in default order).
+## layoutStorage.ts (unknown tab ids dropped, dock completed in default order),
+## plus the robot controls the web kept in localStorage (selected auto, intake
+## speed override).
 
 const MAP_MODES := ["follow", "driver"]
 const DEFAULT_MAP := {"mode": "follow", "angle": 0.3, "zoom": 0.5}
@@ -12,6 +14,10 @@ const RENDER_SCALES := [0.25, 0.5, 0.75, 1.0]
 const MSAA_LEVELS := [0, 2, 4]
 const FPS_CAPS := [30, 60]
 const DEFAULT_VISUAL := {"render_scale": 1.0, "msaa": 2, "fps_cap": 60}
+
+## selected_auto: "" = nothing chosen, "NONE" = No Auto, else an auto name.
+## intake_speed: null = use the robot's compiled constant, else 0..1.
+const DEFAULT_CONTROLS := {"selected_auto": "", "intake_speed": null}
 
 
 static func _unit(v: Variant, default: float) -> float:
@@ -54,6 +60,17 @@ static func normalize_visual(raw: Variant) -> Dictionary:
 	return out
 
 
+static func normalize_controls(raw: Variant) -> Dictionary:
+	var out := DEFAULT_CONTROLS.duplicate()
+	if typeof(raw) != TYPE_DICTIONARY:
+		return out
+	if typeof(raw.get("selected_auto")) == TYPE_STRING:
+		out["selected_auto"] = (raw["selected_auto"] as String).strip_edges()
+	if _is_num(raw.get("intake_speed")):
+		out["intake_speed"] = IntakeSpeed.round_speed(float(raw["intake_speed"]))
+	return out
+
+
 static func normalize_layout(raw: Variant) -> Dictionary:
 	if typeof(raw) != TYPE_DICTIONARY:
 		return default_layout()
@@ -68,7 +85,7 @@ static func default_layout() -> Dictionary:
 
 
 static func defaults() -> Dictionary:
-	return {"map": DEFAULT_MAP.duplicate(), "visual": DEFAULT_VISUAL.duplicate(), "layout": default_layout()}
+	return {"map": DEFAULT_MAP.duplicate(), "visual": DEFAULT_VISUAL.duplicate(), "layout": default_layout(), "controls": DEFAULT_CONTROLS.duplicate()}
 
 
 ## Unknown sections are kept so newer builds' settings survive a round trip.
@@ -82,4 +99,5 @@ static func normalize(raw: Variant) -> Dictionary:
 	out["map"] = normalize_map(raw.get("map"))
 	out["visual"] = normalize_visual(raw.get("visual"))
 	out["layout"] = normalize_layout(raw.get("layout"))
+	out["controls"] = normalize_controls(raw.get("controls"))
 	return out
