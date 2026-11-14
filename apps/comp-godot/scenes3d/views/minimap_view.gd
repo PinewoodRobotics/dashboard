@@ -7,17 +7,15 @@ extends CadView
 
 const FRAME_SHADER := preload("res://screens/hud/minimap_frame.gdshader")
 
-var settings_service: SettingsService
 var match_service: MatchService
 ## Used only when there is no Settings service (tests, tools).
 var settings := AppSettings.DEFAULT_MAP.duplicate()
 var cam_model := MinimapCamera.new()
 var field: Node3D
+var _field_generation := 0
 
 
 func _setup() -> void:
-	if settings_service == null:
-		settings_service = get_node_or_null("/root/Settings") as SettingsService
 	if match_service == null:
 		match_service = get_node_or_null("/root/Match") as MatchService
 	camera.near = MinimapCamera.NEAR
@@ -25,6 +23,7 @@ func _setup() -> void:
 	camera.fov = MinimapCamera.FOV_DEG
 	if models != null:
 		models.when_ready("field", _attach_field)
+		models.model_ready.connect(_on_model_ready)
 
 
 func use_frame(rect_size: Vector2, radius: Vector2, blur: float, spread: float) -> void:
@@ -37,9 +36,18 @@ func use_frame(rect_size: Vector2, radius: Vector2, blur: float, spread: float) 
 	material = m
 
 
+func _on_model_ready(key: String) -> void:
+	if key == "field" and field != null and int(models.generation.get(key, 0)) != _field_generation:
+		field.free()
+		field = null
+		_attach_field(models.scenes[key])
+
+
 func _attach_field(scene: PackedScene) -> void:
 	if field != null or not is_inside_tree():
 		return
+	if models != null:
+		_field_generation = int(models.generation.get("field", 0))
 	field = scene.instantiate() as Node3D
 	CadMaterials.apply(field)
 	viewport.add_child(field)

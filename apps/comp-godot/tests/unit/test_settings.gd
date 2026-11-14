@@ -39,3 +39,36 @@ func test_set_map_signals_and_persists_atomically() -> void:
 	s.queue_free()
 	s2.free()
 	DirAccess.remove_absolute(path)
+
+
+func test_visual_and_layout_normalization() -> void:
+	check_eq(AppSettings.normalize_visual(null), {"render_scale": 1.0, "msaa": 2, "fps_cap": 60})
+	check_eq(AppSettings.normalize_visual({"render_scale": 0.5, "msaa": 4, "fps_cap": 30}), {"render_scale": 0.5, "msaa": 4, "fps_cap": 30})
+	check_eq(AppSettings.normalize_visual({"render_scale": 0.6, "msaa": 8, "fps_cap": "60"}), {"render_scale": 1.0, "msaa": 2, "fps_cap": 60}, "only the listed values")
+	check_eq(AppSettings.normalize_layout({"rail": ["record", "visual", "visual", "auto"], "dock": ["visual", "record", "auto"]}),
+		{"rail": ["visual", "auto"], "dock": ["visual", "auto", "settings", "effects", "howard", "robot3d"]}, "record dropped, dock completed")
+	check_eq(AppSettings.normalize_layout({"rail": [], "dock": "junk"}), {"rail": [], "dock": TabDefs.TABS}, "an empty rail is allowed")
+	check_eq(AppSettings.normalize_layout("junk"), AppSettings.default_layout())
+	check_eq(AppSettings.normalize_layout({"dock": []})["rail"], ["auto", "settings"], "missing rail is the default")
+
+
+func test_corrupt_file_loads_defaults_and_layout_round_trips() -> void:
+	var path := dir.path_join("settings_%d.json" % Time.get_ticks_usec())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string("{not json")
+	f.close()
+	var s := SettingsService.new()
+	s.path = path
+	s.load_file()
+	check_eq(s.data, AppSettings.defaults())
+	s.set_layout(["howard", "record"], ["record", "visual"])
+	s.set_visual({"render_scale": 0.25})
+	check(s.save_now())
+	var s2 := SettingsService.new()
+	s2.path = path
+	s2.load_file()
+	check_eq(s2.layout(), {"rail": ["howard"], "dock": ["visual", "auto", "settings", "effects", "howard", "robot3d"]})
+	check_eq(s2.visual()["render_scale"], 0.25)
+	s.free()
+	s2.free()
+	DirAccess.remove_absolute(path)

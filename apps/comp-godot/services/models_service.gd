@@ -14,6 +14,8 @@ const PATHS := {
 
 var scenes := {}
 var ready_msec := {}
+## Bumped every time a key finishes loading; views re-instance on a change.
+var generation := {}
 var _pending := {}
 var _waiters := {}
 
@@ -47,6 +49,23 @@ func _process(_delta: float) -> void:
 		_finish(key, ResourceLoader.load_threaded_get(path))
 	if _pending.is_empty():
 		set_process(false)
+
+
+## Re-reads every model from disk, bypassing the resource cache, and lets the
+## views swap to the new scenes (model_ready fires again for each key).
+## The cached resources are refreshed in place (CACHE_MODE_REPLACE).
+## Synchronous, since this is a rare user action. Covered by a windowed run:
+## on the headless dummy renderer freeing the old instances logs
+## null-material errors that the GL renderer does not have.
+func reload() -> void:
+	for key: String in PATHS:
+		if _pending.has(key):
+			continue
+		var scene := ResourceLoader.load(PATHS[key], "PackedScene", ResourceLoader.CACHE_MODE_REPLACE) as PackedScene
+		if scene == null:
+			push_error("model reload failed: " + PATHS[key])
+			continue
+		_finish(key, scene)
 
 
 ## Blocking load, for tests and tools.
@@ -84,6 +103,7 @@ func when_ready(key: String, cb: Callable) -> void:
 
 func _finish(key: String, scene: PackedScene) -> void:
 	scenes[key] = scene
+	generation[key] = int(generation.get(key, 0)) + 1
 	ready_msec[key] = Time.get_ticks_msec()
 	var waiting: Array = _waiters.get(key, [])
 	_waiters.erase(key)

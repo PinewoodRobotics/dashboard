@@ -1,28 +1,21 @@
 class_name RobotOrbitView
 extends CadView
 
-## Robot-local orbit view (driver view base). Starts at a camera-poses.json
-## preset; mouse or touch drag orbits, wheel zooms, within the web limits.
+## Robot-local orbit view (driver base and Robot 3D tab) driven by
+## OrbitCamera: presets from camera-poses.json, drag to orbit, wheel, trackpad
+## or two-finger pinch to zoom, idle return to the selected preset.
 
 const POSES_PATH := "res://data/rig/camera-poses.json"
-const MIN_POLAR := 0.1
-const MAX_POLAR := PI / 2.0 - 0.05
-const MIN_DIST := 0.5
-const MAX_DIST := 4.0
-const ROTATE_SPEED := 0.006
 
-var preset := 0
-var target := Vector3.ZERO
-var theta := 0.0
-var phi := 1.0
-var dist := 2.0
+var cam := OrbitCamera.new(OrbitCamera.load_presets(POSES_PATH))
 var _dragging := false
+var _touches := {}
+var _pinch_dist := 0.0
 
 
-func _setup() -> void:
-	camera.near = 0.01
-	camera.far = 50.0
-	apply_preset(preset)
+func _init() -> void:
+	super()
+	add_to_group("pw_grab")
 
 
 static func load_poses() -> Dictionary:
@@ -30,44 +23,71 @@ static func load_poses() -> Dictionary:
 	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
 
 
-func apply_preset(index: int) -> void:
-	var poses := load_poses()
-	var states: Array = poses.get("states", [])
-	var pose: Dictionary = states[index] if index >= 0 and index < states.size() else poses.get("initial", {})
-	var p: Array = pose.get("position", [1.38, 0.45, 1.38])
-	var t: Array = pose.get("target", [0, 0.25, 0])
-	target = Vector3(t[0], t[1], t[2])
-	var offset := Vector3(p[0], p[1], p[2]) - target
-	dist = clampf(offset.length(), MIN_DIST, MAX_DIST)
-	phi = clampf(acos(clampf(offset.y / offset.length(), -1.0, 1.0)), MIN_POLAR, MAX_POLAR)
-	theta = atan2(offset.x, offset.z)
-	camera.fov = float(pose.get("fov", 50.0))
-	preset = index
+func _setup() -> void:
+	camera.near = 0.01
+	camera.far = 50.0
 	_place_camera()
+
+
+func apply_preset(index: int) -> void:
+	cam.select_preset(index, false)
+	_place_camera()
+
+
+func select_preset(index: int) -> void:
+	cam.select_preset(index, true)
 
 
 func _process(delta: float) -> void:
 	super(delta)
-	apply_camera_override()
+	cam.step(delta)
+	if not apply_camera_override():
+		_place_camera()
 
 
 func _place_camera() -> void:
-	var pos := target + dist * Vector3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta))
-	camera.look_at_from_position(pos, target, Vector3.UP)
+	camera.fov = cam.fov
+	camera.look_at_from_position(cam.position(), cam.target, Vector3.UP)
 
 
 func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_touches[st.index] = st.position
+		else:
+			_touches.erase(st.index)
+		_pinch_dist = _touch_spread()
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		_touches[sd.index] = sd.position
+		if _touches.size() >= 2:
+			var spread := _touch_spread()
+			if _pinch_dist > 0.0 and spread > 0.0:
+				cam.zoom(log(spread / _pinch_dist) / -log(OrbitCamera.ZOOM_STEP))
+			_pinch_dist = spread
+	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			_dragging = mb.pressed
+			if mb.pressed:
+				cam.begin_interaction()
+			else:
+				cam.end_interaction()
+			accept_event()
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			dist = clampf(dist * 0.9, MIN_DIST, MAX_DIST)
+			cam.zoom(1.0)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			dist = clampf(dist / 0.9, MIN_DIST, MAX_DIST)
-		_place_camera()
-	elif event is InputEventMouseMotion and _dragging:
+			cam.zoom(-1.0)
+	elif event is InputEventMagnifyGesture:
+		cam.zoom(log((event as InputEventMagnifyGesture).factor) / -log(OrbitCamera.ZOOM_STEP))
+	elif event is InputEventMouseMotion and _dragging and _touches.size() < 2:
 		var mm := event as InputEventMouseMotion
-		theta -= mm.relative.x * ROTATE_SPEED
-		phi = clampf(phi - mm.relative.y * ROTATE_SPEED, MIN_POLAR, MAX_POLAR)
-		_place_camera()
+		cam.orbit(mm.relative.x, mm.relative.y)
+
+
+func _touch_spread() -> float:
+	if _touches.size() < 2:
+		return 0.0
+	var pts: Array = _touches.values()
+	return (pts[0] as Vector2).distance_to(pts[1])

@@ -4,7 +4,8 @@ extends Node
 ## Owner of user://settings.json. Readers pull the current values every frame
 ## (map() is a live dictionary), so a change shows up on the next frame in every
 ## window; `changed` is for listeners that cache. Writes are debounced and atomic.
-## --settings=PATH uses another file; offline fixtures never read or write one.
+## --settings=PATH uses another file; offline fixtures read and write one only
+## when --settings is given (scripted restart runs).
 
 signal changed(section: String)
 
@@ -20,10 +21,10 @@ var _save_due_msec := -1
 func _ready() -> void:
 	var dev := get_node_or_null("/root/Dev") as DevService
 	if dev != null:
-		if dev.offline_fixture():
-			persist = false
-		elif dev.args.has("settings"):
+		if dev.args.has("settings"):
 			path = str(dev.args["settings"])
+		elif dev.offline_fixture():
+			persist = false
 	if persist:
 		load_file()
 	set_process(false)
@@ -33,7 +34,12 @@ func load_file() -> void:
 	if not FileAccess.file_exists(path):
 		data = AppSettings.defaults()
 		return
-	data = AppSettings.normalize(JSON.parse_string(FileAccess.get_file_as_string(path)))
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(path)) != OK:
+		push_warning("settings: %s is not valid JSON, using defaults" % path)
+		data = AppSettings.defaults()
+		return
+	data = AppSettings.normalize(json.data)
 
 
 func map() -> Dictionary:
@@ -41,13 +47,38 @@ func map() -> Dictionary:
 
 
 func set_map(patch: Dictionary) -> void:
-	var merged: Dictionary = data["map"].duplicate()
+	_patch("map", patch, AppSettings.normalize_map)
+
+
+func visual() -> Dictionary:
+	return data["visual"]
+
+
+func set_visual(patch: Dictionary) -> void:
+	_patch("visual", patch, AppSettings.normalize_visual)
+
+
+func layout() -> Dictionary:
+	return data["layout"]
+
+
+func set_layout(rail: Array, dock: Array) -> void:
+	_patch("layout", {"rail": rail, "dock": dock}, AppSettings.normalize_layout)
+
+
+func reset(section: String) -> void:
+	_patch(section, AppSettings.defaults()[section], func(v: Variant) -> Dictionary: return v)
+
+
+## Sections are updated in place so readers holding the dictionary see changes.
+func _patch(section: String, patch: Dictionary, normalize: Callable) -> void:
+	var merged: Dictionary = data[section].duplicate(true)
 	merged.merge(patch, true)
-	var normalized := AppSettings.normalize_map(merged)
-	if normalized == data["map"]:
+	var normalized: Dictionary = normalize.call(merged)
+	if normalized == data[section]:
 		return
-	(data["map"] as Dictionary).merge(normalized, true)
-	changed.emit("map")
+	(data[section] as Dictionary).merge(normalized, true)
+	changed.emit(section)
 	_schedule_save()
 
 

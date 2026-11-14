@@ -20,13 +20,20 @@ extends Node
 ##   "nt_steps": [{topic: value}, ...] injected in order after start (e.g. toasts),
 ##   "match": {"advance_s": S} advance the frozen match clock after the steps,
 ##   "orbit_preset": 0, "camera": {"hud"|"touch": {"position": [x,y,z], "target": [..], "up": [..]}},
+##   "touch": {"active_tab": id, "open_panel": id, "dock_open": bool, "dev_tab": "gallery",
+##     "keyboard": "<gallery input name>", "keyboard_text": "..", "howard_index": N}
+##     (applied, then every transition finished, before the run),
+##   "input": [steps] scripted touch or mouse input with expectations (services/dev_input.gd),
 ##   "probes": [{"name": "..", "window": "hud"|"touch", "at": "robot" | "node:<Name>" | [x, y, w, h],
 ##     "half": 40, "kind": "hue"|"nonblack"|"color"|"mean_luma", "hue": "red"|"blue",
 ##     "color": "#rrggbb", "tol": 0.1, "min_fraction": 0.02}]}
 ##   mean_luma probes compare the region's mean luma with "min" / "max" instead.
 ## Rects and "half" are in design pixels of the window (1920x1080 HUD, 1920x515 touch).
+## Every frame the number of SubViewports rendering 3D is checked: more than
+## MAX_RENDERING_VIEWS logs an error (and fails a run).
 
 const FIXTURE_DIR := "res://data/fixtures"
+const MAX_RENDERING_VIEWS := 2
 
 var args := {}
 var fixture := {}
@@ -38,6 +45,9 @@ var dev_ready_msec := -1
 var main_attach_msec := -1
 var _main: Node
 var _failures: PackedStringArray = []
+var max_rendering_views := 0
+var _over_budget_frames := 0
+var _input: DevInput
 
 
 func _ready() -> void:
@@ -46,6 +56,15 @@ func _ready() -> void:
 	if args.has("fixture"):
 		fixture = load_fixture(str(args["fixture"]))
 	RenderingServer.frame_post_draw.connect(_on_first_frame, CONNECT_ONE_SHOT)
+
+
+func _process(_delta: float) -> void:
+	var n := CadView.rendering_views(get_tree()).size()
+	max_rendering_views = maxi(max_rendering_views, n)
+	if n > MAX_RENDERING_VIEWS:
+		if _over_budget_frames == 0:
+			push_error("%d SubViewports render 3D this frame (budget %d)" % [n, MAX_RENDERING_VIEWS])
+		_over_budget_frames += 1
 
 
 func _on_first_frame() -> void:
@@ -139,6 +158,77 @@ func _apply_fixture_views() -> void:
 			}
 	if fixture.has("orbit_preset") and views.has("touch"):
 		(views["touch"] as RobotOrbitView).apply_preset(int(fixture["orbit_preset"]))
+	var ts := touch_screen()
+	if ts != null and fixture.has("touch"):
+		_apply_touch_fixture(ts, fixture["touch"])
+
+
+func touch_screen() -> TouchScreen:
+	return _main.call("touch_screen") if _main != null else null
+
+
+func _apply_touch_fixture(ts: TouchScreen, tf: Dictionary) -> void:
+	if tf.has("active_tab"):
+		ts.state.switch_tab(str(tf["active_tab"]))
+	if tf.get("dev_tab", "") == "gallery":
+		ts.open_dev_tab("gallery", func() -> Control: return WidgetGallery.new())
+	if tf.has("open_panel"):
+		ts.state.toggle_panel(str(tf["open_panel"]))
+	if tf.get("dock_open", false):
+		ts.state.toggle_dock()
+	ts.step(10.0)
+	var content := ts.tab_content(ts.state.active_tab)
+	if tf.has("howard_index") and content is HowardTab:
+		(content as HowardTab).show_index(int(tf["howard_index"]))
+	if tf.has("keyboard") and content != null:
+		var input := content.find_child(str(tf["keyboard"]), true, false) as PwTextInput
+		if input != null:
+			input.set_text(str(tf.get("keyboard_text", "")))
+			input.open_keyboard()
+	if tf.has("orbit_preset"):
+		ts.orbit.apply_preset(int(tf["orbit_preset"]))
+
+
+func window(key: String) -> Window:
+	return _windows().get(key)
+
+
+func screen_root(key: String) -> Node:
+	if key == "touch":
+		return touch_screen()
+	return _main.call("hud_screen") if _main != null else null
+
+
+func save_settings() -> void:
+	Settings.save_now()
+
+
+## What scripted-input expectations can look at.
+func probe_state() -> Dictionary:
+	var out := {"settings": Settings.data.duplicate(true), "max_rendering_views": max_rendering_views,
+		"models": {"generation": Models.generation.duplicate()}, "engine": {"max_fps": Engine.max_fps}}
+	var views: Array = []
+	for v: CadView in get_tree().get_nodes_in_group(CadView.GROUP):
+		views.append({"name": String(v.name), "scale": v.viewport.scaling_3d_scale, "msaa": int(v.viewport.msaa_3d), "rendering": v.is_rendering(), "loaded": v.robot.is_loaded()})
+	out["views"] = views
+	var ts := touch_screen()
+	if ts != null:
+		out["touch"] = ts.layout_report()
+		out["state"] = ts.state.snapshot()
+		var content := ts.tab_content(ts.state.active_tab)
+		if content is WidgetGallery:
+			var g := content as WidgetGallery
+			out["gallery"] = {"speed": g.slider.value, "snap": g.snap_slider.value, "trim": g.trim.value,
+				"mode": g.selector.current_value(), "msaa": g.text_selector.current_value(),
+				"host": g.host.text, "port": g.port.text, "presses": g.presses}
+		if content is HowardTab:
+			out["howard"] = {"index": (content as HowardTab).index}
+		out["driver"] = {"preset": ts.orbit.cam.preset, "theta": ts.orbit.cam.theta, "phi": ts.orbit.cam.phi, "dist": ts.orbit.cam.dist}
+	var mm: MinimapView = _main.call("minimap") if _main != null else null
+	if mm != null:
+		var p := mm.camera.global_position
+		out["minimap"] = {"camera": [p.x, p.y, p.z], "dist": mm.cam_model.dist}
+	return out
 
 
 static func _vec3(a: Variant) -> Vector3:
@@ -177,6 +267,15 @@ func _run() -> void:
 	for i in CliArgs.get_int(args, "frames", 30):
 		await tree.process_frame
 
+	var steps: Array = fixture.get("input", [])
+	if not steps.is_empty():
+		_input = DevInput.new(self)
+		await _input.run(steps, str(args.get("screenshot", "")))
+		_failures.append_array(_input.failures)
+		report["input"] = _input.trace
+		for i in 10:
+			await tree.process_frame
+
 	var perf_frames := CliArgs.get_int(args, "perf_frames", 0)
 	if perf_frames > 0:
 		report["perf"] = await _sample_perf(perf_frames)
@@ -197,6 +296,12 @@ func _run() -> void:
 		"models_ready_msec": Models.ready_msec,
 	}
 	report["robot_meshes"] = robot_mesh_report()
+	report["max_rendering_views"] = max_rendering_views
+	if _over_budget_frames > 0:
+		_failures.append("%d frame(s) rendered more than %d 3D SubViewports" % [_over_budget_frames, MAX_RENDERING_VIEWS])
+	var ts := touch_screen()
+	if ts != null:
+		report["touch"] = ts.layout_report()
 	report["os_windows"] = Array(DisplayServer.get_window_list())
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
 	report["anchors"] = _anchor_positions(images)

@@ -1,0 +1,145 @@
+class_name VisualTab
+extends Control
+
+## Visual settings (VisualTab.tsx, adapted): render scale, MSAA and frame cap
+## apply live to every 3D viewport in both windows and persist; models can be
+## reloaded from disk; live renderer diagnostics. The web log-depth and blur
+## options have no counterpart here (blur is dropped, depth is fine as is).
+
+const SCALE_HINTS := [
+	{"min": 0.0, "text": "0.25x: for struggling hardware"},
+	{"min": 0.4, "text": "0.5x: moderate quality loss"},
+	{"min": 0.62, "text": "0.75x: barely noticeable quality loss"},
+	{"min": 0.87, "text": "1x: native resolution, full quality"},
+]
+const MSAA_OPTIONS := [
+	{"value": 0, "text": "Off", "hint": "No anti-aliasing (fastest)"},
+	{"value": 2, "text": "2x", "hint": "Smooth edges, light GPU cost"},
+	{"value": 4, "text": "4x", "hint": "Smoothest edges, highest GPU cost"},
+]
+const FPS_OPTIONS := [
+	{"value": 30, "text": "30", "hint": "30 fps: half the GPU load"},
+	{"value": 60, "text": "60", "hint": "60 fps: smooth motion"},
+]
+
+var settings: SettingsService
+var models: ModelsService
+var render_scale: PwSlider
+var msaa: PwSelector
+var fps: PwSelector
+var reload: PwButton
+var reload_status: Label
+var diag: Label
+var _diag_t := 0.0
+
+
+func _ready() -> void:
+	if settings == null:
+		settings = get_node_or_null("/root/Settings") as SettingsService
+	if models == null:
+		models = get_node_or_null("/root/Models") as ModelsService
+	var root := UiKit.vbox(0)
+	var header := UiKit.hbox(16)
+	var title := UiKit.label("Visual Settings", 28, 600)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var reset := PwButton.new("Reset", PwButton.Style.OUTLINE, Vector2(140, 48))
+	reset.name = "Reset"
+	reset.pressed.connect(func() -> void: settings.reset("visual"))
+	header.add_child(reset)
+	root.add_child(UiKit.margin(header, 32, 20, 32, 0))
+
+	var scroll := UiKit.hscroll()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var cols := UiKit.hbox(0)
+	scroll.add_child(cols)
+	root.add_child(scroll)
+
+	var v := settings.visual()
+	var c1 := UiKit.column("Rendering")
+	render_scale = PwSlider.new().configure({"label": "Render Scale", "min_value": 0.0, "max_value": 1.0, "snap_points": AppSettings.RENDER_SCALES,
+		"value_label": "{v}x", "format_value": func(x: float) -> String: return str(x), "hints": SCALE_HINTS, "value": float(v["render_scale"])})
+	render_scale.name = "RenderScale"
+	render_scale.value_changed.connect(func(x: float) -> void: settings.set_visual({"render_scale": x}))
+	c1["box"].add_child(render_scale)
+	msaa = PwSelector.new().configure("Anti-aliasing (MSAA)", MSAA_OPTIONS, v["msaa"])
+	msaa.name = "Msaa"
+	msaa.selected.connect(func(x: Variant) -> void: settings.set_visual({"msaa": x}))
+	c1["box"].add_child(msaa)
+	fps = PwSelector.new().configure("Frame Cap", FPS_OPTIONS, v["fps_cap"])
+	fps.name = "FpsCap"
+	fps.selected.connect(func(x: Variant) -> void: settings.set_visual({"fps_cap": x}))
+	c1["box"].add_child(fps)
+	cols.add_child(c1["panel"])
+
+	var c2 := UiKit.column("Assets")
+	c2["box"].add_child(UiKit.wrapped("Robot and field models are bundled with the app. Reload them from disk after replacing the files in assets/models.", 18))
+	reload = PwButton.new("Reload Models", PwButton.Style.DARK, Vector2(0, 64))
+	reload.name = "ReloadModels"
+	reload.icon_name = "refresh-cw"
+	reload.pressed.connect(_reload_models)
+	c2["box"].add_child(reload)
+	reload_status = UiKit.wrapped("", 16)
+	c2["box"].add_child(reload_status)
+	cols.add_child(c2["panel"])
+
+	var c3 := UiKit.column("Diagnostics", false)
+	diag = UiKit.label("", 16, 400, Tokens.ZINC_300)
+	diag.add_theme_font_override("font", Tokens.mono())
+	c3["box"].add_child(diag)
+	cols.add_child(c3["panel"])
+
+	add_child(UiKit.full(root))
+	settings.changed.connect(_on_changed)
+	if models != null:
+		models.model_ready.connect(_on_model_ready)
+	_update_diag()
+
+
+func _on_changed(section: String) -> void:
+	if section != "visual":
+		return
+	var v := settings.visual()
+	if not render_scale.dragging:
+		render_scale.set_value(float(v["render_scale"]))
+	msaa.select_value(v["msaa"])
+	fps.select_value(v["fps_cap"])
+
+
+func _reload_models() -> void:
+	if models == null:
+		return
+	reload_status.text = "Reloading..."
+	models.reload()
+
+
+func _on_model_ready(key: String) -> void:
+	if models.all_ready():
+		reload_status.text = "Models loaded (%s)" % ", ".join(models.scenes.keys())
+
+
+func _process(delta: float) -> void:
+	_diag_t += delta
+	if _diag_t >= 0.25:
+		_diag_t = 0.0
+		_update_diag()
+
+
+func _update_diag() -> void:
+	var rs := RenderingServer
+	var lines := PackedStringArray([
+		"Renderer   %s" % rs.get_current_rendering_driver_name(),
+		"Adapter    %s" % rs.get_video_adapter_name().left(28),
+		"FPS        %d (cap %d)" % [Engine.get_frames_per_second(), Engine.max_fps],
+		"Draw calls %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+		"Primitives %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
+		"3D views   %d rendering" % CadView.rendering_views(get_tree()).size(),
+		"Video mem  %.0f MB" % (rs.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0),
+	])
+	var nt := get_node_or_null("/root/NT") as NtService
+	if nt != null:
+		var d := nt.diagnostics()
+		lines.append("NT         %s" % ("fixture" if nt.fixture_mode else nt.client.state_name()))
+		if d.has("rtt_us"):
+			lines.append("NT RTT     %.1f ms" % (float(d["rtt_us"]) / 1000.0))
+	diag.text = "\n".join(lines)

@@ -153,3 +153,4 @@ func test_glbs_declare_no_extensions() -> void:
 		check(not header.has("extensionsRequired"), key + " extensionsRequired")
 		check(not header.has("extensionsUsed"), key + " extensionsUsed")
 		check(not header.has("animations"), key + " animations dropped")
+

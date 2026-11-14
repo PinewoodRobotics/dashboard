@@ -14,15 +14,31 @@ var _pending_alliance: Variant = null
 var dimmed := false
 
 
+var _generation := 0
+var _models: ModelsService
+
+
 func _ready() -> void:
-	var models := get_node_or_null("/root/Models") as ModelsService
-	if models != null:
-		models.when_ready("robot", attach)
+	_models = get_node_or_null("/root/Models") as ModelsService
+	if _models != null:
+		_models.when_ready("robot", attach)
+		_models.model_ready.connect(_on_model_ready)
+
+
+func _on_model_ready(key: String) -> void:
+	if key == "robot" and model != null and int(_models.generation.get(key, 0)) != _generation:
+		var old := model
+		model = null
+		rig = null
+		old.free()
+		attach(_models.scenes[key])
 
 
 func attach(scene: PackedScene) -> void:
 	if model != null or not is_inside_tree():
 		return
+	if _models != null:
+		_generation = int(_models.generation.get("robot", 0))
 	model = scene.instantiate() as Node3D
 	cad_up.add_child(model)
 	rig = RobotRig.new(model)

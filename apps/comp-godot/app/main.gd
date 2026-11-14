@@ -63,11 +63,19 @@ func _start_nt() -> void:
 	NT.start()
 
 
-## --max-fps=N (0 = uncapped, default 60), --vsync=hud|both|off (default hud).
+## --max-fps=N (0 = uncapped) overrides the Visual settings frame cap,
+## --vsync=hud|both|off (default hud).
 func _apply_frame_policy() -> void:
-	Engine.max_fps = CliArgs.get_int(_args, "max_fps", 60)
+	_apply_fps_cap()
+	Settings.changed.connect(func(section: String) -> void:
+		if section == "visual":
+			_apply_fps_cap())
 	var vsync := str(_args.get("vsync", "hud"))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED if vsync == "off" else DisplayServer.VSYNC_ENABLED)
+
+
+func _apply_fps_cap() -> void:
+	Engine.max_fps = CliArgs.get_int(_args, "max_fps", int(Settings.visual()["fps_cap"]))
 
 
 func minimap() -> MinimapView:
@@ -80,6 +88,10 @@ func hud_screen() -> HudScreen:
 
 func orbit() -> RobotOrbitView:
 	return touch.orbit if touch != null else null
+
+
+func touch_screen() -> TouchScreen:
+	return touch
 
 
 func _unhandled_input(event: InputEvent) -> void:

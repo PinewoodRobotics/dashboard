@@ -19,11 +19,16 @@ const TOAST_BORDER := Color("#2a2a2a")
 const BG := Color.BLACK
 const TEXT := Color.WHITE
 const TEXT_DIM := Color(1, 1, 1, 0.45)
+const ZINC_300 := Color("#d4d4d8")
 const ZINC_400 := Color("#a1a1aa")
 const ZINC_500 := Color("#71717a")
 const ZINC_700 := Color("#3f3f46")
 const ZINC_800 := Color("#27272a")
 const ZINC_900 := Color("#18181b")
+const ZINC_950 := Color("#09090b")
+const SCRIM := Color(0, 0, 0, 0.9)
+const HAIRLINE := Color(1, 1, 1, 0.1)
+const OUTLINE := Color(1, 1, 1, 0.2)
 
 const HEADER_COLORS := {
 	MatchEnums.Header.GREEN: ACCENT,
@@ -52,6 +57,15 @@ const BORDER := 4
 
 const MOTION_OVERLAY_S := 0.2
 const MOTION_DOCK_S := 0.1
+const MOTION_SLIDER_FILL_S := 0.15
+
+const TOUCH_DESIGN := Vector2(1920, 515)
+const DRAWER_PAD := 20
+const DRAWER_ICON_COL := 44
+const DRAWER_GAP := 30
+const DOCK_PAD := 10
+const DOCK_CELL := 64
+const DOCK_GAP := 12
 
 const INTER_PATH := "res://ui/fonts/Inter-Variable.ttf"
 const MONO_PATH := "res://ui/fonts/RobotoMono-Variable.ttf"
@@ -75,3 +89,12 @@ static func inter(weight: int = 400) -> FontVariation:
 
 static func mono(weight: int = 400) -> FontVariation:
 	return _font(MONO_PATH, weight)
+
+
+## 12 px semibold labels with 0.2em tracking (settings field labels).
+static func label_font() -> FontVariation:
+	if not _fonts.has("label"):
+		var fv := inter(600).duplicate() as FontVariation
+		fv.spacing_glyph = 2
+		_fonts["label"] = fv
+	return _fonts["label"]

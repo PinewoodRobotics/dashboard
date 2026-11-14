@@ -26,6 +26,9 @@ class Joint:
 	var link_scale := 1.0
 	var link_offset := 0.0
 	var smoothing_s := DEFAULT_SMOOTHING_S
+	## debugSlider: label and step for the Robot 3D tab; "" = no slider.
+	var debug_label := ""
+	var debug_step := 0.01
 
 	func clamp_value(v: float) -> float:
 		return clampf(v, min_value, max_value)
@@ -74,6 +77,9 @@ static func from_dict(rig: Dictionary) -> RigSolver:
 			joint.link_source = j["link"].get("source", "")
 			joint.link_scale = float(j["link"].get("scale", 1.0))
 			joint.link_offset = float(j["link"].get("offset", 0.0))
+		if j.has("debugSlider"):
+			joint.debug_label = str(j["debugSlider"].get("label", key))
+			joint.debug_step = float(j["debugSlider"].get("step", 0.01))
 		if j.has("smoothing"):
 			joint.smoothing_s = maxf(0.0, float(j["smoothing"]))
 		s.joints.append(joint)
