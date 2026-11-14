@@ -1,7 +1,7 @@
 class_name NtHarness
 extends RefCounted
 
-static func make_service(tree: SceneTree, port: int, connect_timeout_s: float = 10.0) -> NtService:
+static func make_service(tree: SceneTree, port: int, connect_timeout_s: float = Nt4Client.DEFAULT_CONNECT_TIMEOUT_S) -> NtService:
 	var nt := NtService.new()
 	tree.root.add_child(nt)
 	nt.configure("127.0.0.1", port, connect_timeout_s)

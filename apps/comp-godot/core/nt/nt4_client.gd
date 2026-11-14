@@ -4,14 +4,21 @@ extends RefCounted
 enum State { IDLE, CONNECTING, SYNCING, READY, BACKOFF }
 
 const STATE_NAMES := ["IDLE", "CONNECTING", "SYNCING", "READY", "BACKOFF"]
-const BACKOFF_S: Array[float] = [1.0, 2.0, 4.0, 5.0]
-const RTT_PERIOD_US := 1_000_000
-const LIVENESS_TIMEOUT_US := 3_000_000
+## Delay before the next attempt by consecutive failures. A refused connect
+## costs one SYN and one RST on the robot LAN, so retries stay at 2 Hz.
+const BACKOFF_S: Array[float] = [0.1, 0.25, 0.5]
+const RTT_PERIOD_US := 250_000
+## Silence on an open socket before it is dropped. The probes go out every
+## RTT_PERIOD_US and the server answers them from ntcore's network thread, so
+## robot GC pauses do not count; poll gaps (a busy frame) count for at most one
+## probe period each, so a stalled main thread does not either.
+const LIVENESS_TIMEOUT_US := 2_000_000
 const DEFAULT_POLL_BUDGET_US := 500
 ## Past the budget, packets keep being processed while more than this many
 ## wait, so a sustained overload raises frame time instead of growing latency.
 const MAX_DEFERRED_PACKETS := 64
-const MIN_CONNECT_TIMEOUT_S := 2.0
+const DEFAULT_CONNECT_TIMEOUT_S := 2.0
+const MIN_CONNECT_TIMEOUT_S := 1.0
 const MAX_CONNECT_TIMEOUT_S := 60.0
 
 signal state_changed(state: int, previous: int)
@@ -47,7 +54,7 @@ var frame_tap: Callable
 
 var host := ""
 var port := 5810
-var connect_timeout_s := 10.0
+var connect_timeout_s := DEFAULT_CONNECT_TIMEOUT_S
 var client_name := ""
 ## Inbound packets are processed until this much time has passed in one poll;
 ## the rest wait for the next poll, so one burst cannot stall a frame.
@@ -56,9 +63,13 @@ var poll_budget_us := DEFAULT_POLL_BUDGET_US
 var _state := State.IDLE
 var _transport: NtTransport
 var _state_since_us := 0
+## Attempts opened since the last READY or manual reconnect.
 var _attempt := 0
+var _attempt_started_us := 0
+var _failures := 0
 var _backoff_until_us := 0
 var _last_rx_us := 0
+var _last_poll_us := 0
 var _next_rtt_us := 0
 var _sync := Nt4TimeSync.new()
 var _subs := {}
@@ -84,6 +95,7 @@ var binary_frames := 0
 var rtt_samples := 0
 var connects := 0
 var reconnects := 0
+var manual_reconnects := 0
 var connect_watchdog_fires := 0
 var liveness_fires := 0
 var send_errors := 0
@@ -95,23 +107,21 @@ func _init() -> void:
 	client_name = "pwrup-godot-%d-%d" % [OS.get_process_id(), randi() % 100000]
 
 
-func configure(p_host: String, p_port: int, p_connect_timeout_s: float = 10.0) -> void:
-	var changed := p_host != host or p_port != port
+## Any change reconnects at once unless the client is stopped.
+func configure(p_host: String, p_port: int, p_connect_timeout_s: float = DEFAULT_CONNECT_TIMEOUT_S) -> void:
+	var timeout := clampf(p_connect_timeout_s, MIN_CONNECT_TIMEOUT_S, MAX_CONNECT_TIMEOUT_S)
+	var changed := p_host != host or p_port != port or timeout != connect_timeout_s
 	host = p_host
 	port = p_port
-	connect_timeout_s = clampf(p_connect_timeout_s, MIN_CONNECT_TIMEOUT_S, MAX_CONNECT_TIMEOUT_S)
+	connect_timeout_s = timeout
 	if changed and _state != State.IDLE:
-		_drop_transport(1000)
-		_reset_connection_state()
-		_attempt = 0
-		_open(clock.now_us())
+		_reopen()
 
 
 func start() -> void:
 	if _state != State.IDLE:
 		return
-	_attempt = 0
-	_open(clock.now_us())
+	_reopen()
 
 
 func stop() -> void:
@@ -120,9 +130,19 @@ func stop() -> void:
 	_set_state(State.IDLE)
 
 
-func restart() -> void:
-	stop()
-	start()
+## Drops whatever the client is doing (open socket, hung connect, pending
+## backoff) and opens a new connection now, from any state.
+func reconnect() -> void:
+	manual_reconnects += 1
+	_reopen()
+
+
+func _reopen() -> void:
+	_drop_transport(1000)
+	_reset_connection_state()
+	_attempt = 0
+	_failures = 0
+	_open(clock.now_us())
 
 
 func get_state() -> int:
@@ -191,6 +211,7 @@ func diagnostics() -> Dictionary:
 		"connects": connects,
 		"reconnects": reconnects,
 		"connect_watchdog_fires": connect_watchdog_fires,
+		"manual_reconnects": manual_reconnects,
 		"liveness_fires": liveness_fires,
 		"send_errors": send_errors,
 		"deferred_packets": deferred_packets,
@@ -207,6 +228,10 @@ func diagnostics() -> Dictionary:
 	d["subscriptions"] = _subs.size()
 	d["publishers"] = _pubs.size()
 	d["attempt"] = _attempt
+	var now := clock.now_us()
+	d["attempt_age_s"] = (now - _attempt_started_us) / 1_000_000.0 if _attempt > 0 else -1.0
+	d["backoff_left_s"] = maxf(0.0, (_backoff_until_us - now) / 1_000_000.0) if _state == State.BACKOFF else 0.0
+	d["connect_timeout_s"] = connect_timeout_s
 	return d
 
 
@@ -289,6 +314,10 @@ func _write_pub_value(w: MsgPack.Writer, pubuid: int, pub: Dictionary) -> void:
 
 func poll() -> void:
 	var now := clock.now_us()
+	var gap := now - _last_poll_us
+	_last_poll_us = now
+	if gap > RTT_PERIOD_US and is_open():
+		_last_rx_us = mini(_last_rx_us + gap - RTT_PERIOD_US, now)
 	match _state:
 		State.IDLE:
 			return
@@ -337,6 +366,8 @@ func _poll_open(now: int) -> void:
 
 func _open(now: int) -> void:
 	_reset_connection_state()
+	_attempt += 1
+	_attempt_started_us = now
 	if host.strip_edges() == "":
 		last_close = "no host"
 		_enter_backoff(now, false)
@@ -369,6 +400,7 @@ func _on_open(now: int) -> void:
 
 func _enter_ready() -> void:
 	_attempt = 0
+	_failures = 0
 	_set_state(State.READY)
 	if _pubs.is_empty():
 		return
@@ -399,8 +431,8 @@ func _on_closed(now: int, reason: String, immediate: bool = false) -> void:
 
 
 func _enter_backoff(now: int, immediate: bool) -> void:
-	var delay_s := 0.0 if immediate else BACKOFF_S[mini(_attempt, BACKOFF_S.size() - 1)]
-	_attempt += 1
+	var delay_s := 0.0 if immediate else BACKOFF_S[mini(_failures, BACKOFF_S.size() - 1)]
+	_failures += 1
 	_backoff_until_us = now + int(delay_s * 1_000_000.0)
 	_set_state(State.BACKOFF)
 

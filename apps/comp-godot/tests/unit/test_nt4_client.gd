@@ -45,6 +45,17 @@ func connect_ready() -> void:
 	client.poll()
 
 
+func run_for(seconds: float, step_s: float = 0.05) -> void:
+	for i in int(round(seconds / step_s)):
+		clock.advance_us(int(step_s * 1_000_000.0))
+		client.poll()
+
+
+func reply_rtt() -> void:
+	t().push_values([[-1, SERVER_T0 + 3_000_000, 2, 0]])
+	client.poll()
+
+
 func test_url_and_protocol_offer() -> void:
 	client.start()
 	check_eq(client.get_state(), Nt4Client.State.CONNECTING)
@@ -80,16 +91,16 @@ func test_ready_on_first_rtt_reply_and_offset() -> void:
 	check_eq(client.server_time_us(), SERVER_T0 + 1_002_000)
 
 
-func test_rtt_probe_every_second() -> void:
+func test_rtt_probe_every_quarter_second() -> void:
 	connect_ready()
 	var n := t().sent_binary.size()
-	clock.advance_us(990_000)
+	clock.advance_us(240_000)
 	client.poll()
-	check_eq(t().sent_binary.size(), n, "no probe before 1 s")
+	check_eq(t().sent_binary.size(), n, "no probe before 250 ms")
 	clock.advance_us(10_000)
 	t().push_values([[-1, SERVER_T0 + 2_000_000, 2, 0]])
 	client.poll()
-	check_eq(t().sent_binary.size(), n + 1, "probe after 1 s")
+	check_eq(t().sent_binary.size(), n + 1, "probe after 250 ms")
 	check_eq(t().sent_frames()[-1][0], -1)
 
 
@@ -154,9 +165,9 @@ func test_reconnect_republishes_without_caller_action() -> void:
 	client.poll()
 	check_eq(client.get_state(), Nt4Client.State.BACKOFF)
 	check_eq(client.topic_id("/Shared/PathPlanner/SelectedPath/State"), -1, "ids cleared on close")
-	clock.advance_s(1.0)
+	clock.advance_s(0.1)
 	client.poll()
-	check_eq(transports.size(), 2, "reconnect after 1 s backoff")
+	check_eq(transports.size(), 2, "reconnect after 0.1 s backoff")
 	check_eq(client.get_state(), Nt4Client.State.CONNECTING)
 	t().server_accept()
 	client.poll()
@@ -191,22 +202,23 @@ func test_backoff_sequence() -> void:
 		var n := transports.size()
 		var waited := 0.0
 		while transports.size() == n and waited < 10.0:
-			clock.advance_us(100_000)
-			waited += 0.1
+			clock.advance_us(50_000)
+			waited += 0.05
 			client.poll()
-		delays.append(snappedf(waited, 0.1))
-	check_eq(delays, [1.0, 2.0, 4.0, 5.0, 5.0, 5.0] as Array[float])
+		delays.append(snappedf(waited, 0.05))
+	check_eq(delays, [0.1, 0.25, 0.5, 0.5, 0.5, 0.5] as Array[float])
+	check_eq(client.diagnostics()["attempt"], 7, "attempts counted since start")
 
 
 func test_backoff_resets_after_ready() -> void:
 	client.start()
 	t().server_refuse()
 	client.poll()
-	clock.advance_s(1.0)
+	clock.advance_s(0.1)
 	client.poll()
 	t().server_refuse()
 	client.poll()
-	clock.advance_s(2.0)
+	clock.advance_s(0.25)
 	client.poll()
 	t().server_accept()
 	client.poll()
@@ -216,10 +228,14 @@ func test_backoff_resets_after_ready() -> void:
 	check_eq(client.get_state(), Nt4Client.State.READY)
 	t().server_close()
 	client.poll()
+	check_eq(client.diagnostics()["attempt"], 0, "attempt count reset by READY")
 	var n := transports.size()
-	clock.advance_s(1.0)
+	clock.advance_s(0.09)
 	client.poll()
-	check_eq(transports.size(), n + 1, "first retry after READY waits 1 s again")
+	check_eq(transports.size(), n)
+	clock.advance_s(0.01)
+	client.poll()
+	check_eq(transports.size(), n + 1, "first retry after READY waits 0.1 s again")
 
 
 func test_connect_watchdog() -> void:
@@ -239,19 +255,36 @@ func test_connect_watchdog() -> void:
 
 func test_liveness_watchdog() -> void:
 	connect_ready()
-	clock.advance_s(2.9)
-	client.poll()
+	run_for(1.95)
 	check_eq(client.get_state(), Nt4Client.State.READY)
-	t().push_values([[-1, SERVER_T0 + 3_000_000, 2, 0]])
-	client.poll()
-	clock.advance_s(2.9)
-	client.poll()
+	reply_rtt()
+	run_for(1.95)
 	check_eq(client.get_state(), Nt4Client.State.READY, "inbound frame reset the watchdog")
-	clock.advance_s(0.2)
-	client.poll()
+	run_for(0.1)
 	check_eq(client.get_state(), Nt4Client.State.BACKOFF)
 	check(transports[0].closed_by_client)
 	check_eq(client.diagnostics()["liveness_fires"], 1)
+
+
+func test_stalled_frame_does_not_trip_liveness() -> void:
+	connect_ready()
+	run_for(1.0)
+	clock.advance_s(3.0)
+	client.poll()
+	check_eq(client.get_state(), Nt4Client.State.READY, "a 3 s frame counts as one probe period")
+	check_eq(client.diagnostics()["liveness_fires"], 0)
+	run_for(0.7)
+	check_eq(client.get_state(), Nt4Client.State.READY)
+	run_for(0.1)
+	check_eq(client.get_state(), Nt4Client.State.BACKOFF, "silence after the stall still fires")
+
+
+func test_liveness_fires_at_two_frames_per_second() -> void:
+	connect_ready()
+	run_for(4.0, 0.5)
+	check_eq(client.get_state(), Nt4Client.State.READY)
+	run_for(0.5, 0.5)
+	check_eq(client.diagnostics()["liveness_fires"], 1, "each 0.5 s frame counts 0.25 s")
 
 
 func test_syncing_keeps_probing_without_reply() -> void:
@@ -260,10 +293,9 @@ func test_syncing_keeps_probing_without_reply() -> void:
 	t().server_accept()
 	client.poll()
 	t().push_text("[]")
-	clock.advance_s(1.0)
-	client.poll()
+	run_for(1.0)
 	check_eq(client.get_state(), Nt4Client.State.SYNCING)
-	check_eq(t().sent_frames().size(), 2, "second probe after 1 s")
+	check_eq(t().sent_frames().size(), 5, "a probe every 250 ms")
 
 
 func test_host_change_closes_old_socket() -> void:
@@ -273,6 +305,71 @@ func test_host_change_closes_old_socket() -> void:
 	check(old.closed_by_client, "old socket closed")
 	check_eq(transports.size(), 2)
 	check(t().url.begins_with("ws://10.47.65.2:5810/"))
+
+
+func test_timeout_only_change_reconnects_and_applies() -> void:
+	connect_ready()
+	var old := t()
+	client.configure("127.0.0.1", 5810, 2.0)
+	check_eq(transports.size(), 1, "unchanged settings keep the connection")
+	client.configure("127.0.0.1", 5810, 1.0)
+	check(old.closed_by_client, "timeout change drops the old socket")
+	check_eq(transports.size(), 2)
+	check_eq(client.get_state(), Nt4Client.State.CONNECTING)
+	run_for(0.95)
+	check_eq(transports.size(), 2)
+	run_for(0.1)
+	check_eq(client.diagnostics()["connect_watchdog_fires"], 1, "watchdog uses the new 1 s timeout")
+	check_eq(transports.size(), 3)
+
+
+func test_timeout_clamped() -> void:
+	client.configure("127.0.0.1", 5810, 0.2)
+	check_eq(client.connect_timeout_s, 1.0)
+	client.configure("127.0.0.1", 5810, 600.0)
+	check_eq(client.connect_timeout_s, 60.0)
+
+
+func reach(state: int) -> void:
+	match state:
+		Nt4Client.State.READY:
+			connect_ready()
+		Nt4Client.State.SYNCING:
+			client.start()
+			client.poll()
+			t().server_accept()
+			client.poll()
+		Nt4Client.State.CONNECTING:
+			client.start()
+			run_for(1.0)
+		Nt4Client.State.BACKOFF:
+			client.start()
+			for i in 4:
+				t().server_refuse()
+				run_for(0.5)
+			t().server_refuse()
+			client.poll()
+
+
+func test_manual_reconnect_from_every_state() -> void:
+	for state: int in [Nt4Client.State.IDLE, Nt4Client.State.CONNECTING, Nt4Client.State.SYNCING, Nt4Client.State.READY, Nt4Client.State.BACKOFF]:
+		before_each()
+		reach(state)
+		var name: String = Nt4Client.STATE_NAMES[state]
+		check_eq(client.get_state(), state, "reached " + name)
+		var old: FakeTransport = transports[-1] if not transports.is_empty() else null
+		var n := transports.size()
+		client.reconnect()
+		check_eq(transports.size(), n + 1, name + ": new connection opened in the same call")
+		check_eq(client.get_state(), Nt4Client.State.CONNECTING, name)
+		check_eq(client.diagnostics()["attempt"], 1, name + ": attempt count reset")
+		check_eq(client.diagnostics()["manual_reconnects"], 1)
+		if old != null and state != Nt4Client.State.BACKOFF:
+			check(old.closed_by_client, name + ": old socket closed")
+		t().server_refuse()
+		client.poll()
+		check_near(client.diagnostics()["backoff_left_s"], 0.1, 0.001, name + ": backoff restarts from the first step")
+		after_each()
 
 
 func test_unannounce_and_properties() -> void:

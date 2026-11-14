@@ -11,11 +11,20 @@ extends NtTransport
 ## The main thread only ever try_lock()s the shared state. A blocking lock can
 ## park it behind a descheduled worker for milliseconds, so on contention it
 ## keeps outgoing frames staged and reads the last known state instead.
+##
+## close() never joins the worker: it may sit in a blocking hostname lookup or
+## connect. The transport parks itself in _closing, which also keeps it alive
+## (the thread's Callable does not hold a reference), and the thread is joined
+## once it has returned (reap(), called on every open and close), or by
+## join_all() at exit.
 
 const IDLE_SLEEP_US := 1000
 
+static var _closing: Array[ThreadedTransport] = []
+
 var _inner_factory: Callable
 var _thread: Thread
+var _joining: Thread
 var _mutex := Mutex.new()
 var _url := ""
 var _protocols := PackedStringArray()
@@ -43,6 +52,7 @@ func _init(inner_factory: Callable) -> void:
 
 
 func open(url: String, protocols: PackedStringArray) -> Error:
+	reap()
 	_url = url
 	_protocols = protocols
 	_running = true
@@ -93,10 +103,37 @@ func close(code: int = 1000, _reason: String = "") -> void:
 	_running = false
 	_close_request = code
 	_mutex.unlock()
-	_thread.wait_to_finish()
+	_joining = _thread
 	_thread = null
+	_closing.append(self)
 	_staged.clear()
 	_state_seen = STATE_CLOSED
+	reap()
+
+
+## Joins closed workers that have already returned; never blocks.
+static func reap() -> void:
+	var i := 0
+	while i < _closing.size():
+		var t := _closing[i]
+		if t._joining.is_alive():
+			i += 1
+		else:
+			t._joining.wait_to_finish()
+			t._joining = null
+			_closing.remove_at(i)
+
+
+static func pending_closes() -> int:
+	return _closing.size()
+
+
+## Blocks until every closed worker has returned (shutdown only).
+static func join_all() -> void:
+	for t: ThreadedTransport in _closing:
+		t._joining.wait_to_finish()
+		t._joining = null
+	_closing.clear()
 
 
 func selected_protocol() -> String:

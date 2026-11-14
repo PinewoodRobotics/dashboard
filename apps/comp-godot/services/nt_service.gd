@@ -32,7 +32,7 @@ func _init() -> void:
 	client.topic_announced.connect(_on_announced)
 
 
-func configure(host: String, port: int, connect_timeout_s: float = 10.0) -> void:
+func configure(host: String, port: int, connect_timeout_s: float = Nt4Client.DEFAULT_CONNECT_TIMEOUT_S) -> void:
 	client.configure(host, port, connect_timeout_s)
 
 
@@ -55,6 +55,7 @@ func poll() -> void:
 
 func _exit_tree() -> void:
 	client.stop()
+	ThreadedTransport.join_all()
 
 
 func is_ready() -> bool:
@@ -75,8 +76,9 @@ func subscribe_groups(groups: Array) -> void:
 
 
 ## Applies shared connection settings ({"nt": {...}, "reconnectTimeoutSeconds"})
-## with optional --nt-host/--nt-port overrides. A host or port change closes
-## the old socket before opening the new one; a topic change re-subscribes.
+## with optional --nt-host/--nt-port overrides. A host, port or timeout change
+## closes the old socket and opens a new one at once; a topic change
+## re-subscribes.
 func apply_connection(conn: Dictionary, host_override: String = "", port_override: int = 0) -> void:
 	var conf: Dictionary = conn["nt"]
 	var topics_moved: bool = conf.get("sharedTable") != nt_settings.get("sharedTable") \
@@ -95,7 +97,7 @@ func apply_connection(conn: Dictionary, host_override: String = "", port_overrid
 func reconnect() -> void:
 	if fixture_mode:
 		return
-	client.restart()
+	client.reconnect()
 
 
 func publisher(topic: String, type: String, properties: Dictionary = {}) -> NtPublisher:
