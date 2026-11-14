@@ -26,8 +26,9 @@ func _ready() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	_status = Label.new()
-	_status.set_anchors_preset(Control.PRESET_CENTER)
+	_status.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_status.add_theme_font_size_override("font_size", 28)
 	_status.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	add_child(_status)

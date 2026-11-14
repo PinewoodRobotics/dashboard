@@ -7,7 +7,8 @@
 #
 # Env: FIR_SRC (robot project), FIR_SIM_DIR (scratch copy, outside both repos),
 #      SIM_JAVA_HOME (WPILib JDK), GODOT.
-# Usage: tools/test/run_sim_e2e.sh [--filter=substr] [--no-screenshot]
+# Usage: tools/test/run_sim_e2e.sh [--filter=substr] [--no-screenshot] [--capture-golden]
+# --capture-golden rewrites tests/golden/sim_*.json from this run.
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
@@ -16,10 +17,12 @@ FIR_SIM_DIR="${FIR_SIM_DIR:-${TMPDIR:-/tmp}/pwrup-comp-godot-fir-sim}"
 SIM_JAVA_HOME="${SIM_JAVA_HOME:-$HOME/.wpilib/2027_alpha7/jdk}"
 PORT=5810
 SCREENSHOT=1
+CAPTURE_GOLDEN="${PWRUP_SIM_CAPTURE_GOLDEN:-0}"
 ARGS=()
 for a in "$@"; do
   case "$a" in
     --no-screenshot) SCREENSHOT=0 ;;
+    --capture-golden) CAPTURE_GOLDEN=1 ;;
     *) ARGS+=("$a") ;;
   esac
 done
@@ -104,7 +107,7 @@ echo "sim is listening"
 
 "$GODOT" --headless --path "$APP" --import >/dev/null 2>&1 || true
 set +e
-PWRUP_SIM_PORT="$PORT" PWRUP_SIM_CAPTURE_GOLDEN="${PWRUP_SIM_CAPTURE_GOLDEN:-1}" \
+PWRUP_SIM_PORT="$PORT" PWRUP_SIM_CAPTURE_GOLDEN="$CAPTURE_GOLDEN" \
   "$GODOT" --headless --path "$APP" --script res://tests/run_tests.gd -- --dir=sim "${ARGS[@]+"${ARGS[@]}"}"
 STATUS=$?
 if [[ $SCREENSHOT == 1 ]]; then

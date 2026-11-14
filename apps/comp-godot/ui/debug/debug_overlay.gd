@@ -28,7 +28,7 @@ func _ready() -> void:
 	panel.offset_right = -24
 	panel.offset_bottom = -24
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0, 0, 0, 0.96)
+	bg.bg_color = Color(0.04, 0.04, 0.04)
 	bg.border_color = Color("#70cd35")
 	bg.set_border_width_all(2)
 	bg.set_content_margin_all(16)

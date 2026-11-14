@@ -4,7 +4,12 @@ extends TestCase
 ## /AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg while one client holds
 ## a publisher for 30 s, and what a second client sees after the writer
 ## disconnects. The expectations below are the recorded behavior of the FIR
-## sim; M6 picks the aim trim confirmation source from them.
+## sim.
+##
+## Decision for M6: the aim trim panel confirms against
+## /AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg. That readback does not
+## revert when the dashboard disconnects, so a stale confirmed value can
+## outlive the writer.
 
 const TRIM := 2.5
 const HOLD_S := 30.0

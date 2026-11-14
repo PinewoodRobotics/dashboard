@@ -210,8 +210,6 @@ func diagnostics() -> Dictionary:
 	return d
 
 
-# --- subscriptions -----------------------------------------------------------
-
 func subscribe(topics: PackedStringArray, options: Dictionary = {}) -> int:
 	var subuid := _next_subuid
 	_next_subuid += 1
@@ -227,8 +225,6 @@ func unsubscribe(subuid: int) -> void:
 	if is_open():
 		_send_text([Nt4Protocol.unsubscribe_msg(subuid)])
 
-
-# --- publishers (desired state, re-sent on every READY) ----------------------
 
 func add_publisher(name: String, type_str: String, properties: Dictionary = {}) -> int:
 	var pubuid := _next_pubuid
@@ -290,8 +286,6 @@ func _write_pub_value(w: MsgPack.Writer, pubuid: int, pub: Dictionary) -> void:
 	pub["last_ts"] = ts
 	Nt4Protocol.write_value_frame(w, pubuid, ts, pub["type"], pub["value"])
 
-
-# --- state machine -----------------------------------------------------------
 
 func poll() -> void:
 	var now := clock.now_us()

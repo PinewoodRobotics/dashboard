@@ -1,5 +1,9 @@
 extends TestCase
 
+## Same reading of the 2 ms criterion as integration/test_3_poll_perf.gd.
+
+const MAX_FRAME_MS := 5.0
+
 var nt: NtService
 
 
@@ -44,7 +48,9 @@ func test_full_prefix_subscription_against_sim() -> void:
 	var p99: float = times[int(times.size() * 0.99)]
 	note("%d topics, %.0f values/s, poll mean %.3f ms, p99 %.3f ms, max %.3f ms" % [announced, (nt.client.values_total - v0) / dt, mean, p99, times[-1]])
 	check(announced >= 400, "announced %d topics" % announced)
+	check(mean < 2.0, "mean poll under 2 ms (%.3f)" % mean)
 	check(p99 < 2.0, "p99 poll under 2 ms (%.3f)" % p99)
+	check(times[-1] < MAX_FRAME_MS, "max poll under %.0f ms (%.3f)" % [MAX_FRAME_MS, times[-1]])
 	check_eq(nt.client.decode_errors, 0)
 	check_eq(nt.client.unknown_id_drops, 0)
 	check_eq(nt.client.coerce_errors, 0)

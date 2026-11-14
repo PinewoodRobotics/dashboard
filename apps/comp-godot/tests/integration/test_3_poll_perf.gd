@@ -4,6 +4,11 @@ extends TestCase
 ## polled once per frame at 60 fps like the app. The baseline load (390 filler
 ## doubles at 10 Hz, the match table at 50 Hz, about 4k values/s) is about four
 ## times what the FIR sim sends for the same subscription (about 1k values/s).
+## "Under 2 ms per frame" is asserted as mean and p99 under 2 ms. The single
+## slowest frame includes OS scheduling noise (up to 2.7 ms seen against the
+## sim), so it only has to stay under MAX_FRAME_MS, which still catches stalls.
+
+const MAX_FRAME_MS := 5.0
 
 const SEQ := "/matchhud/state/seq"
 const LOAD_HZ := "/fake/control/load_hz"
@@ -107,6 +112,7 @@ func test_poll_cost_with_full_prefix_subscription() -> void:
 	check(r["values_per_s"] > 3000, "baseline load delivered (%.0f values/s)" % r["values_per_s"])
 	check(r["mean_ms"] < 2.0, "mean poll %.3f ms < 2 ms" % r["mean_ms"])
 	check(r["p99_ms"] < 2.0, "p99 poll %.3f ms < 2 ms" % r["p99_ms"])
+	check(r["max_ms"] < MAX_FRAME_MS, "max poll %.3f ms < %.0f ms" % [r["max_ms"], MAX_FRAME_MS])
 	_check_no_drops(r)
 
 
@@ -125,4 +131,5 @@ func test_stress_all_topics_at_50hz() -> void:
 	note("stress: " + _describe(r))
 	check(r["values_per_s"] > 15000, "stress load delivered (%.0f values/s)" % r["values_per_s"])
 	check(r["max_backlog"] < 400, "backlog stays bounded (%d packets)" % r["max_backlog"])
+	check(r["max_ms"] < 2.0 * MAX_FRAME_MS, "stress max poll %.3f ms < %.0f ms" % [r["max_ms"], 2.0 * MAX_FRAME_MS])
 	_check_no_drops(r)
