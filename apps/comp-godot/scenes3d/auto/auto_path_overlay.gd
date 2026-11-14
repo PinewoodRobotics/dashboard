@@ -85,7 +85,6 @@ func set_progress(t: float) -> void:
 	ribbon_material.set_shader_parameter("progress", t)
 
 
-## Flat band on the carpet from the robot to the aim target.
 func set_aim(from: Vector3, to: Vector3, on: bool) -> void:
 	_aim_mesh.clear_surfaces()
 	var d := Vector3(to.x - from.x, 0.0, to.z - from.z)

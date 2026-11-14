@@ -49,7 +49,6 @@ static func target(pos: Vector2, red: bool) -> Vector2:
 	return _mirror(_field(zone(pos, red)["target"]), red)
 
 
-## The alliance hub (the FRONT_OF_HUB target).
 static func hub(red: bool) -> Vector2:
 	return _mirror(_field(ZONES[0]["target"]), red)
 
