@@ -1,6 +1,6 @@
 {
   "extends": "touch_base",
   "input": [
-    {"expect": {"settings.visual": {"render_scale": 0.75, "msaa": 4, "fps_cap": 30}, "views.0.scale": 0.75, "views.1.scale": 0.75, "views.0.msaa": 2, "engine.max_fps": 30}}
+    {"expect": {"settings.visual": {"render_scale": 0.75, "msaa": 4, "fps_cap": 30, "auto_quality": true}, "views.0.scale": 0.75, "views.1.scale": 0.75, "views.0.msaa": 2, "engine.max_fps": 30}}
   ]
 }

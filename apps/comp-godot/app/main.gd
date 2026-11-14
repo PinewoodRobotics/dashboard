@@ -14,6 +14,7 @@ extends Node
 ##   --render-scale=X          3D render scale for this run (0.25..1.0, not saved)
 ##   --vsync=hud|both|off      which windows wait for vertical sync (default hud)
 ##   --max-fps=N               frame cap for this run (0 = uncapped)
+##   --auto-quality=on|off     force the frame-rate quality fallback on or off (services/perf_governor.gd)
 ## Ctrl/Cmd+Shift+F re-tiles the windows (see app/window_placement.gd).
 ## Screenshot, perf and probe flags are documented in services/dev_service.gd.
 
@@ -26,6 +27,7 @@ var touch: Control
 var _overlay: DebugOverlay
 var _args := {}
 var kiosk: KioskController
+var perf: PerfGovernor
 
 
 func _ready() -> void:
@@ -51,6 +53,10 @@ func _ready() -> void:
 			DisplayServer.window_set_vsync_mode(vs, w.get_window_id())
 
 	_setup_kiosk()
+	perf = PerfGovernor.new()
+	perf.name = "PerfGovernor"
+	perf.args = _args
+	add_child(perf)
 
 	_overlay = DebugOverlay.new(NT)
 	_overlay.visible = _args.has("debug_overlay")

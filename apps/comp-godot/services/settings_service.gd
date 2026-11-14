@@ -22,6 +22,8 @@ var connection_store: SharedSettingsStore
 var _save_due_msec := -1
 ## --render-scale=X (0.25..1.0) wins over the stored render scale without being saved.
 var visual_overrides := {}
+## PerfGovernor's caps: render scale and MSAA no higher than these, not saved.
+var perf_caps := {}
 
 
 func _ready() -> void:
@@ -111,11 +113,18 @@ func set_windows(patch: Dictionary) -> void:
 
 
 func effective_visual() -> Dictionary:
-	if visual_overrides.is_empty():
+	if visual_overrides.is_empty() and perf_caps.is_empty():
 		return data["visual"]
 	var v: Dictionary = data["visual"].duplicate()
 	v.merge(visual_overrides, true)
+	for k: String in perf_caps:
+		v[k] = minf(float(v[k]), float(perf_caps[k])) if k == "render_scale" else mini(int(v[k]), int(perf_caps[k]))
 	return v
+
+
+func set_perf_caps(caps: Dictionary) -> void:
+	perf_caps = caps.duplicate()
+	changed.emit("visual")
 
 
 func layout() -> Dictionary:

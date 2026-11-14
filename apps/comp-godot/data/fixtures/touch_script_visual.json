@@ -17,13 +17,13 @@
     {"wait_ms": 300},
     {"expect": {"models.generation.robot": 2, "models.generation.field": 2, "views.0.loaded": true, "views.1.loaded": true}},
     {"tap": "find:Reset"},
-    {"expect": {"settings.visual": {"render_scale": 1.0, "msaa": 2, "fps_cap": 60}, "views.0.scale": 1.0, "views.0.msaa": 1, "engine.max_fps": 60}},
+    {"expect": {"settings.visual": {"render_scale": 1.0, "msaa": 2, "fps_cap": 60, "auto_quality": true}, "views.0.scale": 1.0, "views.0.msaa": 1, "engine.max_fps": 60}},
     {"tap": {"node": "find:RenderScale", "at": [300, 60]}},
     {"expect": {"settings.visual.render_scale": 1.0}},
     {"drag": {"from": {"node": "find:RenderScale", "at": [300, 60]}, "to": {"node": "find:RenderScale", "at": [210, 60]}, "ms": 250}},
     {"tap": {"node": "find:Msaa", "at": [190, 76]}},
     {"tap": {"node": "find:FpsCap", "at": [40, 76]}},
-    {"expect": {"settings.visual": {"render_scale": 0.75, "msaa": 4, "fps_cap": 30}}},
+    {"expect": {"settings.visual": {"render_scale": 0.75, "msaa": 4, "fps_cap": 30, "auto_quality": true}}},
     {"call": "save_settings"}
   ]
 }

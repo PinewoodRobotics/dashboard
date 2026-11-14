@@ -234,6 +234,9 @@ func probe_state() -> Dictionary:
 		"controls": Controls.snapshot(), "connection": Settings.connection().duplicate(true), "nt_ready": NT.is_ready(),
 		"autos": Autos.snapshot(),
 		"models": {"generation": Models.generation.duplicate()}, "engine": {"max_fps": Engine.max_fps}}
+	var perf: PerfGovernor = _main.get("perf") if _main != null else null
+	if perf != null:
+		out["perf_governor"] = perf.snapshot()
 	var views: Array = []
 	for v: CadView in get_tree().get_nodes_in_group(CadView.GROUP):
 		views.append({"name": String(v.name), "scale": v.viewport.scaling_3d_scale, "msaa": int(v.viewport.msaa_3d), "rendering": v.is_rendering(), "loaded": v.robot.is_loaded()})
@@ -335,6 +338,10 @@ func _run() -> void:
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
 	report["controls"] = Controls.snapshot()
 	report["autos"] = Autos.snapshot()
+	var perf: PerfGovernor = _main.get("perf")
+	if perf != null:
+		report["perf_governor"] = perf.snapshot()
+		report["effective_visual"] = Settings.effective_visual().duplicate()
 	report["anchors"] = _anchor_positions(images)
 	var hud: HudScreen = _main.call("hud_screen")
 	if hud != null:

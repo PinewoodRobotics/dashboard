@@ -6,6 +6,8 @@
 #   and <= 650k primitives in every frame, engine-wide (both windows' 2D plus
 #   every 3D SubViewport), frame time p95 < 8 ms, at most 2 SubViewports
 #   rendering 3D;
+# - auto quality: with a simulated slow GPU the governor settles at the level
+#   that holds the cap (MSAA off, 0.75x);
 # - render scale 0.5: every 3D viewport reports scale 0.5 and an offline
 #   fixture renders at half resolution (check_render_scale.py: the 3D image has
 #   lost the detail above half the pixel Nyquist frequency).
@@ -41,10 +43,28 @@ for scale in 1.0 0.5; do
     --frames=10 --screenshot="$OUT/still_$scale" >"$OUT/still_$scale.log" 2>&1 || { echo "FAIL still run $scale"; status=1; }
 done
 
+# Auto quality: a GPU stand-in that stalls 20 ms per frame at full quality
+# (scaled by the 3D pixel load) must make the governor step down until the
+# cap holds again, and the 3D views must follow its caps.
+printf '%s\n' '{}' >"$WORK/settings_governor.json"
+"$GODOT" --path "$APP" -- --screen=both --design-size --fixture=both_script_preview --settings="$WORK/settings_governor.json" \
+  --auto-quality=on --simulate-gpu-ms=20 --frames=5 --perf-frames=1500 \
+  --screenshot="$OUT/governor" >"$OUT/governor.log" 2>&1 || { echo "FAIL governor run"; status=1; }
+
 python3 - "$OUT" <<'PY' || status=1
 import json, re, sys
 out = sys.argv[1]
 fails = []
+g = json.load(open(f"{out}/governor.json"))
+pg = g["perf_governor"]
+views = {v["scaling_3d_scale"] for v in g["perf"]["per_view"].values()}
+ok = (pg["state"] == "HELD" and pg["level"] >= 1 and pg["last_fps"] >= 55 and pg["history"][0]["fps"] < 55
+      and g["effective_visual"]["render_scale"] == pg["caps"].get("render_scale", 1.0) and g["effective_visual"]["msaa"] == 0
+      and views <= {pg["caps"].get("render_scale", 1.0)})
+print(f"{'ok  ' if ok else 'FAIL'} auto quality under a slow GPU stand-in: {pg['status']} (steps {[h['level'] for h in pg['history']]}, "
+      f"{pg['last_fps']:.1f} fps in the last window)")
+if not ok:
+    fails.append("auto quality")
 def check(cond, msg):
     print(("ok   " if cond else "FAIL ") + msg)
     if not cond:

@@ -25,9 +25,13 @@ const SCREEN_OPTIONS := [
 	{"value": 1, "text": "2", "hint": "Display 2"},
 	{"value": 2, "text": "3", "hint": "Display 3"},
 ]
+const AUTO_QUALITY_OPTIONS := [
+	{"value": true, "text": "On", "hint": "Below the cap: MSAA off, then lower scale"},
+	{"value": false, "text": "Off", "hint": "Always the Rendering settings"},
+]
 const FPS_OPTIONS := [
-	{"value": 30, "text": "30", "hint": "30 fps: half the GPU load"},
-	{"value": 60, "text": "60", "hint": "60 fps: smooth motion"},
+	{"value": 30, "text": "30", "hint": "30 fps: half the GPU load, both windows"},
+	{"value": 60, "text": "60", "hint": "60 fps: smooth motion, both windows"},
 ]
 
 var settings: SettingsService
@@ -35,6 +39,7 @@ var models: ModelsService
 var render_scale: PwSlider
 var msaa: PwSelector
 var fps: PwSelector
+var auto_quality: PwSelector
 var reload: PwButton
 var hud_screen: PwSelector
 var touch_screen: PwSelector
@@ -71,12 +76,13 @@ func _ready() -> void:
 	render_scale = PwSlider.new().configure({"label": "Render Scale", "min_value": 0.0, "max_value": 1.0, "snap_points": AppSettings.RENDER_SCALES,
 		"value_label": "{v}x", "format_value": func(x: float) -> String: return str(x), "hints": SCALE_HINTS, "value": float(v["render_scale"])})
 	render_scale.name = "RenderScale"
-	render_scale.value_changed.connect(func(x: float) -> void: settings.set_visual({"render_scale": x}))
+	render_scale.value_changed.connect(func(x: float) -> void: _set_visual({"render_scale": x}))
 	c1["box"].add_child(render_scale)
 	msaa = PwSelector.new().configure("Anti-aliasing (MSAA)", MSAA_OPTIONS, v["msaa"])
 	msaa.name = "Msaa"
-	msaa.selected.connect(func(x: Variant) -> void: settings.set_visual({"msaa": x}))
+	msaa.selected.connect(func(x: Variant) -> void: _set_visual({"msaa": x}))
 	c1["box"].add_child(msaa)
+
 	cols.add_child(c1["panel"])
 
 	var c4 := UiKit.column("Frame Rate", true, 24, 20)
@@ -84,7 +90,10 @@ func _ready() -> void:
 	fps.name = "FpsCap"
 	fps.selected.connect(func(x: Variant) -> void: settings.set_visual({"fps_cap": x}))
 	c4["box"].add_child(fps)
-	c4["box"].add_child(UiKit.wrapped("Applies to both windows. A lower cap leaves GPU headroom on weak driver station laptops.", 16))
+	auto_quality = PwSelector.new().configure("Auto Quality", AUTO_QUALITY_OPTIONS, v.get("auto_quality", true))
+	auto_quality.name = "AutoQuality"
+	auto_quality.selected.connect(func(x: Variant) -> void: _set_visual({"auto_quality": x}))
+	c4["box"].add_child(auto_quality)
 	cols.add_child(c4["panel"])
 
 	var c2 := UiKit.column("Assets", true, 24, 20)
@@ -134,6 +143,14 @@ func _ready() -> void:
 	_update_diag()
 
 
+## A choice made here starts the automatic fallback over from full quality.
+func _set_visual(patch: Dictionary) -> void:
+	settings.set_visual(patch)
+	var perf := get_tree().get_first_node_in_group(PerfGovernor.GROUP) as PerfGovernor
+	if perf != null:
+		perf.restart()
+
+
 func _on_changed(section: String) -> void:
 	if section == "windows":
 		hud_screen.select_value(settings.windows()["hud_screen"])
@@ -145,6 +162,7 @@ func _on_changed(section: String) -> void:
 		render_scale.set_value(float(v["render_scale"]))
 	msaa.select_value(v["msaa"])
 	fps.select_value(v["fps_cap"])
+	auto_quality.select_value(v.get("auto_quality", true))
 
 
 func _reload_models() -> void:
@@ -183,8 +201,12 @@ func _update_diag() -> void:
 		"Draw calls %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 		"Primitives %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
 		"3D views   %d rendering" % CadView.rendering_views(get_tree()).size(),
+		"3D scale   %sx, MSAA %s" % [str(settings.effective_visual()["render_scale"]), _msaa_text(int(settings.effective_visual()["msaa"]))],
 		"Video mem  %.0f MB" % (rs.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0),
 	])
+	var perf := get_tree().get_first_node_in_group(PerfGovernor.GROUP) as PerfGovernor
+	if perf != null:
+		lines.append("Auto qual  %s" % perf.status_text())
 	var nt := get_node_or_null("/root/NT") as NtService
 	if nt != null:
 		var d := nt.diagnostics()
@@ -192,3 +214,7 @@ func _update_diag() -> void:
 		if d.has("rtt_us") and not nt.fixture_mode:
 			lines.append("NT RTT     %.1f ms" % (float(d["rtt_us"]) / 1000.0))
 	diag.text = "\n".join(lines)
+
+
+static func _msaa_text(m: int) -> String:
+	return "off" if m == 0 else "%dx" % m

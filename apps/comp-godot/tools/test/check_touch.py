@@ -70,7 +70,7 @@ m = json.loads((settings_dir / "map.json").read_text())["map"]
 if m["mode"] != "driver" or m["zoom"] < 0.9:
     errors.append(f"map.json: {m}")
 v = json.loads((settings_dir / "visual.json").read_text())["visual"]
-if v != {"render_scale": 0.75, "msaa": 4, "fps_cap": 30}:
+if v != {"render_scale": 0.75, "msaa": 4, "fps_cap": 30, "auto_quality": True}:
     errors.append(f"visual.json: {v}")
 c = json.loads((settings_dir / "controls.json").read_text())["controls"]
 if c != {"selected_auto": "Move Forward And Shoot Left", "intake_speed": None}:
