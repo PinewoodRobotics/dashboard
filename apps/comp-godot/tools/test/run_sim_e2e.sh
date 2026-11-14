@@ -17,6 +17,9 @@
 # --match adds a sim-only driver to the scratch copy that plays a full match
 # through DriverStationSim (5 s disabled, 20 s auto, 2 s gap, 140 s teleop),
 # so tests/sim sees the real MatchStatusCalculator in every phase (~3 min).
+# It also patches the scratch copy's MatchStatusSubsystem to pass microseconds:
+# with WPILib 2027 RobotController.getTime() returns nanoseconds, so the robot's
+# match clock runs 1000x fast (a robot-code bug, reported, not fixed in FIR).
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
@@ -78,6 +81,10 @@ sed -i '' -E 's/wpi\.sim\.addGui\(\)\.defaultEnabled = true/wpi.sim.addGui().def
   "$FIR_SIM_DIR/build.gradle"
 
 if [[ $SIM_MATCH == 1 ]]; then
+  sed -i '' -E 's/^( *)RobotController\.getTime\(\),/\1RobotController.getTime() \/ 1000L,/' \
+    "$FIR_SIM_DIR/src/main/java/frc/robot/subsystem/MatchStatusSubsystem.java"
+  grep -q 'RobotController.getTime() / 1000L,' "$FIR_SIM_DIR/src/main/java/frc/robot/subsystem/MatchStatusSubsystem.java" \
+    || { echo "could not patch the robot time units in the scratch copy" >&2; exit 2; }
   cp "$APP/tools/sim/SimMatchDriver.java" "$FIR_SIM_DIR/src/main/java/frc/robot/SimMatchDriver.java"
   python3 - "$FIR_SIM_DIR/src/main/java/frc/robot/Robot.java" <<'PY'
 import sys

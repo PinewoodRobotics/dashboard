@@ -6,6 +6,7 @@ extends TestCase
 
 const START_TOPIC := "/pwrup_test/sim_match/start"
 const TOTAL := "/matchhud/state/total_time_remaining_s"
+const ROBOT_TIME := "/matchhud/state/robot_time_us"
 
 var nt: NtService
 var ms: MatchService
@@ -44,7 +45,14 @@ func test_hud_connects_to_the_sim() -> void:
 	if nt == null:
 		return
 	check(await wait_until(func() -> bool: return ms.model.link_ok(), 15.0) >= 0.0, "robot data live from the sim (seq advancing)")
+	var t0 := now_s()
+	var rt0 := int(nt.value(ROBOT_TIME, 0))
 	await wait_s(1.5)
+	var rate := (int(nt.value(ROBOT_TIME, 0)) - rt0) / (now_s() - t0)
+	if OS.get_environment("PWRUP_SIM_MATCH") == "1":
+		check_near(rate / 1e6, 1.0, 0.1, "patched scratch copy publishes robot_time_us in microseconds (%.0f per s)" % rate)
+	elif rate > 1e8:
+		note("ROBOT BUG: robot_time_us advances %.0f per second (nanoseconds); MatchStatusSubsystem passes RobotController.getTime(), which is ns in WPILib 2027, so the match clock runs 1000x fast" % rate)
 	var m := ms.model
 	check(m.link_ok() and m.banner() == MatchModel.Banner.NONE, "no banner: seq keeps advancing (banner %s)" % MatchModel.Banner.keys()[m.banner()])
 	check(m.seq > 50, "seq %d" % m.seq)

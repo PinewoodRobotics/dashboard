@@ -110,3 +110,21 @@ func test_full_match_at_8x() -> void:
 	for s: Dictionary in samples:
 		if s["held"] and s["published"] > 1.0:
 			check_near(s["shown"], s["published"], 0.0101, "held value shown exactly (floored to centiseconds)")
+
+
+func test_stale_banner_while_the_socket_stays_open() -> void:
+	if nt == null:
+		return
+	check(ms.model.link_ok(), "streaming before the freeze")
+	check(robot.signal_process("STOP"), "fake robot frozen")
+	var t0 := now_s()
+	var el := await wait_until(func() -> bool: return ms.model.banner() == MatchModel.Banner.STALE, 3.0)
+	var socket_open := nt.is_ready()
+	robot.signal_process("CONT")
+	check(el >= 0.0, "stale banner appears")
+	check(el >= 0.9 and el <= 1.3, "after about 1 s of no seq (%.2f s)" % el)
+	check(socket_open, "while the NT socket is still open")
+	check_eq(hud.banner.text(), "Robot Data Stale")
+	check(hud.timer.color == Tokens.TEXT_DIM, "timers dimmed while stale")
+	var back := await wait_until(func() -> bool: return ms.model.banner() == MatchModel.Banner.NONE, 5.0)
+	check(back >= 0.0, "banner clears when seq resumes (%.2f s after the freeze)" % (now_s() - t0))
