@@ -21,10 +21,11 @@ extends Node
 ##   "match": {"advance_s": S} advance the frozen match clock after the steps,
 ##   "orbit_preset": 0, "camera": {"hud"|"touch": {"position": [x,y,z], "target": [..], "up": [..]}},
 ##   "touch": {"active_tab": id, "open_panel": id, "dock_open": bool, "dev_tab": "gallery",
-##     "keyboard": "<gallery input name>", "keyboard_text": "..", "howard_index": N, "view_auto": name}
+##     "keyboard": "<gallery input name>", "keyboard_text": "..", "howard_index": N,
+##     "view_auto": name, "panel_scroll": px}
+##     (applied, then every transition finished, before the run),
 ##   "controls": {"selected_auto": name|"NONE", "intake_speed": x, "conflict": bool, "trim_requested": deg},
 ##   "connection": {shared-file "settings" object} (offline: replaces the connection settings in memory),
-##     (applied, then every transition finished, before the run),
 ##   "input": [steps] scripted touch or mouse input with expectations (services/dev_input.gd),
 ##   "probes": [{"name": "..", "window": "hud"|"touch", "at": "robot" | "node:<Name>" | [x, y, w, h],
 ##     "half": 40, "kind": "hue"|"nonblack"|"color"|"mean_luma", "hue": "red"|"blue",

@@ -3,8 +3,6 @@ extends Node
 
 signal connection_changed(connected: bool)
 signal state_changed(state: int)
-## The shared table or selected-path entry changed: request/state topic names moved.
-signal topics_changed
 
 var client := Nt4Client.new()
 var fixture_mode := false
@@ -92,8 +90,6 @@ func apply_connection(conn: Dictionary, host_override: String = "", port_overrid
 			client.unsubscribe(uid)
 		_group_subuids.clear()
 		subscribe_groups(Topics.subscription_groups(nt_settings))
-		if topics_moved:
-			topics_changed.emit()
 
 
 func reconnect() -> void:

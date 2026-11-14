@@ -126,17 +126,12 @@ func _add_column(cols: Control, c: Dictionary) -> void:
 	cols.add_child(panel)
 
 
-func _input_field(parent: Control, node_name: String, caption: String, hint: String, numeric: bool) -> PwTextInput:
+func _field(parent: Control, node_name: String, caption: String, hint: String, numeric: bool, key: String) -> PwTextInput:
 	var t := PwTextInput.new(caption, hint, numeric)
 	t.name = node_name
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(t)
-	return t
-
-
-func _field(parent: Control, node_name: String, caption: String, hint: String, numeric: bool, key: String) -> PwTextInput:
-	var t := _input_field(parent, node_name, caption, hint, numeric)
 	t.text_changed.connect(func(s: String) -> void: _set_draft(key, s))
+	parent.add_child(t)
 	return t
 
 

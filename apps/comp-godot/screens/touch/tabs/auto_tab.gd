@@ -102,9 +102,8 @@ func _rebuild_cards() -> void:
 		var c := AutoCard.new(n, autos.library.display_name(n), n + ".auto", autos.library.description(n))
 		cards.append(c)
 		list.add_item(c)
-	if not _names().is_empty() or viewing == NONE:
-		if viewing != "" and viewing != NONE and not _names().has(viewing):
-			viewing = ""
+	if viewing != NONE and not _names().has(viewing):
+		viewing = ""
 
 
 func _on_card_tapped(i: int) -> void:
