@@ -10,6 +10,9 @@ extends Control
 
 const NONE := AutoSelectionSync.NONE
 const NO_AUTO_DESC := "Do not run an autonomous routine"
+## Status row shown after "No Auto" when the library is empty or failed to
+## load (PathListPane.tsx "Failed to load. Tap to retry."); tapping it reloads.
+const RETRY := "\u0000retry"
 const NO_AUTO_DETAIL := "Do not run an autonomous routine. The robot will stay still during autonomous."
 const AMBER_BG := Color(0.961, 0.62, 0.043, 0.15)
 const AMBER_LINE := Color(0.984, 0.749, 0.141, 0.6)
@@ -101,13 +104,25 @@ func _rebuild_cards() -> void:
 		var c := AutoCard.new(n, autos.library.display_name(n), n + ".auto", autos.library.description(n))
 		cards.append(c)
 		list.add_item(c)
+	if autos != null and _names().is_empty():
+		var failed := not autos.library.is_loaded()
+		var row := AutoCard.new(RETRY, "Failed to load autos" if failed else "No autos found", "",
+			"%s. Tap to retry." % autos.library.error if failed else "The export has no autos. Tap to reload.")
+		row.name = "RetryRow"
+		row.title.add_theme_color_override("font_color", Tokens.ERROR if failed else Tokens.ZINC_400)
+		cards.append(row)
+		list.add_item(row)
 	if viewing != NONE and not _names().has(viewing):
 		viewing = ""
 
 
 func _on_card_tapped(i: int) -> void:
-	if i >= 0 and i < cards.size():
-		view(cards[i].auto_name)
+	if i < 0 or i >= cards.size():
+		return
+	if cards[i].auto_name == RETRY:
+		autos.reload()
+		return
+	view(cards[i].auto_name)
 
 
 func view(auto_name: String) -> void:
@@ -277,8 +292,10 @@ func refresh() -> void:
 	var sync := controls.sync
 	var active := sync.active_name()
 	if viewing == "":
-		viewing = active if active != "" else (cards[1].auto_name if cards.size() > 1 else NONE)
+		viewing = active if active != "" else (_names()[0] if not _names().is_empty() else NONE)
 	for c in cards:
+		if c.auto_name == RETRY:
+			continue
 		c.set_state(c.auto_name == active, c.auto_name == viewing, _warning_for(c.auto_name) if c.auto_name != NONE else "")
 	if banner.visible != sync.locked():
 		banner.visible = sync.locked()

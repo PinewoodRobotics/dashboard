@@ -207,3 +207,26 @@ func test_intake_panel_statuses() -> void:
 	check(p.trim.reversed)
 	check_eq([p.trim.min_value, p.trim.max_value, p.trim.step], [-10.0, 10.0, 0.25])
 	check_eq([p.speed.min_value, p.speed.max_value, p.speed.step], [0.0, 1.0, 0.01])
+
+
+func test_failed_library_shows_a_retry_row_that_reloads() -> void:
+	var autos := AutosService.new()
+	tree.root.add_child(autos)
+	autos.library = AutoLibrary.load_best([dir.path_join("no-export")])
+	var t := AutoTab.new()
+	t.controls = controls
+	t.autos = autos
+	t.size = host.size
+	host.add_child(t)
+	t.set_process(false)
+	check_eq(t.cards.size(), 2, "No Auto plus the status row")
+	var row := t.cards[1]
+	check_eq(row.auto_name, AutoTab.RETRY)
+	check_eq(row.title.text, "Failed to load autos")
+	check(row.desc.text.ends_with("Tap to retry."), row.desc.text)
+	check_eq(t.viewing, "NONE", "nothing to view but No Auto")
+	t._on_card_tapped(1)
+	check(autos.library.is_loaded(), "tapping the row reloads the library")
+	check_eq(t.cards.size(), autos.library.names().size() + 1, "the cards come back")
+	check(t.card(AutoTab.RETRY) == null, "status row gone")
+	autos.queue_free()
