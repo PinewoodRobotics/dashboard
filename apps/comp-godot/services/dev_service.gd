@@ -13,6 +13,11 @@ extends Node
 ##   --probes=PATH        extra probes (JSON array) on top of the fixture's
 ##   --timeout=S          fail when the models are not visible after S seconds (default 20)
 ##   --quit-after-run     quit after the report even without --screenshot
+##   --run-s=S            keep running S seconds after the frames, input and perf
+##                        sampling, recording memory, object counts, NT state and
+##                        match phases every --sample-s (default 10) into "soak"
+##   --nt-trace=PATH      append every NT client state change as a JSON line
+##                        {"unix": seconds, "state": name}, from launch on
 ## The process exits non-zero when a probe fails or the models never appear.
 ##
 ## Fixture: {"extends": "base", "nt": {topic: value}, "map": {mode, angle, zoom},
@@ -61,6 +66,8 @@ func _ready() -> void:
 	if args.has("fixture"):
 		fixture = load_fixture(str(args["fixture"]))
 	RenderingServer.frame_post_draw.connect(_on_first_frame, CONNECT_ONE_SHOT)
+	if args.has("nt_trace"):
+		_start_nt_trace(str(args["nt_trace"]))
 
 
 func _process(_delta: float) -> void:
@@ -70,6 +77,18 @@ func _process(_delta: float) -> void:
 		if _over_budget_frames == 0:
 			push_error("%d SubViewports render 3D this frame (budget %d)" % [n, MAX_RENDERING_VIEWS])
 		_over_budget_frames += 1
+
+
+func _start_nt_trace(path: String) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		_failures.append("cannot write the NT trace " + path)
+		return
+	var write := func(s: int) -> void:
+		f.store_line(JSON.stringify({"unix": Time.get_unix_time_from_system(), "state": Nt4Client.State.keys()[s]}))
+		f.flush()
+	write.call(NT.client.state)
+	NT.client.state_changed.connect(func(s: int, _prev: int) -> void: write.call(s))
 
 
 func _on_first_frame() -> void:
@@ -281,6 +300,10 @@ func _run() -> void:
 	if perf_frames > 0:
 		report["perf"] = await _sample_perf(perf_frames)
 
+	var run_s := CliArgs.get_float(args, "run_s", 0.0)
+	if run_s > 0.0:
+		report["soak"] = await _soak(run_s, CliArgs.get_float(args, "sample_s", 10.0))
+
 	await RenderingServer.frame_post_draw
 	var images := {}
 	var windows := _windows()
@@ -349,6 +372,7 @@ func _run() -> void:
 			if err != OK:
 				_failures.append("could not save " + png)
 		report["windows"][key] = entry
+	report["objects"] = _object_counts()
 	report["probes"] = _evaluate_probes(images)
 	report["failures"] = _failures
 	var report_path := str(args.get("report", prefix + ".json" if prefix != "" else ""))
@@ -370,6 +394,8 @@ func _sample_perf(frames: int) -> Dictionary:
 	var sum_draw := 0
 	var sum_prims := 0
 	var frame_times: Array[float] = []
+	var max_draw_3d := 0
+	var max_prims_3d := 0
 	var last := Time.get_ticks_usec()
 	var start := last
 	for i in frames:
@@ -380,6 +406,14 @@ func _sample_perf(frames: int) -> Dictionary:
 		var d := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
 		var p := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
 		var o := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+		var d3 := 0
+		var p3 := 0
+		for v: CadView in CadView.rendering_views(tree):
+			var vrid := v.viewport.get_viewport_rid()
+			d3 += RenderingServer.viewport_get_render_info(vrid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
+			p3 += RenderingServer.viewport_get_render_info(vrid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME)
+		max_draw_3d = maxi(max_draw_3d, d3)
+		max_prims_3d = maxi(max_prims_3d, p3)
 		max_draw = maxi(max_draw, d)
 		max_prims = maxi(max_prims, p)
 		max_objects = maxi(max_objects, o)
@@ -405,6 +439,8 @@ func _sample_perf(frames: int) -> Dictionary:
 		"max_draw_calls": max_draw,
 		"max_primitives": max_prims,
 		"max_objects": max_objects,
+		"max_draw_calls_3d": max_draw_3d,
+		"max_primitives_3d": max_prims_3d,
 		"avg_draw_calls": float(sum_draw) / frames,
 		"avg_primitives": float(sum_prims) / frames,
 		"per_view": per_view,
@@ -412,6 +448,57 @@ func _sample_perf(frames: int) -> Dictionary:
 		"renderer": RenderingServer.get_current_rendering_driver_name(),
 		"adapter": RenderingServer.get_video_adapter_name(),
 	}
+
+
+static func _object_counts() -> Dictionary:
+	return {
+		"static_memory": Performance.get_monitor(Performance.MEMORY_STATIC),
+		"objects": Performance.get_monitor(Performance.OBJECT_COUNT),
+		"nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+		"resources": Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
+		"orphan_nodes": Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT),
+		"video_memory": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED),
+	}
+
+
+## Long run: samples every sample_s seconds (memory, objects, NT, match phase).
+func _soak(seconds: float, sample_s: float) -> Dictionary:
+	var tree := get_tree()
+	var t0 := Time.get_ticks_msec()
+	var next := 0.0
+	var samples: Array = []
+	var phases := {}
+	var nt_states := {}
+	var frames := 0
+	var reconnects_before := int(NT.diagnostics().get("reconnects", 0))
+	var worst_frame_ms := 0.0
+	var last_us := Time.get_ticks_usec()
+	var autos_seen := {}
+	while true:
+		await tree.process_frame
+		frames += 1
+		var now_us := Time.get_ticks_usec()
+		if frames > 1:
+			worst_frame_ms = maxf(worst_frame_ms, (now_us - last_us) / 1000.0)
+		last_us = now_us
+		var el := (Time.get_ticks_msec() - t0) / 1000.0
+		phases[MatchEnums.PHASE_NAMES[Match.model.phase]] = true
+		nt_states[NT.client.state_name()] = true
+		autos_seen["%s@%d" % [Autos.preview_name, int(Autos.clock.t)]] = true
+		if el >= next:
+			var row := _object_counts()
+			row["t"] = el
+			row["fps"] = Engine.get_frames_per_second()
+			row["nt"] = NT.client.state_name()
+			row["phase"] = MatchEnums.PHASE_NAMES[Match.model.phase]
+			row["preview_t"] = Autos.clock.t
+			samples.append(row)
+			next += sample_s
+		if el >= seconds:
+			break
+	return {"seconds": seconds, "frames": frames, "samples": samples, "phases": phases.keys(), "nt_states": nt_states.keys(),
+		"reconnects": int(NT.diagnostics().get("reconnects", 0)) - reconnects_before, "worst_frame_ms": worst_frame_ms,
+		"preview_positions": autos_seen.size()}
 
 
 ## Mesh RIDs of every robot instance, per node name; shared = all identical.

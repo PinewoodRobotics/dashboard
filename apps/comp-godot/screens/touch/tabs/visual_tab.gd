@@ -87,6 +87,17 @@ func _ready() -> void:
 	c4["box"].add_child(UiKit.wrapped("Applies to both windows. A lower cap leaves GPU headroom on weak driver station laptops.", 16))
 	cols.add_child(c4["panel"])
 
+	var c2 := UiKit.column("Assets", true, 24, 20)
+	c2["box"].add_child(UiKit.wrapped("Robot and field models are bundled with the app. Reload them from disk after replacing the files in assets/models.", 18))
+	reload = PwButton.new("Reload Models", PwButton.Style.DARK, Vector2(0, 64))
+	reload.name = "ReloadModels"
+	reload.icon_name = "refresh-cw"
+	reload.pressed.connect(_reload_models)
+	c2["box"].add_child(reload)
+	reload_status = UiKit.wrapped("", 16)
+	c2["box"].add_child(reload_status)
+	cols.add_child(c2["panel"])
+
 	var c5 := UiKit.column("Displays", true, 24, 20)
 	var w := settings.windows()
 	hud_screen = PwSelector.new().configure("HUD Display", SCREEN_OPTIONS, w["hud_screen"])
@@ -109,17 +120,6 @@ func _ready() -> void:
 	tiling = UiKit.wrapped("", 16)
 	c6["box"].add_child(tiling)
 	cols.add_child(c6["panel"])
-
-	var c2 := UiKit.column("Assets", true, 24, 20)
-	c2["box"].add_child(UiKit.wrapped("Robot and field models are bundled with the app. Reload them from disk after replacing the files in assets/models.", 18))
-	reload = PwButton.new("Reload Models", PwButton.Style.DARK, Vector2(0, 64))
-	reload.name = "ReloadModels"
-	reload.icon_name = "refresh-cw"
-	reload.pressed.connect(_reload_models)
-	c2["box"].add_child(reload)
-	reload_status = UiKit.wrapped("", 16)
-	c2["box"].add_child(reload_status)
-	cols.add_child(c2["panel"])
 
 	var c3 := UiKit.column("Diagnostics", false, 24, 20)
 	diag = UiKit.label("", 16, 400, Tokens.ZINC_300)

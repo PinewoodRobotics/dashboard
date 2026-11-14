@@ -12,12 +12,18 @@ APP="$(cd "$(dirname "$0")/../.." && pwd)"
 GODOT="${GODOT:-godot}"
 OUT="${OUT:-$APP/.screenshots/m4}"
 mkdir -p "$OUT"
-"$GODOT" --headless --path "$APP" --import >/dev/null 2>&1 || true
+# PWRUP_EXPORTED_BIN runs an exported binary instead of the project (no --path, no import).
+if [[ -n "${PWRUP_EXPORTED_BIN:-}" ]]; then
+  RUN=("$PWRUP_EXPORTED_BIN")
+else
+  RUN=("$GODOT" --path "$APP")
+  "$GODOT" --headless --path "$APP" --import >/dev/null 2>&1 || true
+fi
 
 status=0
 run() {
   local name="$1" fixture="$2"; shift 2
-  if "$GODOT" --path "$APP" -- --design-size --fixture="$fixture" --screenshot="$OUT/$name" --frames=5 "$@" >"$OUT/$name.log" 2>&1; then
+  if "${RUN[@]}" -- --design-size --fixture="$fixture" --screenshot="$OUT/$name" --frames=5 "$@" >"$OUT/$name.log" 2>&1; then
     echo "ok   $name"
   else
     echo "FAIL $name:"; grep -E "DEV FAIL|ERROR|SCRIPT" "$OUT/$name.log" || tail -5 "$OUT/$name.log"
@@ -55,6 +61,7 @@ run touch_script_robot3d_live touch_script_robot3d_live --screen=touch
 run touch_script_driver touch_script_driver --screen=touch
 run touch_script_howard touch_script_howard --screen=touch
 run touch_script_controls_offline touch_script_controls_offline --screen=touch
+run touch_script_displays touch_script_displays --screen=touch
 
 FAKE="$APP/tools/sim/fake_robot.py"
 TAG="comp-godot-touch-$$"

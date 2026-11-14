@@ -439,6 +439,11 @@ func apply_fixture(tf: Dictionary) -> void:
 	if tf.has("view_auto") and content is AutoTab:
 		(content as AutoTab).view(str(tf["view_auto"]))
 		(content as AutoTab).list.reveal((content as AutoTab).cards.find((content as AutoTab).card(str(tf["view_auto"]))))
+	if tf.has("tab_scroll_x") and content != null:
+		var scrolls := content.find_children("*", "ScrollContainer", true, false)
+		if not scrolls.is_empty():
+			await get_tree().process_frame
+			(scrolls[0] as ScrollContainer).scroll_horizontal = int(tf["tab_scroll_x"])
 
 
 ## State for Dev scripted-input expectations.

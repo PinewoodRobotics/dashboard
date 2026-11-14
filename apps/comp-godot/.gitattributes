@@ -1,2 +1,3 @@
 data/pathplanner/** -text
 data/auto_commands.json -text
+*.bat text eol=crlf

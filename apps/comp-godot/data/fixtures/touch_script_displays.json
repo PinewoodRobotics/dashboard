@@ -1,6 +1,6 @@
 {
   "extends": "touch_base",
-  "touch": {"active_tab": "visual"},
+  "touch": {"active_tab": "visual", "tab_scroll_x": 420},
   "input": [
     {"expect": {"kiosk.retiles": 0, "settings.windows.hud_screen": -1, "settings.windows.touch_screen": -1}},
     {"tap": {"node": "find:HudScreen", "at": [191, 74]}},
