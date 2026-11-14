@@ -20,7 +20,9 @@ func snap(px: float, py: float, ph: float) -> void:
 
 
 func step(px: float, py: float, ph: float, dt: float) -> void:
-	if not initialized:
+	if not (is_finite(px) and is_finite(py) and is_finite(ph)):
+		return
+	if not initialized or not (is_finite(x) and is_finite(y) and is_finite(heading)):
 		snap(px, py, ph)
 		return
 	var dx := px - x

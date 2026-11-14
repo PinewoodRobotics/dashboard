@@ -27,6 +27,7 @@ var alliance_red: Variant = null
 var manual_joints := {}
 var joint_targets := {}
 var joint_values := {}
+var _last_joint := {}
 
 
 func _init() -> void:
@@ -46,8 +47,10 @@ func step(dt: float) -> void:
 	if nt == null:
 		return
 	if nt.has_value(POSE_X) and nt.has_value(POSE_Y) and nt.has_value(POSE_HEADING):
-		pose_raw = Vector3(float(nt.value(POSE_X)), float(nt.value(POSE_Y)), float(nt.value(POSE_HEADING)))
-		has_pose = true
+		var p := Vector3(_num(nt.value(POSE_X)), _num(nt.value(POSE_Y)), _num(nt.value(POSE_HEADING)))
+		if p.is_finite():
+			pose_raw = p
+			has_pose = true
 	pose_valid = nt.value(POSE_VALID, false) == true
 	alliance_red = bool(nt.value(IS_RED)) if nt.is_live(IS_RED) else null
 	smoother.step(pose_raw.x, pose_raw.y, pose_raw.z, dt)
@@ -55,11 +58,21 @@ func step(dt: float) -> void:
 	var live := {}
 	for j in rig.joints:
 		if j.nt_topic != "" and nt.is_live(j.nt_topic):
-			var v: Variant = nt.value(j.nt_topic)
-			if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT:
-				live[j.key] = float(v)
+			var v := _num(nt.value(j.nt_topic))
+			if is_finite(v):
+				_last_joint[j.key] = v
+			if _last_joint.has(j.key):
+				live[j.key] = _last_joint[j.key]
 	joint_targets = rig.compute_joint_values(live, manual_joints)
 	joint_values = rig.step(joint_targets, dt)
+
+
+## NAN for anything that is not a finite number, so a robot that publishes
+## NaN or a wrong type keeps the last good sample.
+static func _num(v: Variant) -> float:
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return NAN
+	return float(v)
 
 
 func pose_live() -> bool:

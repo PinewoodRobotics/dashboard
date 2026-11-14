@@ -144,10 +144,17 @@ func step(targets: Dictionary, dt: float) -> Dictionary:
 		if j.link_source != "":
 			continue
 		var target: float = targets.get(j.key, j.default_value)
+		if not is_finite(target):
+			target = values.get(j.key, j.default_value)
+			if not is_finite(target):
+				target = j.default_value
 		if first or j.smoothing_s <= 0.0 or not values.has(j.key):
 			values[j.key] = target
 			continue
 		var cur: float = values[j.key]
+		if not is_finite(cur):
+			values[j.key] = target
+			continue
 		if j.revolute and absf(target - cur) > PI:
 			values[j.key] = target
 			continue
