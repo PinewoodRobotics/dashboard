@@ -39,6 +39,24 @@ python3 "$APP/tools/export/check_export.py" "$APP" "$APP/build/windows/PWRUP-Com
 if [[ $RUNS == 1 ]]; then
   BIN="$APP/build/macos/PWRUP-Comp.app/Contents/MacOS/PWRUP Comp Dashboard"
   [[ -x "$BIN" ]] || { echo "FAIL no macOS binary at $BIN"; exit 1; }
+  # Startup: both windows from the exported binary. The first launch after an
+  # export pays the macOS signature check, so the second one is measured.
+  for run in cold warm; do
+    python3 -c 'import json,sys,time; json.dump({"launch_unix": time.time()}, open(sys.argv[1], "w"))' "$OUT/startup.launch.json"
+    "$BIN" -- --screen=both --fixture=m2_base --frames=5 --report="$OUT/startup_$run.json" --quit-after-run >"$OUT/startup_$run.log" 2>&1 || status=1
+  done
+  python3 - "$OUT" <<'PY' || status=1
+import json, sys
+out = sys.argv[1]
+r = json.load(open(f"{out}/startup_warm.json"))
+launch = json.load(open(f"{out}/startup.launch.json"))["launch_unix"]
+t = r["timings"]
+first = (t["first_frame_unix"] - launch) * 1000
+visible = first + t["models_visible_msec"] - t["first_frame_msec"]
+ok = first <= 1000 and visible <= 3000 and not r["failures"]
+print(f"{'ok  ' if ok else 'FAIL'} exported build: first frame {first:.0f} ms after launch (<= 1000), models visible {visible:.0f} ms (<= 3000)")
+sys.exit(0 if ok else 1)
+PY
   echo "== HUD fixtures from the exported macOS binary"
   PWRUP_EXPORTED_BIN="$BIN" OUT="$OUT/hud" "$APP/tools/test/run_hud_screenshots.sh" || status=1
   echo "== touchscreen fixtures from the exported macOS binary"

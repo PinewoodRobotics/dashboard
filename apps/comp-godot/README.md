@@ -136,7 +136,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_perf.sh` | perf budget with both windows, an 8x fake match and the preview playing; render scale 0.5 halves the 3D resolution | 1 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
-| `run_export.sh` | Windows and macOS exports, pck contents, HUD and touch suites from the exported macOS binary | 3 min |
+| `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
 | `run_soak.sh [--minutes=N]` | 10 minutes of looping 8x matches: clean log, memory, orphans | 10 min |
 | `run_sim_e2e.sh` | the real robot code in the WPILib sim (scratch copy of FIR, never the repo): live HUD, auto and intake round trips from the UI | 4 min |
 | `run_all.sh [--quick] [--no-sim]` | all of the above in order with a summary | 30 min |
