@@ -35,7 +35,7 @@ names = list(fixtures) + [f"both_{f}" for f in ("touch_driver", "touch_tab_robot
 scripts = ["touch_script_nav", "touch_script_restart", "touch_script_map", "touch_script_map_restart", "touch_script_visual",
            "touch_script_visual_restart", "touch_script_widgets", "touch_script_widgets_both", "touch_script_robot3d",
            "touch_script_robot3d_live", "touch_script_driver", "touch_script_howard", "touch_live_fake",
-           "touch_script_controls_offline", "touch_script_controls_live", "touch_script_displays"]
+           "touch_script_controls_offline", "touch_script_controls_live", "touch_script_displays", "both_script_touch_test"]
 reports = {n: report(n) for n in names + scripts}
 
 for name, r in reports.items():

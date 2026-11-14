@@ -36,6 +36,21 @@ log to `logs/godot.log` in the same folder.
 
 F3 toggles the NetworkTables overlay (client state, RTT, every cached topic).
 
+### Auto tab
+
+- The list starts with which export is loaded (built-in or event update, with
+  its export time) and a Reload Autos button.
+- Autos the robot lists (`PathPlanner/ValidNames/Autos`) that the export lacks
+  get their own cards marked "On the robot: no preview, not exported". They
+  can be selected like any other auto, so a stale export never blocks a new
+  auto.
+- The detail pane compares the live robot pose with the viewed auto's start
+  pose ("Start pose off by 1.37 m / 135°", green within 0.15 m and 8°). The HUD
+  shows the same chip under the auto name before the match.
+- The preview's expand button (top right) hides the list and the detail pane.
+  Drag orbits, pinch or the mouse wheel zooms, two fingers (or a right drag)
+  pan; the crosshair button or switching Path/Field returns to the framed view.
+
 ### Launch flags
 
 Engine flags go before `--`, dashboard flags after it:
@@ -55,11 +70,25 @@ PWRUP-Comp.exe --rendering-driver opengl3_angle -- --kiosk --vsync=hud --render-
 | `--max-fps=N` | Frame cap for this run (`0` = uncapped). The Visual tab sets the saved 30 or 60. |
 | `--nt-host=H`, `--nt-port=P` | Robot address for this run, not saved. |
 | `--debug-overlay` | Start with the F3 overlay open. |
+| `--touch-test` | Open the touch test on both windows at start (also Visual > Diagnostics > Touch Test). |
+| `--auto-quality=on\|off` | Force the automatic quality fallback on or off for this run (Visual > Auto Quality sets the saved value). |
+| `--benchmark[=DIR]` | Run the driver-station benchmark and quit; see the checklist. |
 | `--rendering-driver opengl3_angle` | Engine flag: render through ANGLE (Direct3D 11) instead of the native OpenGL driver. First thing to try on a Windows laptop with a broken or slow OpenGL driver. |
 
 Test-only flags (`--fixture`, `--live`, `--screenshot`, `--perf-frames`,
-`--run-s`, `--nt-trace`, ...) are documented at the top of
-`services/dev_service.gd`.
+`--run-s`, `--nt-trace`, `--autos-dir`, `--simulate-gpu-ms`, ...) are documented
+at the top of `services/dev_service.gd` and `services/perf_governor.gd`.
+
+### Frame rate and auto quality
+
+With Visual > Auto Quality on (the default), the dashboard watches the frame
+rate while a 3D view renders. When 3 s average below 92% of the frame cap, it
+turns MSAA off, then lowers the render scale to 0.75 and 0.5, until the cap
+holds. A step that does not raise the frame rate is undone and the fallback
+stops, because then the GPU is not the limit (a CPU limit, or two vsynced
+windows at half rate). The saved settings never change; Visual > Diagnostics
+shows the effective scale and the fallback's state, and changing a Visual
+setting starts it over. The log gets a frame rate line every minute.
 
 ### Window placement
 
@@ -75,7 +104,7 @@ macOS) re-tiles from either window.
 ## Driver station install (Windows x64)
 
 1. Export (below) or take `build/windows/` from a teammate: `PWRUP-Comp.exe`,
-   `PWRUP-Comp.pck` and `PWRUP-Comp.bat` must stay in one folder.
+   `PWRUP-Comp.pck` and the `.bat` launchers must stay in one folder.
 2. Copy the folder anywhere (not necessarily writable: logs and settings go to
    `%APPDATA%\PWRUP\CompDashboard`).
 3. Start `PWRUP-Comp.bat`. It runs the dashboard with `--kiosk` and restarts it
@@ -84,40 +113,53 @@ macOS) re-tiles from either window.
    ANGLE. Arguments are passed through (`PWRUP-Comp.bat --nt-host=10.47.65.2`);
    `set PWRUP_ENGINE_ARGS=--rendering-driver opengl3_angle` forces ANGLE from
    the start. The launcher log is `%APPDATA%\PWRUP\CompDashboard\launcher.log`.
+   `PWRUP-Comp-TwoProcess.bat` starts the HUD and the touchscreen as two
+   processes instead (plan B below), each with the same restart loop.
 4. Run the checklist below once per laptop.
 
 ### Driver-station checklist
 
-These cannot be verified on the macOS development machine; check them on the
-real laptop with both displays attached.
+Not run yet: none of these can be verified on the macOS development machine.
+Check them on the real laptop with both displays attached, and keep the
+benchmark files with the results. Until the touch item passes, keep the
+Electron dashboard installed as the fallback.
 
 - [ ] Placement: the HUD fills the 1920x1080 display and the touchscreen fills
-      the 1920x515 one with no title bar or taskbar on top. Unplug and replug
-      the touchscreen: within 2 s it gets its window back (`--kiosk`).
+      the 1920x515 one with no title bar or taskbar on top, with the laptop's
+      Windows display scaling left as it is. Unplug and replug the
+      touchscreen: within 2 s it gets its window back (`--kiosk`).
       Ctrl+Shift+F re-tiles. If a display reports a slightly different size,
-      set it in Visual > Displays.
-- [ ] Touch on the second window: taps, drags and swipes land on the
-      touchscreen window (not the HUD, not offset), including hold-to-drag of
-      rail icons and the auto preview scrub bar. If touch input goes to the
-      wrong window or is offset, run two processes instead:
-      `PWRUP-Comp.exe -- --kiosk --screen=hud` and
-      `PWRUP-Comp.exe -- --kiosk --screen=touch` (edit the launcher or make two
-      shortcuts), and re-check.
-- [ ] Vsync across both displays: Visual > Diagnostics shows FPS at the cap
-      (60) with the Auto tab preview playing. If it drops to 30 or stutters,
-      try `--vsync=off`; `--vsync=both` only if tearing is visible on the
-      touchscreen.
-- [ ] Renderer: Diagnostics shows the adapter. If the app crashes at start,
-      shows black 3D views or runs far below 60 fps, try
-      `--rendering-driver opengl3_angle` (or `set PWRUP_ENGINE_ARGS=...` for the
-      launcher) and compare.
-- [ ] Frame rate per render scale: with the preview playing and a robot (or the
-      sim) connected, note the Diagnostics FPS at render scale 1.0, 0.75, 0.5
-      and 0.25 (Visual tab, applies live). Keep the highest scale that holds
-      60 fps, or set the frame cap to 30.
+      set it in Visual > Displays. Visual > Window Tiling shows which display
+      each window took and why.
+- [ ] Touch on the second window: Visual > Diagnostics > Touch Test (scroll the
+      Visual tab right). Tap all four corners and the middle, drag across the
+      screen, and pinch: every ring must sit under the fingertip, the press and
+      drag counters must grow, and the HUD must not show the red "Touch reached
+      the HUD window" box. Close it (bottom right), then check by hand: taps on
+      the rail, hold-to-drag of a rail icon to the dock, a swipe down on an open
+      tab, the auto preview scrub bar, and drag/pinch on the expanded preview.
+      Every touch press is also in `logs/godot.log` (`touch-test:` lines). If
+      touch goes to the wrong window or is offset, use
+      `PWRUP-Comp-TwoProcess.bat` and repeat this item.
+- [ ] Renderer and frame rate: close the dashboard and run
+      `PWRUP-Comp-Benchmark.bat`. It runs the built-in benchmark (both windows
+      on their displays, the longest auto previewing on a loop with the HUD
+      mirroring it) with the native OpenGL driver and with ANGLE, about 40 s
+      each, and opens `benchmark_native.txt` and `benchmark_angle.txt` from
+      `%APPDATA%\PWRUP\CompDashboard`: frame rate and p95 frame time per render
+      scale, the result at the 60 fps cap, and a recommended render scale. Use
+      the faster renderer (for ANGLE, `set PWRUP_ENGINE_ARGS=--rendering-driver
+      opengl3_angle` before the launcher, or edit it) and set Visual > Render
+      Scale to the recommendation. If no scale holds 60 fps, set the frame cap
+      to 30. If the app crashes at start or shows black 3D views, use ANGLE.
+- [ ] Vsync across both displays: with the Auto tab preview playing, Visual >
+      Diagnostics shows FPS at the cap (60) and "Auto qual" at full quality. If
+      it drops to 30 or stutters, try `--vsync=off`; `--vsync=both` only if
+      tearing is visible on the touchscreen.
 - [ ] Robot link: on the field network the HUD shows live match data within a
       few seconds of the robot booting; the auto selected on the touchscreen
-      shows "Selected" once the robot confirms it.
+      shows "Selected" once the robot confirms it, and the start pose chip goes
+      green once the robot sits on the start.
 - [ ] Crash recovery: end `PWRUP-Comp.exe` in Task Manager; the launcher
       restarts it within about 5 s with the same auto and intake override.
 
@@ -131,9 +173,9 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_integration.sh` | NT4 client, telemetry, HUD and controls against `tools/sim/fake_robot.py` (real ntcore) | 2 min |
 | `run_screenshots.sh` | 3D views, joints, mesh sharing, startup timing (windowed) | 1 min |
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
-| `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, restart persistence | 2 min |
-| `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring | 2 min |
-| `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution | 2 min |
+| `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, restart persistence, the touch test | 2 min |
+| `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring, expand and touch orbit, start pose chips, robot-only autos, a user-folder export | 3 min |
+| `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution; the auto quality fallback under a simulated slow GPU; the driver-station benchmark end to end | 3 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
 | `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
@@ -199,7 +241,23 @@ the Python library otherwise (see `tools/pathplanner/export_autos.py`).
 Command timing models live in `data/auto_commands.json`, display names and
 descriptions in `data/auto_meta.json`. A unit test fails when the raw files
 change without a re-export. Commit `data/pathplanner` and `data/autos`
-together, then re-export the app (the files ship inside the pck).
+together; the next app export ships them inside the pck.
+
+New autos at an event do not need a new app export. The dashboard loads the
+newest valid export from its user data folder (`autos/` next to
+`settings.json`) when it is at least as new as the one in the pck:
+
+```sh
+# on the driver station laptop itself (Git Bash, with uv and the FIR checkout)
+./scripts/sync-pathplanner-from-fir.sh --godot-only --apply --user-dir
+# on another machine: export to a folder, then copy it into the laptop's
+# %APPDATA%\PWRUP\CompDashboard\autos
+./scripts/sync-pathplanner-from-fir.sh --godot-only --apply --user-dir=/Volumes/USB/CompDashboard
+```
+
+Then tap Reload Autos on the Auto tab (or restart the dashboard); the list
+header says "event update" with the export time. Autos the robot has that
+are not exported yet stay selectable without a preview in the meantime.
 
 ## Windows export
 

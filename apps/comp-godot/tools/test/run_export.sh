@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exports the release builds and smoke-tests them:
-# - build/windows/PWRUP-Comp.exe + .pck (+ the PWRUP-Comp.bat launcher), checked
+# - build/windows/PWRUP-Comp.exe + .pck (+ the launchers from tools/windows), checked
 #   by tools/export/check_export.py (PE x86-64, every runtime file in the pck);
 # - build/macos/PWRUP-Comp.app, whose binary then runs the HUD and touchscreen
 #   fixture screenshot suites (proves nothing depends on editor-only files).
@@ -28,13 +28,15 @@ export_preset() {
 
 /usr/bin/trash "$APP/build/windows/PWRUP-Comp.exe" "$APP/build/windows/PWRUP-Comp.pck" "$APP/build/macos/PWRUP-Comp.app" 2>/dev/null || true
 export_preset "Windows Desktop" "$APP/build/windows/PWRUP-Comp.exe" windows
-cp "$APP/tools/windows/PWRUP-Comp.bat" "$APP/build/windows/PWRUP-Comp.bat"
+cp "$APP/tools/windows/"*.bat "$APP/build/windows/"
 export_preset "macOS" "$APP/build/macos/PWRUP-Comp.app" macos
 
 status=0
 python3 "$APP/tools/export/check_export.py" "$APP" "$APP/build/windows/PWRUP-Comp.exe" || status=1
-[[ -f "$APP/build/windows/PWRUP-Comp.bat" ]] && grep -q $'\r$' "$APP/build/windows/PWRUP-Comp.bat" \
-  && echo "ok   launcher PWRUP-Comp.bat (CRLF) next to the exe" || { echo "FAIL launcher missing or not CRLF"; status=1; }
+for bat in PWRUP-Comp.bat PWRUP-Comp-TwoProcess.bat PWRUP-Comp-Benchmark.bat; do
+  [[ -f "$APP/build/windows/$bat" ]] && file "$APP/build/windows/$bat" | grep -q "with CRLF line terminators" \
+    && echo "ok   launcher $bat (CRLF) next to the exe" || { echo "FAIL launcher $bat missing or not CRLF"; status=1; }
+done
 
 if [[ $RUNS == 1 ]]; then
   BIN="$APP/build/macos/PWRUP-Comp.app/Contents/MacOS/PWRUP Comp Dashboard"

@@ -131,6 +131,16 @@ func _ready() -> void:
 	cols.add_child(c6["panel"])
 
 	var c3 := UiKit.column("Diagnostics", false, 24, 20)
+	var touch_test := PwButton.new("Touch Test", PwButton.Style.DARK, Vector2(240, 52))
+	touch_test.name = "TouchTest"
+	touch_test.icon_name = "scan-eye"
+	touch_test.font_size = 20
+	touch_test.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	touch_test.pressed.connect(func() -> void:
+		var kiosk := get_tree().get_first_node_in_group(KioskController.GROUP) as KioskController
+		if kiosk != null:
+			TouchTest.open_all(get_tree(), kiosk.windows))
+	c3["box"].add_child(touch_test)
 	diag = UiKit.label("", 16, 400, Tokens.ZINC_300)
 	diag.add_theme_font_override("font", Tokens.mono())
 	c3["box"].add_child(diag)

@@ -62,6 +62,7 @@ run touch_script_driver touch_script_driver --screen=touch
 run touch_script_howard touch_script_howard --screen=touch
 run touch_script_controls_offline touch_script_controls_offline --screen=touch
 run touch_script_displays touch_script_displays --screen=touch
+run both_script_touch_test both_script_touch_test --screen=both
 
 FAKE="$APP/tools/sim/fake_robot.py"
 TAG="comp-godot-touch-$$"

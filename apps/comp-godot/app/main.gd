@@ -15,6 +15,7 @@ extends Node
 ##   --vsync=hud|both|off      which windows wait for vertical sync (default hud)
 ##   --max-fps=N               frame cap for this run (0 = uncapped)
 ##   --auto-quality=on|off     force the frame-rate quality fallback on or off (services/perf_governor.gd)
+##   --touch-test              open the touch test on every window at start (ui/debug/touch_test.gd)
 ## Ctrl/Cmd+Shift+F re-tiles the windows (see app/window_placement.gd).
 ## Screenshot, perf and probe flags are documented in services/dev_service.gd.
 
@@ -70,6 +71,8 @@ func _ready() -> void:
 		var host: Node = self if screen == "touch" else windows["touch"]
 		host.add_child(touch)
 
+	if _args.has("touch_test"):
+		TouchTest.open_all(get_tree(), windows)
 	Dev.attach(self)
 
 

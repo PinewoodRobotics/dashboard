@@ -51,10 +51,25 @@ printf '%s\n' '{}' >"$WORK/settings_governor.json"
   --auto-quality=on --simulate-gpu-ms=20 --frames=5 --perf-frames=1500 \
   --screenshot="$OUT/governor" >"$OUT/governor.log" 2>&1 || { echo "FAIL governor run"; status=1; }
 
+# The driver-station benchmark (PWRUP-Comp-Benchmark.bat) end to end, short passes.
+"$GODOT" --path "$APP" -- --design-size --benchmark="$OUT/bench" --benchmark-name=test --benchmark-frames=120 \
+  --report="$OUT/bench.json" >"$OUT/bench.log" 2>&1 || { echo "FAIL benchmark run"; status=1; }
+
 python3 - "$OUT" <<'PY' || status=1
 import json, re, sys
 out = sys.argv[1]
 fails = []
+b = json.load(open(f"{out}/bench.json"))
+bench = b["benchmark"]
+text = open(f"{out}/bench/benchmark_test.txt").read()
+saved = json.load(open(f"{out}/bench/benchmark_test.json"))
+ok = ([r["render_scale"] for r in bench["uncapped"]] == [1.0, 0.75, 0.5, 0.25] and all(r["fps"] > 0 for r in bench["uncapped"])
+      and b["autos"]["playing"] and b["autos"]["hud"]["mirror"] and saved["adapter"] == bench["adapter"]
+      and ("Recommended" in text or "No render scale" in text))
+rows = ", ".join(f"{r['render_scale']}x {r['fps']:.0f} fps" for r in bench["uncapped"])
+print(f"{'ok  ' if ok else 'FAIL'} benchmark: {rows}; preview playing {b['autos']['playing']}, HUD mirroring {b['autos']['hud']['mirror']}")
+if not ok:
+    fails.append("benchmark")
 g = json.load(open(f"{out}/governor.json"))
 pg = g["perf_governor"]
 views = {v["scaling_3d_scale"] for v in g["perf"]["per_view"].values()}

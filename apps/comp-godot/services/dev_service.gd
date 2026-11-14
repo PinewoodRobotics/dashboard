@@ -20,6 +20,13 @@ extends Node
 ##   --autos-dir=PATH     auto export folder used instead of user://autos
 ##   --nt-trace=PATH      append every NT client state change as a JSON line
 ##                        {"unix": seconds, "state": name}, from launch on
+##   --benchmark[=DIR]    driver-station benchmark (fixture ds_benchmark: both windows,
+##                        the longest auto previewing on a loop, the HUD mirroring it):
+##                        frame rate per render scale (1.0, 0.75, 0.5, 0.25) uncapped
+##                        with vsync off, then at the frame cap with vsync as launched;
+##                        writes benchmark_<renderer>.json and .txt to DIR (default the
+##                        user data folder) and quits. --benchmark-frames=N per pass (600),
+##                        --benchmark-name=X writes benchmark_X instead
 ## The process exits non-zero when a probe fails or the models never appear.
 ##
 ## Fixture: {"extends": "base", "nt": {topic: value}, "map": {mode, angle, zoom},
@@ -67,6 +74,8 @@ func _ready() -> void:
 	args = CliArgs.parse(OS.get_cmdline_user_args())
 	if args.has("fixture"):
 		fixture = load_fixture(str(args["fixture"]))
+	elif args.has("benchmark"):
+		fixture = load_fixture("ds_benchmark")
 	RenderingServer.frame_post_draw.connect(_on_first_frame, CONNECT_ONE_SHOT)
 	if args.has("nt_trace"):
 		_start_nt_trace(str(args["nt_trace"]))
@@ -134,7 +143,7 @@ static func load_fixture(name_or_path: String, depth: int = 0) -> Dictionary:
 
 
 func wants_run() -> bool:
-	return args.has("screenshot") or args.has("report") or args.has("quit_after_run")
+	return args.has("screenshot") or args.has("report") or args.has("quit_after_run") or args.has("benchmark")
 
 
 func attach(main: Node) -> void:
@@ -237,6 +246,10 @@ func probe_state() -> Dictionary:
 	var perf: PerfGovernor = _main.get("perf") if _main != null else null
 	if perf != null:
 		out["perf_governor"] = perf.snapshot()
+	out["touch_test"] = {}
+	for t: TouchTest in get_tree().get_nodes_in_group(TouchTest.GROUP):
+		if not t.is_queued_for_deletion():
+			out["touch_test"][t.window_key] = t.report()
 	var views: Array = []
 	for v: CadView in get_tree().get_nodes_in_group(CadView.GROUP):
 		views.append({"name": String(v.name), "scale": v.viewport.scaling_3d_scale, "msaa": int(v.viewport.msaa_3d), "rendering": v.is_rendering(), "loaded": v.robot.is_loaded()})
@@ -304,6 +317,9 @@ func _run() -> void:
 	var perf_frames := CliArgs.get_int(args, "perf_frames", 0)
 	if perf_frames > 0:
 		report["perf"] = await _sample_perf(perf_frames)
+
+	if args.has("benchmark"):
+		report["benchmark"] = await _benchmark()
 
 	var run_s := CliArgs.get_float(args, "run_s", 0.0)
 	if run_s > 0.0:
@@ -385,6 +401,8 @@ func _run() -> void:
 	report["probes"] = _evaluate_probes(images)
 	report["failures"] = _failures
 	var report_path := str(args.get("report", prefix + ".json" if prefix != "" else ""))
+	if report.has("benchmark"):
+		_write_benchmark(report["benchmark"])
 	if report_path != "":
 		var f := FileAccess.open(report_path, FileAccess.WRITE)
 		f.store_string(JSON.stringify(report, "  ", false))
@@ -393,6 +411,106 @@ func _run() -> void:
 		printerr("DEV FAIL: ", msg)
 	print("dev run done: %d failure(s)" % _failures.size())
 	tree.quit(1 if _failures.size() > 0 else 0)
+
+
+const BENCHMARK_SCALES := [1.0, 0.75, 0.5, 0.25]
+## Uncapped p95 frame time that leaves headroom under a 60 fps frame (16.7 ms).
+const BENCHMARK_OK_P95_MS := 15.0
+
+
+func _benchmark() -> Dictionary:
+	var tree := get_tree()
+	var frames := CliArgs.get_int(args, "benchmark_frames", 600)
+	var windows := _windows()
+	var vsync := {}
+	for key: String in windows:
+		var wid := (windows[key] as Window).get_window_id()
+		vsync[key] = DisplayServer.window_get_vsync_mode(wid)
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED, wid)
+	var cap := Engine.max_fps
+	var rows: Array = []
+	for s: float in BENCHMARK_SCALES:
+		Settings.visual_overrides["render_scale"] = s
+		Settings.changed.emit("visual")
+		# app/main.gd re-applies the saved frame cap on every visual change.
+		Engine.max_fps = 0
+		for i in 60:
+			await tree.process_frame
+		var p := await _sample_perf(frames)
+		rows.append({"render_scale": s, "fps": p["fps"], "frame_ms_p50": p["frame_ms_p50"], "frame_ms_p95": p["frame_ms_p95"],
+			"max_draw_calls": p["max_draw_calls"], "max_primitives": p["max_primitives"],
+			"ok_60": p["frame_ms_p95"] <= BENCHMARK_OK_P95_MS})
+	for key: String in windows:
+		DisplayServer.window_set_vsync_mode(vsync[key], (windows[key] as Window).get_window_id())
+	Engine.max_fps = cap
+	var best := 0.0
+	for r: Dictionary in rows:
+		if r["ok_60"] and float(r["render_scale"]) > best:
+			best = r["render_scale"]
+	var capped_scale: float = best if best > 0.0 else BENCHMARK_SCALES.back()
+	Settings.visual_overrides["render_scale"] = capped_scale
+	Settings.changed.emit("visual")
+	Engine.max_fps = cap
+	for i in 60:
+		await tree.process_frame
+	var capped := await _sample_perf(frames)
+	Settings.visual_overrides.erase("render_scale")
+	Settings.changed.emit("visual")
+	var screens := []
+	for i in DisplayServer.get_screen_count():
+		var sz := DisplayServer.screen_get_size(i)
+		screens.append("%dx%d" % [sz.x, sz.y])
+	return {
+		"unix": Time.get_unix_time_from_system(), "when": Time.get_datetime_string_from_system(false, true),
+		"renderer": RenderingServer.get_current_rendering_driver_name(), "adapter": RenderingServer.get_video_adapter_name(),
+		"vendor": RenderingServer.get_video_adapter_vendor(), "api": RenderingServer.get_video_adapter_api_version(),
+		"screens": screens, "windows": windows.keys(), "msaa": int(Settings.effective_visual()["msaa"]),
+		"frames_per_pass": frames, "uncapped": rows, "recommended_scale": best,
+		"capped": {"render_scale": capped_scale, "max_fps": cap, "fps": capped["fps"],
+			"frame_ms_p95": capped["frame_ms_p95"], "vsync": vsync.values().map(func(m: int) -> String: return "on" if m != DisplayServer.VSYNC_DISABLED else "off")},
+	}
+
+
+static func benchmark_text(b: Dictionary) -> String:
+	var lines := PackedStringArray([
+		"PWRUP Comp Dashboard benchmark, %s" % b["when"],
+		"Renderer   %s (%s)" % [b["renderer"], b["api"]],
+		"Adapter    %s, %s" % [b["adapter"], b["vendor"]],
+		"Displays   %s" % ", ".join(PackedStringArray(b["screens"])),
+		"Scene      auto preview playing on a loop with the HUD mirroring it, %s window(s), MSAA %s" % [b["windows"].size(), "off" if b["msaa"] == 0 else "%dx" % b["msaa"]],
+		"",
+		"Uncapped, vsync off (%d frames per scale):" % b["frames_per_pass"],
+	])
+	for r: Dictionary in b["uncapped"]:
+		lines.append("  render scale %.2f   %6.1f fps   p50 %5.1f ms   p95 %5.1f ms   %s" % [r["render_scale"], r["fps"],
+			r["frame_ms_p50"], r["frame_ms_p95"], "holds 60 fps" if r["ok_60"] else "too slow for 60 fps"])
+	var c: Dictionary = b["capped"]
+	lines.append("")
+	lines.append("At the %d fps cap with vsync as launched (render scale %.2f): %.1f fps, p95 %.1f ms" % [c["max_fps"], c["render_scale"], c["fps"], c["frame_ms_p95"]])
+	lines.append("")
+	if float(b["recommended_scale"]) > 0.0:
+		lines.append("Recommended: Visual > Render Scale %sx (the highest scale whose p95 frame time stays under %.0f ms)." % [str(b["recommended_scale"]), BENCHMARK_OK_P95_MS])
+	else:
+		lines.append("No render scale holds 60 fps: set Visual > Frame Cap to 30, and try the other renderer.")
+	return "\n".join(lines) + "\n"
+
+
+func _write_benchmark(b: Dictionary) -> void:
+	var dir := str(args["benchmark"])
+	if dir == "" or dir == "true":
+		dir = OS.get_user_data_dir()
+	DirAccess.make_dir_recursive_absolute(dir)
+	var base := dir.path_join("benchmark_%s" % str(args.get("benchmark_name", b["renderer"])))
+	var text := benchmark_text(b)
+	for pair: Array in [[base + ".json", JSON.stringify(b, "  ", false)], [base + ".txt", text]]:
+		var f := FileAccess.open(pair[0], FileAccess.WRITE)
+		if f == null:
+			_failures.append("cannot write " + str(pair[0]))
+			continue
+		f.store_string(pair[1])
+		f.close()
+	print(text)
+	print("benchmark written to %s.txt" % base)
 
 
 func _sample_perf(frames: int) -> Dictionary:
