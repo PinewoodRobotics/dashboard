@@ -160,33 +160,13 @@ func _apply_fixture_views() -> void:
 		(views["touch"] as RobotOrbitView).apply_preset(int(fixture["orbit_preset"]))
 	var ts := touch_screen()
 	if ts != null and fixture.has("touch"):
-		_apply_touch_fixture(ts, fixture["touch"])
+		ts.call("apply_fixture", fixture["touch"])
 
 
-func touch_screen() -> TouchScreen:
+## Untyped on purpose: a typed reference would compile every touchscreen
+## script at startup, also in --screen=hud.
+func touch_screen() -> Control:
 	return _main.call("touch_screen") if _main != null else null
-
-
-func _apply_touch_fixture(ts: TouchScreen, tf: Dictionary) -> void:
-	if tf.has("active_tab"):
-		ts.state.switch_tab(str(tf["active_tab"]))
-	if tf.get("dev_tab", "") == "gallery":
-		ts.open_dev_tab("gallery", func() -> Control: return WidgetGallery.new())
-	if tf.has("open_panel"):
-		ts.state.toggle_panel(str(tf["open_panel"]))
-	if tf.get("dock_open", false):
-		ts.state.toggle_dock()
-	ts.step(10.0)
-	var content := ts.tab_content(ts.state.active_tab)
-	if tf.has("howard_index") and content is HowardTab:
-		(content as HowardTab).show_index(int(tf["howard_index"]))
-	if tf.has("keyboard") and content != null:
-		var input := content.find_child(str(tf["keyboard"]), true, false) as PwTextInput
-		if input != null:
-			input.set_text(str(tf.get("keyboard_text", "")))
-			input.open_keyboard()
-	if tf.has("orbit_preset"):
-		ts.orbit.apply_preset(int(tf["orbit_preset"]))
 
 
 func window(key: String) -> Window:
@@ -213,24 +193,8 @@ func probe_state() -> Dictionary:
 	out["views"] = views
 	var ts := touch_screen()
 	if ts != null:
-		out["touch"] = ts.layout_report()
-		out["state"] = ts.state.snapshot()
-		var content := ts.tab_content(ts.state.active_tab)
-		if content is WidgetGallery:
-			var g := content as WidgetGallery
-			out["gallery"] = {"speed": g.slider.value, "snap": g.snap_slider.value, "trim": g.trim.value,
-				"mode": g.selector.current_value(), "msaa": g.text_selector.current_value(),
-				"host": g.host.text, "port": g.port.text, "presses": g.presses}
-		if content is HowardTab:
-			out["howard"] = {"index": (content as HowardTab).index}
-		if content is Robot3DTab:
-			var rows := {}
-			for key: String in (content as Robot3DTab).rows:
-				var r: Dictionary = (content as Robot3DTab).rows[key]
-				rows[key] = {"disabled": (r["slider"] as PwSlider).disabled, "value": (r["slider"] as PwSlider).value, "source": (r["source"] as Label).text}
-			out["robot3d"] = rows
+		out.merge(ts.call("probe"), true)
 		out["telemetry"] = {"manual": Telemetry.manual_joints.duplicate(), "targets": Telemetry.joint_targets.duplicate()}
-		out["driver"] = {"preset": ts.orbit.cam.preset, "theta": ts.orbit.cam.theta, "phi": ts.orbit.cam.phi, "dist": ts.orbit.cam.dist}
 	var mm: MinimapView = _main.call("minimap") if _main != null else null
 	if mm != null:
 		var p := mm.camera.global_position
@@ -308,7 +272,7 @@ func _run() -> void:
 		_failures.append("%d frame(s) rendered more than %d 3D SubViewports" % [_over_budget_frames, MAX_RENDERING_VIEWS])
 	var ts := touch_screen()
 	if ts != null:
-		report["touch"] = ts.layout_report()
+		report["touch"] = ts.call("layout_report")
 	report["os_windows"] = Array(DisplayServer.get_window_list())
 	report["nt"] = {"state": NT.client.state_name(), "fixture_mode": NT.fixture_mode}
 	report["anchors"] = _anchor_positions(images)

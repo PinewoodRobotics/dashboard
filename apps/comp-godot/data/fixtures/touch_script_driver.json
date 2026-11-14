@@ -2,7 +2,7 @@
   "extends": "touch_base",
   "input": [
     {"expect": {"driver.preset": 0}},
-    {"tap": "DriverView/Preset3"},
+    {"tap": "DriverView/PresetBar/Preset3"},
     {"wait_ms": 500},
     {"expect": {"driver.preset": 2}},
     {"mark": "turret"},
@@ -12,7 +12,7 @@
     {"expect": {"driver.theta": {"changed_since": "turret"}}},
     {"wait_ms": 1000},
     {"expect": {"driver.theta": {"same_as": "turret", "tol": 0.001}, "driver.phi": {"same_as": "turret", "tol": 0.001}, "driver.dist": {"same_as": "turret", "tol": 0.001}}},
-    {"tap": "DriverView/Preset1"},
+    {"tap": "DriverView/PresetBar/Preset1"},
     {"wait_ms": 500},
     {"expect": {"driver.preset": 0}}
   ]

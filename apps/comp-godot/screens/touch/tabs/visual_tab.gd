@@ -3,8 +3,8 @@ extends Control
 
 ## Visual settings (VisualTab.tsx, adapted): render scale, MSAA and frame cap
 ## apply live to every 3D viewport in both windows and persist; models can be
-## reloaded from disk; live renderer diagnostics. The web log-depth and blur
-## options have no counterpart here (blur is dropped, depth is fine as is).
+## reloaded from disk; live renderer diagnostics. Settings apply live instead
+## of through the web draft/Save flow. Log depth and panel blur are dropped.
 
 const SCALE_HINTS := [
 	{"min": 0.0, "text": "0.25x: for struggling hardware"},

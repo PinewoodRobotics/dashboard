@@ -1,8 +1,6 @@
 class_name UiKit
 extends RefCounted
 
-## Small builders for touchscreen labels and layout containers.
-
 
 static func label(text: String, size: int, weight: int = 400, color: Color = Tokens.TEXT) -> Label:
 	var l := Label.new()

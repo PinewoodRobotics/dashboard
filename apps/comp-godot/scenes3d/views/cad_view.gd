@@ -69,7 +69,6 @@ func is_rendering() -> bool:
 	return viewport != null and viewport.render_target_update_mode != SubViewport.UPDATE_DISABLED and is_visible_in_tree()
 
 
-## Views in the tree whose SubViewport renders 3D this frame.
 static func rendering_views(tree: SceneTree) -> Array:
 	return tree.get_nodes_in_group(GROUP).filter(func(v: CadView) -> bool: return v.is_rendering())
 

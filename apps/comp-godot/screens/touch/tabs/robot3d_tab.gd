@@ -1,7 +1,7 @@
 class_name Robot3DTab
 extends Control
 
-## Robot3DTab.tsx: an orbit view plus a 208 px column of joint debug sliders.
+## Robot3DTab.tsx: an orbit view plus a 240 px column (208 on the web; the topic lines need the room) of joint debug sliders.
 ## A joint follows NT while its topic is live (slider disabled, "NT live") and
 ## the slider otherwise ("Manual fallback"). Manual values live in Telemetry,
 ## in memory only. Topics are shown without the AdvantageKit outputs prefix.

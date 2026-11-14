@@ -12,7 +12,9 @@ extends Node
 var screen := "both"
 var windows := {}
 var hud: HudScreen
-var touch: TouchScreen
+## Untyped and loaded on demand so --screen=hud never compiles the touchscreen.
+const TOUCH_SCREEN := "res://screens/touch/touch_screen.gd"
+var touch: Control
 var _overlay: DebugOverlay
 var _args := {}
 
@@ -26,8 +28,6 @@ func _ready() -> void:
 	_start_nt()
 
 	if screen == "touch":
-		touch = TouchScreen.new()
-		add_child(touch)
 		windows["touch"] = root
 	else:
 		hud = HudScreen.new()
@@ -36,8 +36,6 @@ func _ready() -> void:
 		if screen == "both":
 			var w := WindowManager.create_touch_window(root, _args.has("design_size"))
 			add_child(w)
-			touch = TouchScreen.new()
-			w.add_child(touch)
 			windows["touch"] = w
 			var vs := DisplayServer.VSYNC_ENABLED if str(_args.get("vsync", "hud")) == "both" else DisplayServer.VSYNC_DISABLED
 			DisplayServer.window_set_vsync_mode(vs, w.get_window_id())
@@ -45,6 +43,14 @@ func _ready() -> void:
 	_overlay = DebugOverlay.new(NT)
 	_overlay.visible = _args.has("debug_overlay")
 	add_child(_overlay)
+
+	if windows.has("touch"):
+		# Compiling the touchscreen scripts costs about 100 ms; the first frame
+		# (the HUD in --screen=both) goes out before that.
+		await RenderingServer.frame_post_draw
+		touch = load(TOUCH_SCREEN).new()
+		var host: Node = self if screen == "touch" else windows["touch"]
+		host.add_child(touch)
 
 	Dev.attach(self)
 
@@ -87,10 +93,10 @@ func hud_screen() -> HudScreen:
 
 
 func orbit() -> RobotOrbitView:
-	return touch.orbit if touch != null else null
+	return touch.get("orbit") if touch != null else null
 
 
-func touch_screen() -> TouchScreen:
+func touch_screen() -> Control:
 	return touch
 
 

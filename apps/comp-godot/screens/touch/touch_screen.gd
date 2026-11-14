@@ -143,7 +143,6 @@ func make_tab(id: String) -> Control:
 	return PlaceholderTab.new(id)
 
 
-## Opens an overlay that is not in the tab list (Dev fixtures only).
 func open_dev_tab(id: String, factory: Callable) -> void:
 	dev_tabs[id] = factory
 	state.active_tab = id
@@ -255,7 +254,6 @@ func _process(delta: float) -> void:
 	step(delta)
 
 
-## Advances every transition by dt (the frame loop calls it; tests may too).
 func step(dt: float) -> void:
 	drawer_w.step(dt)
 	if _drawer_commit and not drawer_w.running:
@@ -400,6 +398,50 @@ func _finish_swipe(outcome: SwipeRecognizer.Outcome) -> void:
 
 func swiping() -> String:
 	return _swipe_target if _swipe != null and _swipe.is_tracking() else ""
+
+
+## Dev fixture "touch" section: open a state, finish every transition.
+func apply_fixture(tf: Dictionary) -> void:
+	if tf.has("active_tab"):
+		state.switch_tab(str(tf["active_tab"]))
+	if tf.get("dev_tab", "") == "gallery":
+		open_dev_tab("gallery", func() -> Control: return WidgetGallery.new())
+	if tf.has("open_panel"):
+		state.toggle_panel(str(tf["open_panel"]))
+	if tf.get("dock_open", false):
+		state.toggle_dock()
+	step(10.0)
+	var content := tab_content(state.active_tab)
+	if tf.has("howard_index") and content is HowardTab:
+		(content as HowardTab).show_index(int(tf["howard_index"]))
+	if tf.has("keyboard") and content != null:
+		var input := content.find_child(str(tf["keyboard"]), true, false) as PwTextInput
+		if input != null:
+			input.set_text(str(tf.get("keyboard_text", "")))
+			input.open_keyboard()
+	if tf.has("orbit_preset"):
+		orbit.apply_preset(int(tf["orbit_preset"]))
+
+
+## State for Dev scripted-input expectations.
+func probe() -> Dictionary:
+	var out := {"touch": layout_report(), "state": state.snapshot()}
+	var content := tab_content(state.active_tab)
+	if content is WidgetGallery:
+		var g := content as WidgetGallery
+		out["gallery"] = {"speed": g.slider.value, "snap": g.snap_slider.value, "trim": g.trim.value,
+			"mode": g.selector.current_value(), "msaa": g.text_selector.current_value(),
+			"host": g.host.text, "port": g.port.text, "presses": g.presses}
+	if content is HowardTab:
+		out["howard"] = {"index": (content as HowardTab).index}
+	if content is Robot3DTab:
+		var rows := {}
+		for key: String in (content as Robot3DTab).rows:
+			var r: Dictionary = (content as Robot3DTab).rows[key]
+			rows[key] = {"disabled": (r["slider"] as PwSlider).disabled, "value": (r["slider"] as PwSlider).value, "source": (r["source"] as Label).text}
+		out["robot3d"] = rows
+	out["driver"] = {"preset": orbit.cam.preset, "theta": orbit.cam.theta, "phi": orbit.cam.phi, "dist": orbit.cam.dist}
+	return out
 
 
 static func _r(r: Rect2) -> Array:
