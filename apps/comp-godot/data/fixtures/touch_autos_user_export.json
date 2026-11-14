@@ -1,0 +1,12 @@
+{"extends": "touch_m6_base",
+ "touch": {"active_tab": "auto"},
+ "input": [
+  {"expect": {"auto_tab.summary": "10 autos · event update · 2999-01-02 03:04 UTC", "auto_tab.card_count": 11,
+    "auto_tab.cards.Event Fix Auto.warning": "Not in the robot's auto list"}},
+  {"drag": {"from": "find:List", "to": {"node": "find:List", "offset": [0, -2000]}, "ms": 300}},
+  {"wait_ms": 300},
+  {"tap": "find:Card_Event_Fix_Auto"},
+  {"expect": {"auto_tab.viewing": "Event Fix Auto", "auto_tab.preview.auto": "Event Fix Auto", "auto_tab.no_preview": false}},
+  {"tap": "find:ReloadAutos"},
+  {"expect": {"auto_tab.summary": "10 autos · event update · 2999-01-02 03:04 UTC", "auto_tab.viewing": "Event Fix Auto"}}
+ ]}

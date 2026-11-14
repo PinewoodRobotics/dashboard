@@ -230,3 +230,81 @@ func test_failed_library_shows_a_retry_row_that_reloads() -> void:
 	check_eq(t.cards.size(), autos.library.names().size() + 1, "the cards come back")
 	check(t.card(AutoTab.RETRY) == null, "status row gone")
 	autos.queue_free()
+
+
+func _copy_export(to: String, exported_at: String, extra: String = "") -> void:
+	DirAccess.make_dir_recursive_absolute(to)
+	var src := ProjectSettings.globalize_path(AutoLibrary.BUILTIN_DIR)
+	for f in DirAccess.get_files_at(src):
+		if f.ends_with(".json"):
+			DirAccess.copy_absolute(src.path_join(f), to.path_join(f))
+	var idx: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(to.path_join("index.json")))
+	idx["exported_at"] = exported_at
+	if extra != "":
+		var e: Dictionary = (idx["autos"][0] as Dictionary).duplicate(true)
+		var body: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(to.path_join(str(e["file"]))))
+		body["name"] = extra
+		e["name"] = extra
+		e["file"] = extra + ".json"
+		idx["autos"].append(e)
+		var bf := FileAccess.open(to.path_join(extra + ".json"), FileAccess.WRITE)
+		bf.store_string(JSON.stringify(body))
+		bf.close()
+	var out := FileAccess.open(to.path_join("index.json"), FileAccess.WRITE)
+	out.store_string(JSON.stringify(idx))
+	out.close()
+
+
+func test_reload_autos_picks_up_a_newer_user_export() -> void:
+	var user := dir.path_join("user_autos")
+	var autos := AutosService.new()
+	autos.library_dirs = [user, AutoLibrary.BUILTIN_DIR]
+	tree.root.add_child(autos)
+	var t := AutoTab.new()
+	t.controls = controls
+	t.autos = autos
+	t.size = host.size
+	host.add_child(t)
+	t.set_process(false)
+	check_eq(autos.library.dir, AutoLibrary.BUILTIN_DIR)
+	check(t.list_summary.text.begins_with("9 autos · built-in · "), t.list_summary.text)
+	_copy_export(user, "2999-01-02T03:04:05Z", "Event Fix Auto")
+	t.reload_button.pressed.emit()
+	check_eq(autos.library.dir, user, "Reload Autos loads the newer export")
+	check_eq(t.list_summary.text, "10 autos · event update · 2999-01-02 03:04 UTC")
+	check(t.card("Event Fix Auto") != null, "the new auto has a card")
+	check(autos.library.get_auto("Event Fix Auto") != null)
+	autos.queue_free()
+
+
+func test_robot_only_autos_get_cards_without_preview() -> void:
+	var autos := AutosService.new()
+	tree.root.add_child(autos)
+	controls.autos = autos
+	controls.sync.set_library(autos.library.names())
+	var t := AutoTab.new()
+	t.controls = controls
+	t.autos = autos
+	t.size = host.size
+	host.add_child(t)
+	t.set_process(false)
+	var base := t.cards.size()
+	link.up = true
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(autos.library.names()) + PackedStringArray(["Fresh Auto"])
+	link.values[STATE] = "Stay And Shoot"
+	controls.step()
+	t.refresh()
+	check_eq(t.cards.size(), base + 1)
+	var c := t.card("Fresh Auto")
+	check(c != null and c.file.text == AutoTab.ROBOT_ONLY_FILE)
+	t.view("Fresh Auto")
+	check(t.no_preview.visible and not t.preview.visible)
+	check_eq(t.detail_title.text, "Fresh Auto")
+	check_eq(t.select_button.text, "Select")
+	t._on_select()
+	check_eq(link.last(REQ), "Fresh Auto")
+	link.up = false
+	controls.step()
+	t.refresh()
+	check(t.card("Fresh Auto") != null, "kept while the robot is away")
+	autos.queue_free()

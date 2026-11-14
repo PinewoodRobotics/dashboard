@@ -209,8 +209,17 @@ func test_library_clears_unknown_and_fixes_case() -> void:
 	var seen: Array = []
 	s.selection_changed.connect(func(v: String) -> void: seen.append(v))
 	s.set_library(PackedStringArray(NAMES))
+	check_eq(s.selected, "Gone Auto", "kept until the robot's list can confirm it")
+	check(not s.enforceable(), "an unconfirmed choice is never published")
+	link.up = true
+	link.values[T["state"]] = "Stay And Shoot"
+	_tick(s, 1.0)
+	check_eq(link.count(T["request"]), 0, "nothing published while the robot's list is missing")
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(NAMES)
+	s.update()
 	check_eq(s.selected, "")
 	check_eq(seen, [""])
+	check_eq(link.count(T["request"]), 0)
 	var s2 := AutoSelectionSync.new(link, clock, T, "stay and shoot")
 	s2.set_library(PackedStringArray(NAMES))
 	check_eq(s2.selected, "Stay And Shoot")
@@ -245,3 +254,52 @@ func test_topic_change_releases_old_publisher() -> void:
 	check_eq(link.released, PackedStringArray([T["request"]]))
 	s.update()
 	check_eq(link.last("/T/X/Request"), "Ball Shooter Left", "published on the new topic")
+
+
+func test_robot_only_autos_are_selectable_and_enforced() -> void:
+	var s := _sync("")
+	link.up = true
+	link.values[T["state"]] = "Stay And Shoot"
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(["Ball Shooter Left", "New Auto", "ball shooter right", "none", " "])
+	s.update()
+	check_eq(s.robot_only_names(), PackedStringArray(["New Auto"]), "library names match case-insensitively; blanks and none are skipped")
+	check_eq(s.all_names(), PackedStringArray(NAMES + ["New Auto"]))
+	check_eq(s.validity("New Auto"), AutoSelectionSync.Validity.OK)
+	check(s.select("New Auto"))
+	check_eq(link.last(T["request"]), "New Auto")
+	check_eq(s.active_name(), "New Auto")
+	check_eq(s.button_for("New Auto")["text"], "Selecting...")
+	link.values[T["state"]] = "New Auto"
+	_tick(s, 0.1)
+	check_eq(s.button_for("New Auto"), {"text": "Selected", "enabled": true, "selected": true})
+	link.values[T["state"]] = "Stay And Shoot"
+	var before := link.count(T["request"])
+	_tick(s, 1.0)
+	check(link.count(T["request"]) > before, "a robot-only choice is enforced like a library one")
+	check_eq(link.last(T["request"]), "New Auto")
+
+
+func test_robot_only_choice_survives_a_restart_without_the_robot() -> void:
+	var s := AutoSelectionSync.new(link, clock, T, "New Auto")
+	s.set_library(PackedStringArray(NAMES))
+	check_eq(s.selected, "New Auto")
+	check_eq(s.active_name(), "", "not highlighted before the robot lists it")
+	link.up = true
+	link.values[T["state"]] = "NONE"
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(["new auto", "Stay And Shoot"])
+	s.update()
+	check_eq(s.selected, "new auto", "takes the robot's spelling")
+	check_eq(link.last(T["request"]), "new auto", "published on connect once confirmed")
+	link.up = false
+	s.update()
+	check_eq(s.robot_only_names(), PackedStringArray(["new auto"]), "the last list is kept while disconnected")
+	check_eq(s.active_name(), "new auto")
+
+
+func test_robot_auto_outside_the_export_is_highlighted() -> void:
+	var s := _sync("")
+	link.up = true
+	link.values[T["state"]] = "New Auto"
+	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(["New Auto"])
+	s.update()
+	check_eq(s.active_name(), "New Auto")

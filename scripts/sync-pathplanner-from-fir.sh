@@ -13,19 +13,48 @@ APPLY_CHANGES=false
 AUTOS_ONLY=false
 SYNC_COMP=true
 SYNC_GODOT=true
+USER_DIR=""
+
+default_user_dir() {
+  case "$(uname -s)" in
+    Darwin) echo "${HOME}/Library/Application Support/PWRUP/CompDashboard" ;;
+    MINGW*|MSYS*|CYGWIN*)
+      if [[ -z "${APPDATA:-}" ]]; then
+        echo "APPDATA is not set; pass --user-dir=DIR" >&2
+        return 1
+      fi
+      if command -v cygpath >/dev/null 2>&1; then
+        echo "$(cygpath -u "${APPDATA}")/PWRUP/CompDashboard"
+      else
+        echo "${APPDATA}/PWRUP/CompDashboard"
+      fi
+      ;;
+    *) echo "${XDG_DATA_HOME:-${HOME}/.local/share}/PWRUP/CompDashboard" ;;
+  esac
+}
 
 print_help() {
   cat <<'EOF'
 Sync PathPlanner files from FIR into this dashboard repo.
 
 Usage:
-  ./scripts/sync-pathplanner-from-fir.sh [--apply] [--autos-only] [--godot-only | --no-godot]
+  ./scripts/sync-pathplanner-from-fir.sh [--apply] [--autos-only] [--godot-only | --no-godot] [--user-dir[=DIR]]
 
 Flags:
   --apply       Perform the copy (default is dry-run, which writes nothing).
   --autos-only  Sync only autos (skip paths).
   --godot-only  Skip apps/comp; only refresh the Godot dashboard copy and export.
   --no-godot    Skip the Godot dashboard step (apps/comp only, the old behavior).
+  --user-dir[=DIR]
+                After the Godot export, also copy it to DIR/autos, where an
+                installed dashboard picks it up (Reload Autos on the Auto tab,
+                or a restart) without re-exporting the app. DIR is the
+                dashboard's user data folder; the default is this machine's:
+                  Windows  %APPDATA%\PWRUP\CompDashboard
+                  macOS    ~/Library/Application Support/PWRUP/CompDashboard
+                  Linux    ~/.local/share/PWRUP/CompDashboard
+                Use a USB stick path to carry the export to another laptop and
+                copy its autos folder into that laptop's user data folder.
   --help        Show this help.
 
 The Godot step copies autos/, paths/ and settings.json to
@@ -58,6 +87,18 @@ while [[ $# -gt 0 ]]; do
       SYNC_GODOT=false
       shift
       ;;
+    --user-dir)
+      USER_DIR="$(default_user_dir)"
+      shift
+      ;;
+    --user-dir=*)
+      USER_DIR="${1#--user-dir=}"
+      if [[ -z "${USER_DIR}" ]]; then
+        echo "--user-dir= needs a directory" >&2
+        exit 1
+      fi
+      shift
+      ;;
     --help|-h)
       print_help
       exit 0
@@ -72,6 +113,11 @@ done
 
 if [[ "${SYNC_COMP}" == false && "${SYNC_GODOT}" == false ]]; then
   echo "--godot-only and --no-godot together leave nothing to sync" >&2
+  exit 1
+fi
+
+if [[ -n "${USER_DIR}" && "${SYNC_GODOT}" == false ]]; then
+  echo "--user-dir copies the Godot export; it cannot be combined with --no-godot" >&2
   exit 1
 fi
 
@@ -151,6 +197,19 @@ if [[ "${SYNC_GODOT}" == true ]]; then
     fi
     echo "Exporting autos for the Godot dashboard"
     (cd "${GODOT_ROOT}" && "${export_cmd[@]}")
+  fi
+  if [[ -n "${USER_DIR}" ]]; then
+    user_autos="${USER_DIR%/}/autos"
+    if [[ "${APPLY_CHANGES}" == false ]]; then
+      echo "Would copy ${GODOT_ROOT}/data/autos/ -> ${user_autos}/"
+    else
+      echo "Copying the export to ${user_autos}"
+      mkdir -p "${user_autos}"
+      # index.json goes last: the dashboard only trusts a folder whose index names files that exist.
+      rsync -a --delete --exclude index.json "${GODOT_ROOT}/data/autos/" "${user_autos}/"
+      rsync -a "${GODOT_ROOT}/data/autos/index.json" "${user_autos}/index.json"
+      echo "Autos copied: tap Reload Autos on the dashboard's Auto tab (or restart it)."
+    fi
   fi
 fi
 

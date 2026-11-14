@@ -7,7 +7,8 @@ extends RefCounted
 ## most once per THROTTLE_US. Ten State changes away from the choice within
 ## FLICKER_WINDOW_US raise the conflict popup (another dashboard is fighting).
 ## While /matchhud/state/enabled is live and true nothing is published.
-## The robot's ValidNames/Autos and SelectedAutoValid add a validity warning.
+## The robot's ValidNames/Autos and SelectedAutoValid add a validity warning,
+## and autos the robot lists but the export lacks are selectable too.
 
 signal selection_changed(selected: String)
 signal conflict_changed(shown: bool)
@@ -27,6 +28,8 @@ var clock: Clock
 var request_topic := ""
 var state_topic := ""
 var names := PackedStringArray()
+## Last ValidNames/Autos the robot published, kept across disconnects.
+var robot_names := PackedStringArray()
 ## "" = nothing chosen (mirror the robot), NONE = No Auto, else an auto name.
 var selected := ""
 var conflict := false
@@ -60,16 +63,66 @@ func set_topics(topics: Dictionary) -> void:
 	_last_sync_us = clock.now_us() - THROTTLE_US
 
 
-## Library names; a stored choice that no longer matches any of them is cleared.
+## Library names. A stored choice that matches neither them nor the robot's
+## live auto list is cleared; without a live list it waits, unpublished.
 func set_library(p_names: PackedStringArray) -> void:
 	names = p_names
+	_resolve_selected()
+
+
+func _resolve_selected() -> void:
 	if names.is_empty() or selected == "" or selected == NONE:
 		return
 	var m := find_match(selected, names)
-	if m == "":
-		_set_selected("")
-	elif m != selected:
+	if m == "" and robot_list_live():
+		m = find_match(selected, robot_list())
+		if m == "":
+			_set_selected("")
+			return
+	if m != "" and m != selected:
 		_set_selected(m)
+
+
+func robot_list_live() -> bool:
+	return link.connected() and link.live(Topics.PP_VALID_AUTOS)
+
+
+func robot_list() -> PackedStringArray:
+	if not robot_list_live():
+		return PackedStringArray()
+	var v: Variant = link.value(Topics.PP_VALID_AUTOS)
+	return PackedStringArray(v) if v is PackedStringArray or v is Array else PackedStringArray()
+
+
+func _refresh_robot_names() -> void:
+	if robot_list_live():
+		var l := robot_list()
+		if l != robot_names:
+			robot_names = l
+
+
+## Autos the robot has (as last listed) that the export lacks, robot order.
+func robot_only_names() -> PackedStringArray:
+	var out := PackedStringArray()
+	for n in robot_names:
+		var t := n.strip_edges()
+		if t != "" and t.to_upper() != NONE and find_match(t, names) == "" and find_match(t, out) == "":
+			out.append(t)
+	return out
+
+
+func all_names() -> PackedStringArray:
+	return names + robot_only_names()
+
+
+## Whether the choice may be published: No Auto, a library auto, or one the
+## robot lists.
+func enforceable() -> bool:
+	if selected == "":
+		return false
+	if selected == NONE or find_match(selected, names) != "":
+		return true
+	return find_match(selected, robot_names) != ""
 
 
 ## Exact name first, then a trimmed case-insensitive match (pathLibrary.ts).
@@ -116,14 +169,15 @@ func robot_auto() -> String:
 func active_name() -> String:
 	if selected == NONE:
 		return NONE
-	var local := find_match(selected, names)
+	var all := all_names()
+	var local := find_match(selected, all)
 	if local != "":
 		return local
 	if robot_known():
 		var r := robot_auto()
 		if r == NONE:
 			return ""
-		return find_match(r, names)
+		return find_match(r, all)
 	return ""
 
 
@@ -144,7 +198,7 @@ func select(choice: String) -> bool:
 
 func resync() -> bool:
 	_set_conflict(false)
-	if locked() or selected == "":
+	if locked() or not enforceable():
 		return false
 	_publish()
 	_last_sync_us = clock.now_us()
@@ -184,8 +238,11 @@ func update() -> void:
 	var is_locked := locked()
 	var known := robot_known()
 	var robot := robot_auto()
+	_refresh_robot_names()
+	_resolve_selected()
+	var enforce := enforceable()
 
-	if not connected or selected == "" or is_locked:
+	if not connected or not enforce or is_locked:
 		_mismatch_us.clear()
 		_prev_robot = robot
 	elif known:
@@ -198,7 +255,7 @@ func update() -> void:
 				_mismatch_us.clear()
 		_prev_robot = robot
 
-	if connected and selected != "" and not is_locked:
+	if connected and enforce and not is_locked:
 		var aligned := known and same_auto(robot, selected)
 		if (just_connected or not aligned) and now - _last_sync_us >= THROTTLE_US:
 			_publish()

@@ -3,9 +3,9 @@
   "touch": {"active_tab": "auto"},
   "input": [
     {"wait_for": {"nt_ready": true, "controls.auto.robot_known": true}, "timeout_ms": 8000},
-    {"drag": {"from": {"node": "find:List", "at": [300, 450]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
-    {"drag": {"from": {"node": "find:List", "at": [300, 450]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
-    {"drag": {"from": {"node": "find:List", "at": [300, 450]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:List", "at": [300, 420]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:List", "at": [300, 420]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:List", "at": [300, 420]}, "to": {"node": "find:List", "at": [300, 60]}, "ms": 250}},
     {"expect": {"auto_tab.list_scroll": {"ge": 1000}, "state.active_tab": "auto"}},
     {"tap": "find:Card_Move_Forward_And_Shoot_Left"},
     {"expect": {"auto_tab.viewing": "Move Forward And Shoot Left", "auto_tab.button": {"ne": "Selected"}}},

@@ -1,0 +1,19 @@
+{"extends": "touch_m6_base",
+ "nt": {"/AdvantageKit/RealOutputs/PathPlanner/ValidNames/Autos": ["Ball Shooter Left", "Ball Shooter Right", "Climber Right Left",
+      "Climber Right Middle", "Climber Right Right", "Move Forward And Shoot Center", "Move Forward And Shoot Left",
+      "Move Forward And Shoot Right", "Stay And Shoot", "Two Piece Outpost"]},
+ "touch": {"active_tab": "auto"},
+ "input": [
+  {"expect": {"auto_tab.card_count": 11, "auto_tab.robot_only": ["Two Piece Outpost"], "auto_tab.cards.Two Piece Outpost.warning": ""}},
+  {"drag": {"from": "find:List", "to": {"node": "find:List", "offset": [0, -2000]}, "ms": 300}},
+  {"wait_ms": 300},
+  {"tap": "find:Card_Two_Piece_Outpost"},
+  {"expect": {"auto_tab.viewing": "Two Piece Outpost", "auto_tab.no_preview": true, "auto_tab.preview": {},
+    "auto_tab.detail_file": "On the robot: no preview, not exported", "auto_tab.button": "Select", "auto_tab.button_enabled": true}},
+  {"screenshot": "detail"},
+  {"tap": "find:Select"},
+  {"expect": {"controls.auto.selected": "Two Piece Outpost", "controls.auto.last_wire": "Two Piece Outpost", "auto_tab.button": "Selecting..."}},
+  {"inject": {"/Shared/PathPlanner/SelectedPath/State": "Two Piece Outpost"}},
+  {"wait_for": {"auto_tab.button": "Selected", "auto_tab.cards.Two Piece Outpost.active": true, "controls.auto.validity": "OK"}},
+  {"screenshot": "selected"}
+ ]}

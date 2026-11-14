@@ -47,6 +47,9 @@ const ICONS = [
   "zap",
   "arrow-down-to-line",
   "monitor",
+  "maximize-2",
+  "minimize-2",
+  "eye-off",
 ];
 
 const icons = {};

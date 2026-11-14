@@ -29,9 +29,30 @@ for fx in touch_preview_blue touch_preview_red touch_preview_blue_field touch_pr
   touch_preview_noop touch_preview_turret touch_script_preview; do
   run "$fx" "$fx" --screen=touch
 done
-for fx in hud_auto_path hud_auto_mirror hud_auto_gone; do
+for fx in hud_auto_path hud_auto_mirror hud_auto_gone hud_auto_start_off; do
   run "$fx" "$fx" --screen=hud
 done
+for fx in touch_auto_long_names touch_auto_robot_only touch_script_preview_expand; do
+  run "$fx" "$fx" --screen=touch
+done
+USER_AUTOS="$OUT/user_autos"
+python3 - "$APP/data/autos" "$USER_AUTOS" <<'PY'
+import json, shutil, sys
+from pathlib import Path
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+shutil.rmtree(dst, ignore_errors=True)
+shutil.copytree(src, dst)
+idx = json.loads((dst / "index.json").read_text())
+first = dict(idx["autos"][0])
+body = json.loads((dst / first["file"]).read_text())
+body["name"] = first["name"] = "Event Fix Auto"
+first["file"] = "Event Fix Auto.json"
+(dst / first["file"]).write_text(json.dumps(body))
+idx["autos"].append(first)
+idx["exported_at"] = "2999-01-02T03:04:05Z"
+(dst / "index.json").write_text(json.dumps(idx))
+PY
+run touch_autos_user_export touch_autos_user_export --screen=touch --autos-dir="$USER_AUTOS"
 run both_script_preview both_script_preview --screen=both --perf-frames=300
 
 SETTINGS="$OUT/settings"
@@ -51,6 +72,13 @@ stop_fake
 python3 - "$OUT" <<'PY' || status=1
 import json, sys
 out = sys.argv[1]
+chips = {n: json.load(open(f"{out}/{n}.json"))["hud_layout"]["start_chip"] for n in ("hud_auto_path", "hud_auto_start_off", "hud_auto_mirror")}
+want = {"hud_auto_path": "On start pose (0.00 m / 0°)", "hud_auto_start_off": "Start pose off by 2.01 m / 32°", "hud_auto_mirror": ""}
+for n, text in want.items():
+    ok = chips[n]["text"] == text
+    print(f"{'ok  ' if ok else 'FAIL'} {n} start pose chip: {chips[n]['text']!r}")
+    if not ok:
+        sys.exit(1)
 r = json.load(open(f"{out}/both_script_preview.json"))
 perf = r["perf"]
 ok = perf["fps"] >= 0.97 * perf["max_fps_setting"] and r["max_rendering_views"] <= 2

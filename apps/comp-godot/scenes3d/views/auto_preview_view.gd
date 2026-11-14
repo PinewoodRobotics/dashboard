@@ -4,7 +4,9 @@ extends CadView
 ## Auto tab preview: the field, the ghost robot (the shared robot scene driven
 ## through RigSolver) at the shared preview frame, and the auto's path overlay.
 ## "path" frames the path from behind the alliance's driver stations, "field"
-## shows the whole field from the side with blue on the right.
+## shows the whole field from the side with blue on the right. Drag orbits
+## around the framed point, pinch or wheel zooms, two fingers (or right drag)
+## pan; a new auto or camera mode, or reset_view(), returns to the framing.
 
 enum CameraMode { PATH, FIELD }
 
@@ -12,16 +14,34 @@ const PITCH := deg_to_rad(58.0)
 const MIN_EXTENT := 4.5
 const ROBOT_H := 0.8
 const FIT_MARGIN := 0.9
+const MIN_VIEW_PITCH := deg_to_rad(8.0)
+const MAX_VIEW_PITCH := deg_to_rad(89.0)
+const ORBIT_RAD_PER_PX := 0.006
+const ZOOM_STEP := 0.9
+const MIN_DIST := 1.5
+const MAX_DIST := 40.0
 
 var autos: AutosService
 var overlay: AutoPathOverlay
 var camera_mode := CameraMode.PATH
+## Framed view {target, yaw, pitch, dist}; the user view starts from it.
+var home := {}
+## {} while the framed view is shown.
+var user_view := {}
 var _framed_key := ""
+var _base_key := ""
+var _view_dirty := false
+var _dragging := false
+var _pan_drag := false
+var _touches := {}
+var _pinch_dist := 0.0
+var _pinch_center := Vector2.ZERO
 
 
 func _init() -> void:
 	super()
 	with_field = true
+	add_to_group("pw_grab")
 
 
 func _setup() -> void:
@@ -38,6 +58,15 @@ func _setup() -> void:
 func set_camera_mode(mode: CameraMode) -> void:
 	camera_mode = mode
 	_framed_key = ""
+
+
+func user_moved() -> bool:
+	return not user_view.is_empty()
+
+
+func reset_view() -> void:
+	user_view = {}
+	_view_dirty = true
 
 
 func _process(_delta: float) -> void:
@@ -59,12 +88,34 @@ func show_frame(f: Dictionary, m: AutoMechanisms) -> void:
 	robot.set_alliance(side == AutoPlayback.RED)
 	var target: Vector2 = f["aim_target"]
 	overlay.set_aim(FieldFrame.to_world(p.x, p.y), FieldFrame.to_world(target.x, target.y), f["aim"])
-	var framing := "%s|%s|%s" % [overlay.key, camera_mode, size]
+	var base := "%s|%s" % [overlay.key, camera_mode]
+	var framing := "%s|%s" % [base, size]
 	if apply_camera_override():
 		_framed_key = ""
-	elif framing != _framed_key and size.x >= 1.0 and size.y >= 1.0:
+		return
+	if framing != _framed_key and size.x >= 1.0 and size.y >= 1.0:
 		_framed_key = framing
+		if base != _base_key:
+			_base_key = base
+			user_view = {}
 		_place_camera(m, side)
+		_view_dirty = true
+	if _view_dirty and not home.is_empty():
+		_view_dirty = false
+		_apply_view(user_view if user_moved() else home)
+
+
+func _apply_view(v: Dictionary) -> void:
+	var target: Vector3 = v["target"]
+	camera.look_at_from_position(target + spherical(v["yaw"], v["pitch"]) * float(v["dist"]), target, Vector3.UP)
+
+
+static func spherical(yaw: float, pitch: float) -> Vector3:
+	return Vector3(cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw))
+
+
+static func view_of(target: Vector3, back: Vector3, dist: float) -> Dictionary:
+	return {"target": target, "yaw": atan2(back.x, back.z), "pitch": asin(clampf(back.y, -1.0, 1.0)), "dist": dist}
 
 
 func _place_camera(m: AutoMechanisms, side: StringName) -> void:
@@ -74,7 +125,7 @@ func _place_camera(m: AutoMechanisms, side: StringName) -> void:
 		var hz := FieldFrame.HALF_WIDTH_M
 		var corners := PackedVector3Array([Vector3(-hx, 0, -hz), Vector3(hx, 0, -hz), Vector3(-hx, 0, hz), Vector3(hx, 0, hz)])
 		var side_back := view_back(Vector3.BACK)
-		camera.look_at_from_position(side_back * fit_distance(corners, Vector3.ZERO, camera.fov, aspect, side_back), Vector3.ZERO, Vector3.UP)
+		home = view_of(Vector3.ZERO, side_back, fit_distance(corners, Vector3.ZERO, camera.fov, aspect, side_back))
 		return
 	var pts := PackedVector3Array()
 	if m.playback.has_path():
@@ -98,8 +149,119 @@ func _place_camera(m: AutoMechanisms, side: StringName) -> void:
 		for e: Vector3 in ends:
 			pts.append(e + c * 0.5)
 	var back := view_back(driver_side(side))
-	var dist := fit_distance(pts, center, camera.fov, aspect, back)
-	camera.look_at_from_position(center + back * dist, center, Vector3.UP)
+	home = view_of(center, back, fit_distance(pts, center, camera.fov, aspect, back))
+
+
+func _user() -> Dictionary:
+	if user_view.is_empty():
+		user_view = home.duplicate()
+	_view_dirty = true
+	return user_view
+
+
+func orbit(dx_px: float, dy_px: float) -> void:
+	if home.is_empty():
+		return
+	var v := _user()
+	v["yaw"] = float(v["yaw"]) - dx_px * ORBIT_RAD_PER_PX
+	v["pitch"] = clampf(float(v["pitch"]) + dy_px * ORBIT_RAD_PER_PX, MIN_VIEW_PITCH, MAX_VIEW_PITCH)
+
+
+## factor < 1 moves closer.
+func zoom_by(factor: float) -> void:
+	if home.is_empty() or not is_finite(factor) or factor <= 0.0:
+		return
+	var v := _user()
+	v["dist"] = clampf(float(v["dist"]) * factor, MIN_DIST, MAX_DIST)
+
+
+## Moves the target on the carpet so the scene follows a drag of (dx, dy) px.
+func pan(dx_px: float, dy_px: float) -> void:
+	if home.is_empty() or size.y < 1.0:
+		return
+	var v := _user()
+	var m_per_px := 2.0 * float(v["dist"]) * tan(deg_to_rad(camera.fov) * 0.5) / size.y
+	var yaw := float(v["yaw"])
+	var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+	var toward := Vector3(sin(yaw), 0.0, cos(yaw))
+	var t: Vector3 = v["target"] - right * dx_px * m_per_px - toward * dy_px * m_per_px
+	var lim := Vector3(FieldFrame.HALF_LENGTH_M, 0.0, FieldFrame.HALF_WIDTH_M) + Vector3.ONE * 2.0
+	t = t.clamp(-lim, lim)
+	t.y = 0.0
+	v["target"] = t
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_touches[st.index] = st.position
+		else:
+			_touches.erase(st.index)
+		_pinch_dist = _touch_spread()
+		_pinch_center = _touch_center()
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		_touches[sd.index] = sd.position
+		if _touches.size() >= 2:
+			var spread := _touch_spread()
+			var c := _touch_center()
+			if _pinch_dist > 0.0 and spread > 0.0:
+				zoom_by(_pinch_dist / spread)
+				pan(c.x - _pinch_center.x, c.y - _pinch_center.y)
+			_pinch_dist = spread
+			_pinch_center = c
+		accept_event()
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			_dragging = mb.pressed
+			accept_event()
+		elif mb.button_index == MOUSE_BUTTON_RIGHT or mb.button_index == MOUSE_BUTTON_MIDDLE:
+			_pan_drag = mb.pressed
+			accept_event()
+		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom_by(ZOOM_STEP)
+			accept_event()
+		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom_by(1.0 / ZOOM_STEP)
+			accept_event()
+	elif event is InputEventMagnifyGesture:
+		zoom_by(1.0 / maxf((event as InputEventMagnifyGesture).factor, 0.01))
+	elif event is InputEventPanGesture:
+		var pg := event as InputEventPanGesture
+		pan(-pg.delta.x * 8.0, -pg.delta.y * 8.0)
+	elif event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if _touches.size() >= 2:
+			return
+		if _pan_drag:
+			pan(mm.relative.x, mm.relative.y)
+		elif _dragging:
+			orbit(mm.relative.x, mm.relative.y)
+
+
+func _touch_spread() -> float:
+	if _touches.size() < 2:
+		return 0.0
+	var pts: Array = _touches.values()
+	return (pts[0] as Vector2).distance_to(pts[1])
+
+
+func _touch_center() -> Vector2:
+	if _touches.size() < 2:
+		return Vector2.ZERO
+	var pts: Array = _touches.values()
+	return ((pts[0] as Vector2) + (pts[1] as Vector2)) * 0.5
+
+
+func camera_report() -> Dictionary:
+	var v := user_view if user_moved() else home
+	if v.is_empty():
+		return {}
+	var t: Vector3 = v["target"]
+	return {"user": user_moved(), "yaw": v["yaw"], "pitch": v["pitch"], "dist": v["dist"], "target": [t.x, t.y, t.z],
+		"home_dist": home["dist"]}
 
 
 ## Horizontal direction from the field center to the alliance's driver

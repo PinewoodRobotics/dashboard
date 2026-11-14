@@ -15,6 +15,7 @@ var minimap: MinimapView
 var banner: ConnectionBanner
 var toast: LaneToastView
 var auto_label: AutoLabel
+var start_chip: StartChip
 var autos: AutosService
 var _toast_count := -1
 
@@ -46,13 +47,58 @@ class AutoLabel:
 		row.add_child(time)
 		add_child(row)
 
-	func show_auto(display: String, mirror: bool, t: float) -> void:
+	func show_auto(display: String, mirror: bool, t: float, has_preview: bool = true) -> void:
 		kind.text = "PREVIEW" if mirror else "AUTO"
 		title.text = display
-		time.text = "%05.2f s" % t if mirror else ""
-		time.visible = mirror
+		time.text = "%05.2f s" % t if mirror else ("no preview" if not has_preview else "")
+		time.visible = time.text != ""
 		reset_size()
 		position = Vector2(roundf(HudLayout.MINIMAP.get_center().x - size.x * 0.5), HudLayout.MINIMAP.position.y + 14.0)
+
+
+## Live robot pose against the shown auto's start pose, under the auto label.
+class StartChip:
+	extends PanelContainer
+	const AMBER := Color("#fbbf24")
+	var icon := PwIcon.new("crosshair", 24, AMBER)
+	var text := UiKit.label("", 24, 600, AMBER)
+	var level := -1
+	var _sb := PwBox.new()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_sb.set_corner_radius_all(10)
+		_sb.set_border_width_all(2)
+		_sb.content_margin_left = 14
+		_sb.content_margin_right = 16
+		_sb.content_margin_top = 4
+		_sb.content_margin_bottom = 4
+		add_theme_stylebox_override("panel", _sb)
+		var row := UiKit.hbox(10)
+		row.add_child(icon)
+		text.add_theme_font_override("font", Tokens.inter_tabular(600))
+		row.add_child(text)
+		add_child(row)
+
+	func show_check(c: Dictionary, below: Control) -> void:
+		level = c["level"]
+		var col: Color = StartChip.color_for(level)
+		_sb.bg_color = Color(0, 0, 0, 0.72)
+		_sb.border_color = Color(col, 0.7)
+		icon.color = col
+		icon.icon_name = "circle-check" if level == StartPoseCheck.Level.OK else "crosshair"
+		text.add_theme_color_override("font_color", col)
+		text.text = StartPoseCheck.text(c)
+		reset_size()
+		position = Vector2(roundf(HudLayout.MINIMAP.get_center().x - size.x * 0.5), below.position.y + below.size.y + 8.0)
+
+	static func color_for(l: int) -> Color:
+		match l:
+			StartPoseCheck.Level.OK:
+				return Tokens.ACCENT
+			StartPoseCheck.Level.OFF:
+				return AMBER
+		return Tokens.ZINC_400
 
 
 func _ready() -> void:
@@ -105,6 +151,10 @@ func _ready() -> void:
 	auto_label.name = "AutoLabel"
 	auto_label.visible = false
 	add_child(auto_label)
+	start_chip = StartChip.new()
+	start_chip.name = "StartChip"
+	start_chip.visible = false
+	add_child(start_chip)
 
 	toast = LaneToastView.new()
 	toast.name = "LaneToast"
@@ -163,7 +213,11 @@ func _refresh_auto_label() -> void:
 	auto_label.visible = name_ != ""
 	if auto_label.visible:
 		var mirror: bool = hud.get("mirror", false)
-		auto_label.show_auto(autos.library.display_name(name_), mirror, autos.clock.t)
+		auto_label.show_auto(autos.library.display_name(name_), mirror, autos.clock.t, autos.library.get_auto(name_) != null)
+	var check: Dictionary = hud.get("start", {})
+	start_chip.visible = auto_label.visible and not check.is_empty()
+	if start_chip.visible:
+		start_chip.show_check(check, auto_label)
 
 
 func displayed_total() -> String:
@@ -181,6 +235,8 @@ func layout_report() -> Dictionary:
 		"toast": {"visible": toast.visible, "rect": _r(Rect2(toast.position, toast.size)), "text": toast.text() if toast.visible else ""},
 		"auto_label": {"visible": auto_label.visible, "rect": _r(Rect2(auto_label.position, auto_label.size)),
 			"text": "%s %s %s" % [auto_label.kind.text, auto_label.title.text, auto_label.time.text] if auto_label.visible else ""},
+		"start_chip": {"visible": start_chip.visible, "rect": _r(Rect2(start_chip.position, start_chip.size)),
+			"text": start_chip.text.text if start_chip.visible else "", "level": start_chip.level if start_chip.visible else -1},
 		"minimap_auto": {"overlay": minimap.auto_overlay.visible, "key": minimap.auto_overlay.key, "mirroring": minimap.mirroring},
 	}
 	return out

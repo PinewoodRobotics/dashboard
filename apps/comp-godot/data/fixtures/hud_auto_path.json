@@ -4,4 +4,5 @@
  "controls": {"selected_auto": "Move Forward And Shoot Center"},
  "probes": [
   {"name": "auto label text", "window": "hud", "at": [700, 490, 520, 50], "kind": "color", "color": "#70cd35", "tol": 0.1, "min_fraction": 0.01},
-  {"name": "path ribbon in the minimap", "window": "hud", "at": [540, 560, 840, 520], "kind": "color", "color": "#70cd35", "tol": 0.12, "min_fraction": 0.001}]}
+  {"name": "path ribbon in the minimap", "window": "hud", "at": [540, 560, 840, 520], "kind": "color", "color": "#70cd35", "tol": 0.12, "min_fraction": 0.001},
+  {"name": "green start pose chip", "window": "hud", "at": [640, 548, 640, 44], "kind": "color", "color": "#70cd35", "tol": 0.1, "min_fraction": 0.03}]}

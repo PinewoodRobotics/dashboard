@@ -11,6 +11,8 @@ extends RefCounted
 ##   {"tap": P}  {"swipe": {"from": P, "to": P, "ms": 250}}
 ##   {"hold_drag": {"from": P, "to": P, "hold_ms": 350, "ms": 300, "release": true}}
 ##   {"drag": {"from": P, "to": P, "ms": 300}} (no hold)   {"release": P}   {"wait_ms": N}
+##   {"pinch": {"at": P, "from": px, "to": px, "pan": [dx, dy], "ms": 300}} two touches
+##     spread horizontally from `from` to `to` px apart while their midpoint moves by pan
 ##   {"mouse": true|false}  {"window": "touch"|"hud"}  {"mark": "name"}
 ##   {"expect": {"dotted.path": value | {"ne": v} | {"le": v} | {"ge": v} | {"near": v, "tol": t}
 ##     | {"changed_since": "mark"} | {"same_as": "mark", "tol": t}}}
@@ -59,6 +61,8 @@ func run(steps: Array, prefix: String) -> void:
 			await _stroke(s["swipe"], 0.0)
 		if s.has("drag"):
 			await _stroke(s["drag"], 0.0)
+		if s.has("pinch"):
+			await _pinch(s["pinch"])
 		if s.has("hold_drag"):
 			await _stroke(s["hold_drag"], float(s["hold_drag"].get("hold_ms", 350)) / 1000.0)
 		if s.has("mark"):
@@ -148,6 +152,47 @@ func _stroke(spec: Dictionary, hold_s: float) -> void:
 	if spec.get("release", true):
 		await _frames(1)
 		await _up(b)
+	await _frames(2)
+
+
+func _pinch(spec: Dictionary) -> void:
+	var c0 := _pos(spec["at"])
+	var pan: Array = spec.get("pan", [0, 0])
+	var c1 := c0 + Vector2(pan[0], pan[1])
+	var d0 := float(spec.get("from", 200)) * 0.5
+	var d1 := float(spec.get("to", 200)) * 0.5
+	var ms := float(spec.get("ms", 300))
+	var n := maxi(2, int(spec.get("steps", 12)))
+	var wid := _window().get_window_id()
+	var finger := func(i: int, c: Vector2, d: float) -> Vector2: return c + Vector2(d if i == 1 else -d, 0)
+	for i in 2:
+		var t := InputEventScreenTouch.new()
+		t.window_id = wid
+		t.index = i
+		t.pressed = true
+		t.position = _to_window(finger.call(i, c0, d0))
+		Input.parse_input_event(t)
+		await _frames(1)
+	for k in range(1, n + 1):
+		var f := float(k) / n
+		for i in 2:
+			var prev: Vector2 = finger.call(i, c0.lerp(c1, float(k - 1) / n), lerpf(d0, d1, float(k - 1) / n))
+			var now: Vector2 = finger.call(i, c0.lerp(c1, f), lerpf(d0, d1, f))
+			var e := InputEventScreenDrag.new()
+			e.window_id = wid
+			e.index = i
+			e.position = _to_window(now)
+			e.relative = _window().get_final_transform().basis_xform(now - prev)
+			Input.parse_input_event(e)
+		await _sleep(ms / 1000.0 / n)
+	for i in [1, 0]:
+		var t := InputEventScreenTouch.new()
+		t.window_id = wid
+		t.index = i
+		t.pressed = false
+		t.position = _to_window(finger.call(i, c1, d1))
+		Input.parse_input_event(t)
+		await _frames(1)
 	await _frames(2)
 
 

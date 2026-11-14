@@ -1,11 +1,13 @@
 class_name AutoPreviewPanel
 extends PanelContainer
 
-## Auto tab preview: 3D view with mechanism chips, camera toggle, no-path note
-## and an event feed, then the scrub bar and the transport row (play/pause,
-## restart, time, speed, loop, alliance). Everything reads and drives the
-## shared clock in Autos, so the HUD mirrors exactly what plays here. Leaving
-## the tab pauses playback.
+## Auto tab preview: 3D view with mechanism chips, camera toggle, reset-view
+## and expand buttons, no-path note and an event feed, then the scrub bar and
+## the transport row (play/pause, restart, time, speed, loop, alliance).
+## Everything reads and drives the shared clock in Autos, so the HUD mirrors
+## exactly what plays here. Leaving the tab pauses playback.
+
+signal expand_toggled(on: bool)
 
 const RED := Color("#dd1111")
 const BLUE := Color("#1111dd")
@@ -19,6 +21,9 @@ var restart_button: PwButton
 var loop_button: PwButton
 var alliance_button: AllianceButton
 var camera_button: PwButton
+var expand_button: PwButton
+var reset_view_button: PwButton
+var expanded := false
 var speed_buttons: Array[PwButton] = []
 var time_label: Label
 var chips := {}
@@ -38,6 +43,15 @@ class AllianceButton:
 	func _colors() -> Dictionary:
 		var bg := RED if red else BLUE
 		return {"bg": bg.darkened(0.25) if is_down() else bg, "border": Color(0, 0, 0, 0), "text": Color.WHITE}
+
+
+## Over the 3D view, readable on the light carpet as well as the dark sky.
+class OverlayButton:
+	extends PwButton
+
+	func _colors() -> Dictionary:
+		return {"bg": Color(0.16, 0.16, 0.16, 0.92) if is_down() else Color(0.08, 0.08, 0.08, 0.78),
+			"border": Color(1, 1, 1, 0.14), "text": Color(1, 1, 1, 0.85)}
 
 
 class Chip:
@@ -117,17 +131,30 @@ func _ready() -> void:
 		chip_row.add_child(chips[k])
 	stage.add_child(chip_row)
 
-	camera_button = PwButton.new("Path", PwButton.Style.GHOST, Vector2(108, 40))
+	camera_button = OverlayButton.new("Path", PwButton.Style.GHOST, Vector2(108, 40))
 	camera_button.name = "CameraMode"
 	camera_button.icon_name = "route"
 	camera_button.font_size = 18
 	camera_button.pressed.connect(_toggle_camera)
-	camera_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	camera_button.offset_left = -116
-	camera_button.offset_right = -8
-	camera_button.offset_top = 8
-	camera_button.offset_bottom = 48
+	_top_right(camera_button, 64, 108)
 	stage.add_child(camera_button)
+
+	expand_button = OverlayButton.new("", PwButton.Style.GHOST, Vector2(48, 40))
+	expand_button.name = "Expand"
+	expand_button.icon_name = "maximize-2"
+	expand_button.font_size = 20
+	expand_button.pressed.connect(func() -> void: expand_toggled.emit(not expanded))
+	_top_right(expand_button, 8, 48)
+	stage.add_child(expand_button)
+
+	reset_view_button = OverlayButton.new("", PwButton.Style.GHOST, Vector2(48, 40))
+	reset_view_button.name = "ResetView"
+	reset_view_button.icon_name = "locate-fixed"
+	reset_view_button.font_size = 20
+	reset_view_button.pressed.connect(func() -> void: view.reset_view())
+	_top_right(reset_view_button, 180, 48)
+	reset_view_button.visible = false
+	stage.add_child(reset_view_button)
 
 	no_path = PanelContainer.new()
 	no_path.name = "NoPath"
@@ -195,6 +222,20 @@ func _ready() -> void:
 	refresh()
 
 
+static func _top_right(c: Control, right: float, w: float) -> void:
+	c.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	c.offset_left = -right - w
+	c.offset_right = -right
+	c.offset_top = 8
+	c.offset_bottom = 48
+
+
+func set_expanded_icon(on: bool) -> void:
+	expanded = on
+	expand_button.icon_name = "minimize-2" if on else "maximize-2"
+	expand_button.queue_redraw()
+
+
 func _button(n: String, text: String, icon: String, min_size: Vector2, style: PwButton.Style = PwButton.Style.DARK) -> PwButton:
 	var b := PwButton.new(text, style, min_size)
 	b.name = n
@@ -219,6 +260,7 @@ func _toggle_camera() -> void:
 
 func set_camera(field: bool) -> void:
 	view.set_camera_mode(AutoPreviewView.CameraMode.FIELD if field else AutoPreviewView.CameraMode.PATH)
+	view.reset_view()
 	camera_button.text = "Field" if field else "Path"
 	camera_button.icon_name = "map" if field else "route"
 
@@ -270,6 +312,7 @@ func refresh() -> void:
 		alliance_button.text = "Red" if red else "Blue"
 		alliance_button.icon_name = "lock" if known else ""
 		alliance_button.disabled = known
+	reset_view_button.visible = view.user_moved()
 	var f := autos.frame
 	chips["aim"].set_on(not f.is_empty() and f["aim"])
 	chips["aim"].text.text = "Aim · default cmd" if not f.is_empty() and f["aim_source"] == "default" else "Aim"
@@ -295,7 +338,8 @@ func _update_feed(c: AutoClock) -> void:
 func probe() -> Dictionary:
 	var out := {"auto": auto_name, "no_path": no_path.visible, "time": time_label.text, "feed": feed.text if feed_box.visible else "",
 		"play_icon": play_button.icon_name, "camera": camera_button.text, "alliance_button": alliance_button.text,
-		"alliance_enabled": not alliance_button.disabled, "chips": {}, "scrub": scrub.report(), "rendering": view.is_rendering()}
+		"alliance_enabled": not alliance_button.disabled, "chips": {}, "scrub": scrub.report(), "rendering": view.is_rendering(),
+		"expanded": expanded, "view_size": [view.size.x, view.size.y], "view_camera": view.camera_report(), "reset_view": reset_view_button.visible}
 	for k: String in chips:
 		out["chips"][k] = chips[k].on
 	var m := autos.preview_mechanisms() if autos != null else null

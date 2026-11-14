@@ -62,6 +62,10 @@ func step(dt: float) -> void:
 	joint_values = rig.step(joint_targets, dt)
 
 
+func pose_live() -> bool:
+	return nt != null and nt.is_live(POSE_X) and nt.is_live(POSE_Y) and nt.is_live(POSE_HEADING)
+
+
 func smoothed_pose() -> Vector3:
 	return Vector3(smoother.x, smoother.y, smoother.heading)
 

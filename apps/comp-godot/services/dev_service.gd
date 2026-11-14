@@ -17,6 +17,7 @@ extends Node
 ##                        sampling, recording memory, object counts, NT state and
 ##                        match phases every --sample-s (default 10) into "soak"
 ##   --quit-file=PATH     end a --run-s run early once PATH exists
+##   --autos-dir=PATH     auto export folder used instead of user://autos
 ##   --nt-trace=PATH      append every NT client state change as a JSON line
 ##                        {"unix": seconds, "state": name}, from launch on
 ## The process exits non-zero when a probe fails or the models never appear.

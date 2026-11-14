@@ -57,6 +57,12 @@ func _init(p_name: String, display: String, file_name: String, description: Stri
 	add_child(box)
 
 
+## An auto the robot lists that the dashboard's export lacks.
+func mark_robot_only() -> void:
+	file.add_theme_color_override("font_color", AMBER)
+	file.visible = true
+
+
 func set_state(active: bool, viewing: bool, warning_text: String) -> void:
 	var key := "%s|%s|%s" % [active, viewing, warning_text]
 	if key == _state:

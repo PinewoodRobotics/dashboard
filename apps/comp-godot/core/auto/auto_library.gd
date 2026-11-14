@@ -18,10 +18,6 @@ var error := ""
 var _cache := {}
 
 
-static func load_default() -> AutoLibrary:
-	return load_best([USER_DIR, BUILTIN_DIR])
-
-
 ## Picks the newest valid export among dirs (ties go to the earlier dir).
 static func load_best(dirs: Array) -> AutoLibrary:
 	var best: AutoLibrary = null

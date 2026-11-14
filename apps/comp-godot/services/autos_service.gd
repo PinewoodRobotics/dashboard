@@ -17,6 +17,9 @@ const TURRET_DEFAULT_AIMS := true
 var library := AutoLibrary.new()
 var clock := AutoClock.new()
 var time_source := Clock.new()
+## Searched by reload(), newest valid export wins (AutoLibrary.load_best).
+## --autos-dir=PATH replaces the user folder for a test run.
+var library_dirs: Array = [AutoLibrary.USER_DIR, AutoLibrary.BUILTIN_DIR]
 var preview_name := ""
 var config := AutoMechanisms.load_config()
 var rig := RigSolver.load_default()
@@ -42,11 +45,13 @@ func _ready() -> void:
 	var dev := get_node_or_null("/root/Dev") as DevService
 	if dev != null and dev.offline_fixture() and not bool(dev.fixture.get("preview", {}).get("realtime", false)):
 		time_source.freeze()
+	if dev != null and dev.args.has("autos_dir"):
+		library_dirs = [str(dev.args["autos_dir"]), AutoLibrary.BUILTIN_DIR]
 	reload()
 
 
 func reload() -> void:
-	library = AutoLibrary.load_default()
+	library = AutoLibrary.load_best(library_dirs)
 	_mechanisms.clear()
 	if not library.is_loaded():
 		push_warning("autos: " + library.error)
@@ -139,14 +144,28 @@ func _update_frame() -> void:
 	frame = frame_at(m, clock.t, alliance()) if m != null else {}
 
 
-## The auto the robot reports in its State, when it names a library auto.
+## The auto the robot reports in its State, when it names a library auto or
+## one the robot lists that the export lacks (no preview).
 func robot_auto() -> String:
 	if controls == null or controls.sync == null or not controls.sync.robot_known():
 		return ""
 	var r := controls.sync.robot_auto()
 	if r == AutoSelectionSync.NONE:
 		return ""
-	return AutoSelectionSync.find_match(r, library.names())
+	var m := AutoSelectionSync.find_match(r, library.names())
+	return m if m != "" else AutoSelectionSync.find_match(r, controls.sync.robot_only_names())
+
+
+## StartPoseCheck.compare of the live robot pose with the auto's first pose
+## for the current alliance; {} without a live pose or a path.
+func start_check(auto_name: String) -> Dictionary:
+	_bind()
+	if auto_name == "" or telemetry == null or not telemetry.pose_live():
+		return {}
+	var m := mechanisms(auto_name)
+	if m == null or not m.playback.has_path():
+		return {}
+	return StartPoseCheck.compare(telemetry.pose_raw, m.pose_at(0.0, alliance()), telemetry.pose_valid)
 
 
 static func hud_state(pre_match: bool, confirmed: String, preview_auto: String, preview_active: bool) -> Dictionary:
@@ -161,6 +180,7 @@ func _update_hud() -> void:
 	var pre := match_service == null or match_service.model.phase == MatchEnums.Phase.PRE_MATCH
 	hud = hud_state(pre, robot_auto(), preview_name if frame.size() > 0 else "", clock.active())
 	hud["red"] = alliance_red()
+	hud["start"] = start_check(hud["auto"]) if hud["auto"] != "" and not hud["mirror"] else {}
 
 
 ## Dev fixture "preview": {"auto", "t", "playing", "speed", "loop", "alliance": "red"|"blue", "realtime"}.
