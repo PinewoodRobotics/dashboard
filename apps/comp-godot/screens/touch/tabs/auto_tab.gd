@@ -12,7 +12,7 @@ const NONE := AutoSelectionSync.NONE
 const NO_AUTO_DESC := "Do not run an autonomous routine"
 ## Status row shown after "No Auto" when the library is empty or failed to
 ## load (PathListPane.tsx "Failed to load. Tap to retry."); tapping it reloads.
-const RETRY := "\u0000retry"
+const RETRY := "<retry>"
 const NO_AUTO_DETAIL := "Do not run an autonomous routine. The robot will stay still during autonomous."
 const AMBER_BG := Color(0.961, 0.62, 0.043, 0.15)
 const AMBER_LINE := Color(0.984, 0.749, 0.141, 0.6)

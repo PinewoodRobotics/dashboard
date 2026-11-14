@@ -68,15 +68,22 @@ soak = r["soak"]
 check(not r["failures"], f"no Dev failures {r['failures']}")
 check(soak["seconds"] >= total, f"ran {soak['seconds']:.0f} s with {soak['frames']} frames, worst frame {soak['worst_frame_ms']:.1f} ms")
 samples = soak["samples"]
+def rise(values):
+    """Largest increase over any earlier value, so a drop does not hide later growth."""
+    best, low = 0, values[0]
+    for v in values:
+        low = min(low, v)
+        best = max(best, v - low)
+    return best
 base = next(s for s in samples if s["t"] >= 60)
 later = [s for s in samples if s["t"] >= 60]
-growth = max(s["static_memory"] for s in later) - base["static_memory"]
+growth = rise([s["static_memory"] for s in later])
 end_growth = samples[-1]["static_memory"] - base["static_memory"]
 check(growth < 20e6, f"static memory growth after the first minute {growth / 1e6:.2f} MB (end {end_growth / 1e6:+.2f} MB) < 20 MB")
 rss = [tuple(map(int, l.split(","))) for l in open(f"{out}/rss.csv") if l.strip()]
 rss_later = [kb for t, kb in rss if t >= 60]
 if rss_later:
-    rss_growth = (max(rss_later) - rss_later[0]) * 1024
+    rss_growth = rise(rss_later) * 1024
     check(rss_growth < 20e6, f"process RSS growth after the first minute {rss_growth / 1e6:.2f} MB < 20 MB "
           f"({rss_later[0] / 1024:.0f} -> {rss_later[-1] / 1024:.0f} MB)")
 objects = [s["objects"] for s in later]

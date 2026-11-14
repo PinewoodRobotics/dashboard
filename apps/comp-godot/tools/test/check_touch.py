@@ -6,6 +6,7 @@ Every report must exist with no failures and at most 2 SubViewports rendering
 3D; touchscreen geometry must match touchscreen.md section 1; the saved
 settings files must hold what the scripted runs left behind."""
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -77,6 +78,14 @@ if c != {"selected_auto": "Move Forward And Shoot Left", "intake_speed": None}:
 conn = json.loads((settings_dir / "connection-settings.json").read_text()) if (settings_dir / "connection-settings.json").exists() else None
 if conn is not None:
     errors.append("the live controls run wrote the shared connection file without a Save")
+
+for name in reports:
+    log = out / f"{name}.log"
+    if log.exists():
+        bad = [l for l in log.read_text(errors="replace").splitlines()
+               if re.search(r"SCRIPT ERROR|^ERROR|^WARNING|Unicode parsing error", l)]
+        if bad:
+            errors.append(f"{name}: engine errors or warnings in the log: {bad[:2]}")
 
 for e in errors:
     print("CHECK FAIL:", e)

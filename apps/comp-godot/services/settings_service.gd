@@ -110,7 +110,6 @@ func set_windows(patch: Dictionary) -> void:
 	_patch("windows", patch, AppSettings.normalize_windows)
 
 
-## The Visual settings with the --render-scale CLI override applied (not persisted).
 func effective_visual() -> Dictionary:
 	if visual_overrides.is_empty():
 		return data["visual"]

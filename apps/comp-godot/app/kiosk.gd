@@ -41,7 +41,6 @@ func retile() -> Dictionary:
 	return last_plan
 
 
-## True when the event was the re-tile shortcut (and tiling ran).
 func handle_input(event: InputEvent) -> bool:
 	if not WindowPlacement.is_retile_shortcut(event):
 		return false

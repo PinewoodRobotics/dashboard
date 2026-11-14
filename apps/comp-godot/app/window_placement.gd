@@ -65,7 +65,6 @@ static func current_screens() -> Array:
 	return out
 
 
-## Shortcut parity with Electron: Ctrl or Cmd, plus Shift, plus F.
 static func is_retile_shortcut(event: InputEvent) -> bool:
 	var k := event as InputEventKey
 	return k != null and k.pressed and not k.echo and k.shift_pressed \

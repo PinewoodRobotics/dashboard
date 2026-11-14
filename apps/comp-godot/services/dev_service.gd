@@ -462,7 +462,6 @@ static func _object_counts() -> Dictionary:
 	}
 
 
-## Long run: samples every sample_s seconds (memory, objects, NT, match phase).
 func _soak(seconds: float, sample_s: float) -> Dictionary:
 	var tree := get_tree()
 	var t0 := Time.get_ticks_msec()
