@@ -121,6 +121,11 @@ if [[ -n "${USER_DIR}" && "${SYNC_GODOT}" == false ]]; then
   exit 1
 fi
 
+if ! command -v rsync >/dev/null 2>&1; then
+  echo "rsync is required. On Windows, Git Bash lacks it: copy rsync.exe and its DLLs from MSYS2 into Git's usr/bin (see apps/comp-godot/README.md)." >&2
+  exit 1
+fi
+
 if [[ ! -d "${SOURCE_ROOT}" ]]; then
   echo "Source root not found: ${SOURCE_ROOT}" >&2
   exit 1

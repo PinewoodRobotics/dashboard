@@ -1,0 +1,11 @@
+{"extends": "touch_m6_base",
+ "touch": {"active_tab": "auto"},
+ "input": [
+  {"expect": {"auto_tab.summary": {"ne": "10 autos · event update · 2999-01-02 03:04 UTC"}, "auto_tab.card_count": 10}},
+  {"call": "stage_autos"},
+  {"wait_ms": 200},
+  {"expect": {"auto_tab.card_count": 10}},
+  {"tap": "find:ReloadAutos"},
+  {"expect": {"auto_tab.summary": "10 autos · event update · 2999-01-02 03:04 UTC", "auto_tab.card_count": 11}},
+  {"screenshot": "reloaded"}
+ ]}

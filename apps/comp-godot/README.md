@@ -255,6 +255,14 @@ newest valid export from its user data folder (`autos/` next to
 ./scripts/sync-pathplanner-from-fir.sh --godot-only --apply --user-dir=/Volumes/USB/CompDashboard
 ```
 
+Running it on the Windows laptop needs Git Bash with `rsync` and `uv` on the
+PATH. Git for Windows does not ship `rsync`: take `rsync.exe` and its DLLs
+from an MSYS2 install (`pacman -S rsync`) and put them in Git's `usr\bin`.
+The Java trajectory dump also wants the WPILib 2027 JDK (`SIM_JAVA_HOME`,
+default `~/.wpilib/2027_alpha7/jdk`); without it the script keeps the last
+dump, which is fine while the paths are unchanged. When the laptop lacks any
+of this, use the second form on a dev machine and copy the folder over.
+
 Then tap Reload Autos on the Auto tab (or restart the dashboard); the list
 header says "event update" with the export time. Autos the robot has that
 are not exported yet stay selectable without a preview in the meantime.

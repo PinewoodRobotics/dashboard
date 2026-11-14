@@ -18,6 +18,8 @@ extends Node
 ##                        match phases every --sample-s (default 10) into "soak"
 ##   --quit-file=PATH     end a --run-s run early once PATH exists
 ##   --autos-dir=PATH     auto export folder used instead of user://autos
+##   --autos-stage=PATH   export that the scripted {"call": "stage_autos"} copies into
+##                        --autos-dir mid-run, as the sync script would
 ##   --nt-trace=PATH      append every NT client state change as a JSON line
 ##                        {"unix": seconds, "state": name}, from launch on
 ##   --benchmark[=DIR]    driver-station benchmark (fixture ds_benchmark: both windows,
@@ -230,6 +232,17 @@ func screen_root(key: String) -> Node:
 
 func save_settings() -> void:
 	Settings.save_now()
+
+
+func stage_autos() -> void:
+	var from := str(args.get("autos_stage", ""))
+	var to := str(args.get("autos_dir", ""))
+	if from == "" or to == "":
+		push_error("stage_autos needs --autos-stage and --autos-dir")
+		return
+	DirAccess.make_dir_recursive_absolute(to)
+	for f in DirAccess.get_files_at(from):
+		DirAccess.copy_absolute(from.path_join(f), to.path_join(f))
 
 
 func inject_nt(values: Dictionary) -> void:

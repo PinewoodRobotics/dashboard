@@ -53,6 +53,9 @@ idx["exported_at"] = "2999-01-02T03:04:05Z"
 (dst / "index.json").write_text(json.dumps(idx))
 PY
 run touch_autos_user_export touch_autos_user_export --screen=touch --autos-dir="$USER_AUTOS"
+LATE_AUTOS="$OUT/late_autos"
+python3 -c 'import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)' "$LATE_AUTOS"
+run touch_autos_reload_new touch_autos_reload_new --screen=touch --autos-dir="$LATE_AUTOS" --autos-stage="$USER_AUTOS"
 run both_script_preview both_script_preview --screen=both --perf-frames=300
 
 SETTINGS="$OUT/settings"
