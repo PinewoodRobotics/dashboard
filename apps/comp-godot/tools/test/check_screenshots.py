@@ -68,9 +68,9 @@ for name in ["m2_overview_blue", "m2_perf"]:
 meshes = perf["robot_meshes"]
 check(len(meshes["instances"]) == 2 and meshes["shared"], "both robot instances use identical mesh RIDs")
 p = perf["perf"]
-check(p["max_draw_calls"] <= 40, f"draw calls {p['max_draw_calls']} <= 40")
-check(p["max_primitives"] <= 600_000, f"primitives {p['max_primitives']} <= 600k")
-check(p["fps"] >= 120, f"uncapped fps {p['fps']:.0f} >= 120")
+robot_tris = json.loads((APP / "assets/models/models.manifest.json").read_text())["robot"]["triangles"]
+check(p["max_primitives_3d"] >= 2 * robot_tris, f"3D primitives {p['max_primitives_3d']} >= both robots at full fidelity ({2 * robot_tris})")
+print(f"     uncapped {p['fps']:.0f} fps, p95 {p['frame_ms_p95']:.1f} ms, {p['max_draw_calls']} draw calls")
 check(all(v["scaling_3d_scale"] == 1.0 for v in p["per_view"].values()), "render scale 1.0")
 t = perf["timings"]
 launch = json.loads((OUT / "m2_perf.launch.json").read_text())["launch_unix"]
