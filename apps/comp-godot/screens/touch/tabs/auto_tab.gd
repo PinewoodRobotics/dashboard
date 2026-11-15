@@ -53,6 +53,7 @@ var popup_body: PwText
 var resync: PwButton
 var _list_pane: Control
 var _detail_left: Control
+var _detail_clip: Control
 var _detail_right: Control
 var _detail_top: VBoxContainer
 var _robot_only_key := ""
@@ -93,12 +94,14 @@ func _ready() -> void:
 func _layout() -> void:
 	var list_w := 0.0 if expanded else size.x / 3.0
 	list.visible = not expanded
-	_detail_left.visible = not expanded
+	_detail_clip.visible = not expanded
 	list.position = Vector2.ZERO
 	list.size = Vector2(list_w, size.y)
 	var detail_w := size.x - list_w
 	var left_w := 0.0 if expanded else detail_w * 0.5
-	_detail_left.position = Vector2(list_w, 0)
+	_detail_clip.position = Vector2(list_w, 0)
+	_detail_clip.size = Vector2(left_w, size.y)
+	_detail_left.position = Vector2.ZERO
 	_detail_left.size = Vector2(left_w, size.y)
 	_detail_right.position = Vector2(list_w + left_w, 0)
 	_detail_right.size = Vector2(detail_w - left_w, size.y)
@@ -199,7 +202,12 @@ func _build_detail() -> void:
 	col.add_child(select_button)
 	_detail_left = UiKit.margin(col, PAD, PAD, PAD, PAD)
 	_detail_left.name = "DetailLeft"
-	add_child(_detail_left)
+	_detail_clip = Control.new()
+	_detail_clip.name = "DetailClip"
+	_detail_clip.clip_contents = true
+	_detail_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_detail_clip.add_child(_detail_left)
+	add_child(_detail_clip)
 
 	var right := Control.new()
 	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -274,8 +282,12 @@ func _build_popup() -> Control:
 	sb.border_color = Color(ROSE, 0.7)
 	sb.set_border_width_all(2)
 	sb.set_content_margin_all(2 + 24)
+	# shadow-2xl, 0 25px 50px -12px: the extra -15 spread puts this falloff's
+	# half-strength point on the edge of the browser's gaussian.
 	sb.shadow_color = Color(0, 0, 0, 0.25)
-	sb.shadow_size = 25
+	sb.shadow_offset = Vector2(0, 25)
+	sb.shadow_size = 50
+	sb.shadow_spread = -12 - 15
 	box.add_theme_stylebox_override("panel", sb)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.resized.connect(func() -> void: box.custom_minimum_size.x = minf(860.0, root.size.x - 48.0))
@@ -443,24 +455,14 @@ func _refresh_detail() -> void:
 	_fit_desc()
 
 
-## The description takes whatever height is left above Select, so a long one
-## is cut only when it truly cannot fit.
 func _fit_desc() -> void:
 	if detail_desc == null:
 		return
 	detail_desc.visible = detail_desc.text != ""
-	if _detail_left == null or _detail_left.size.y <= 0.0:
+	if _detail_left == null or _detail_left.size.x <= 0.0:
 		return
-	var w := minf(_detail_left.size.x - 2.0 * PAD, DESC_MAX_W)
 	detail_desc.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	detail_desc.custom_minimum_size.x = maxf(w, 0.0)
-	var head_h := (_detail_top.get_child(0) as Control).get_combined_minimum_size().y
-	var avail := _detail_left.size.y - 2.0 * PAD - head_h - 10.0 - select_button.get_combined_minimum_size().y
-	var lines := maxi(1, floori(avail / detail_desc.line_px()))
-	if detail_desc.max_lines != lines:
-		detail_desc.max_lines = lines
-		detail_desc.update_minimum_size()
-		detail_desc.queue_redraw()
+	detail_desc.custom_minimum_size.x = maxf(minf(_detail_left.size.x - 2.0 * PAD, DESC_MAX_W), 0.0)
 
 
 func card(auto_name: String) -> AutoCard:

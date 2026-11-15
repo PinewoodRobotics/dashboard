@@ -10,6 +10,7 @@ var published: Array = []
 var desired := {}
 var forgotten: PackedStringArray = []
 var released: PackedStringArray = []
+var fail_publish := false
 
 
 func connected() -> bool:
@@ -25,6 +26,8 @@ func value(topic: String, default: Variant = null) -> Variant:
 
 
 func publish(topic: String, _type: String, v: Variant) -> bool:
+	if fail_publish:
+		return false
 	published.append([topic, v])
 	desired[topic] = v
 	return true

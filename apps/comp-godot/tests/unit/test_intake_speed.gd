@@ -86,3 +86,14 @@ func test_settings_normalize_controls() -> void:
 		{"selected_auto": "Stay And Shoot", "intake_speed": 0.46})
 	check_eq(AppSettings.normalize_controls({"selected_auto": 3, "intake_speed": "0.4"}), {"selected_auto": "", "intake_speed": null})
 	check_eq(AppSettings.normalize_controls({"intake_speed": 4.0})["intake_speed"], 1.0)
+
+
+func test_publish_error_until_a_publish_succeeds() -> void:
+	var c := IntakeSpeed.new(link, T)
+	link.up = true
+	link.fail_publish = true
+	c.set_speed(0.3)
+	check_eq(c.publish_error, "Could not publish %s" % T["request"])
+	link.fail_publish = false
+	c.set_speed(0.31)
+	check_eq(c.publish_error, "")

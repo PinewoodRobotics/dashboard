@@ -89,3 +89,14 @@ func test_format_labels() -> void:
 	check_eq(AimTrim.format(-1.25), "1.25° R")
 	check_eq(AimTrim.format(10.0), "10° L")
 	check_eq(AimTrim.format(-0.75), "0.75° R")
+
+
+func test_publish_error_until_a_publish_succeeds() -> void:
+	var t := AimTrim.new(link)
+	link.up = true
+	link.fail_publish = true
+	check(t.set_trim(2.0))
+	check_eq(t.publish_error, "Could not publish %s" % PUB)
+	link.fail_publish = false
+	check(t.set_trim(3.0))
+	check_eq(t.publish_error, "")

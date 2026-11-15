@@ -158,13 +158,13 @@ func refresh() -> void:
 	var i := controls.intake
 	if not speed.dragging:
 		speed.set_value(i.slider_value())
-	speed_status.text = i.status()
+	speed_status.text = i.publish_error if i.publish_error != "" else i.status()
 	var t := controls.trim
 	trim.disabled = not t.connected()
 	center.disabled = not t.connected()
 	if not trim.dragging:
 		trim.set_value(t.slider_value())
-	trim_status.text = t.status()
+	trim_status.text = t.publish_error if t.publish_error != "" else t.status()
 	var rows := controls.readouts()
 	for k in rows.size():
 		readout_values[k].text = rows[k][1]

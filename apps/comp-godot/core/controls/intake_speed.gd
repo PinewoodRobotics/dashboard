@@ -17,6 +17,7 @@ const STATUS_DISCONNECTED := "Robot not connected — value is sent when it reco
 const STATUS_CONSTANT := "Using the robot's compiled constant"
 const STATUS_CONFIRMED := "Robot confirmed this speed"
 const STATUS_WAITING := "Waiting for the robot to confirm"
+const PUBLISH_FAILED := "Could not publish %s"
 
 var link: ControlLink
 var request_topic := ""
@@ -25,6 +26,7 @@ var state_topic := ""
 var requested: Variant = null
 var publishes := 0
 var last_published: Variant = null
+var publish_error := ""
 var _was_connected := false
 
 
@@ -68,7 +70,7 @@ func reset() -> void:
 func _publish(v: float) -> void:
 	publishes += 1
 	last_published = v
-	link.publish(request_topic, "double", v)
+	publish_error = "" if link.publish(request_topic, "double", v) else PUBLISH_FAILED % request_topic
 
 
 func update() -> void:
@@ -106,4 +108,4 @@ func status() -> String:
 
 func snapshot() -> Dictionary:
 	return {"requested": requested, "robot": robot_speed(), "slider": slider_value(), "status": status(),
-		"publishes": publishes, "last_published": last_published, "request_topic": request_topic}
+		"publishes": publishes, "last_published": last_published, "publish_error": publish_error, "request_topic": request_topic}

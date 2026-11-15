@@ -41,6 +41,14 @@ extends StyleBox
 	set(v):
 		shadow_size = v
 		emit_changed()
+@export var shadow_offset := Vector2.ZERO:
+	set(v):
+		shadow_offset = v
+		emit_changed()
+@export var shadow_spread := 0:
+	set(v):
+		shadow_spread = v
+		emit_changed()
 
 
 func set_border_width_all(w: int) -> void:
@@ -61,7 +69,7 @@ func _uniform_border() -> int:
 
 
 func _draw(ci: RID, rect: Rect2) -> void:
-	UiDraw.shadow(ci, rect, corner_radius, shadow_size, shadow_color)
+	UiDraw.shadow(ci, Rect2(rect.position + shadow_offset, rect.size).grow(shadow_spread), corner_radius, shadow_size, shadow_color)
 	var w := _uniform_border()
 	if w >= 0:
 		UiDraw.box(ci, rect, bg_color, corner_radius, w, border_color)

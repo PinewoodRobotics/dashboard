@@ -63,13 +63,14 @@ link died without closing:
   2 s is dropped, so a link outage shorter than that resumes without a
   reconnect. A slow or stalled frame counts as one probe period, so it cannot
   drop a healthy link; robot GC pauses do not stop ntcore's network thread.
-- Reconnect in the Settings header is always shown (the web shows it only
-  while disconnected). It drops whatever the client is doing (open socket,
-  hung connect, pending retry), resets the attempt count and opens a new
-  connection in the same frame. Saving a changed host, port or timeout does
-  the same. The header status shows the attempt number and its age, or the
-  failed attempt and the time to the next; the Diagnostics column has the
-  client state, server, round trip, reconnect count and last close reason.
+- Reconnect in the Settings header shows while the client is not connected,
+  as on the web. It drops whatever the client is doing (hung connect, pending
+  retry), resets the attempt count and opens a new connection in the same
+  frame. Saving a changed host, port or timeout does the same. The header
+  status is Connected or Disconnected as on the web; the Diagnostics column
+  has the client state, the attempt number and its age (or the failed attempt
+  and the time to the next), server, round trip, reconnect count and last
+  close reason.
 - Closing a hung attempt never waits on its worker thread (it may sit in a
   hostname lookup); the thread is joined once it returns.
 
@@ -109,21 +110,19 @@ The touchscreen copies `apps/comp` one to one except for these:
 - Auto tab: a realtime 3D preview replaces the GIF, with all its controls
   (scrub bar, transport, chips, camera toggle, expand) inside the preview box.
   Autos the robot lists that the export lacks get robot-only cards, and
-  unconfirmed autos get their own detail copy. A long description is clamped
-  to the lines that fit above Select (the web lets it push Select out of the
-  clipped column, so it could not be tapped).
-- Settings tab: the Autobahn column is dropped. Reconnect is always shown
-  (web: only while disconnected) and the header status shows the attempt
-  number and timing while not connected (web: only Connected/Disconnected).
-  Diagnostics and Autos columns (export summary, Reload Autos) follow the
-  web's columns.
+  unconfirmed autos get their own detail copy.
+- Settings tab: the Autobahn column is dropped. Diagnostics and Autos
+  columns (export summary, Reload Autos) follow the web's columns. A failed
+  settings write shows its error in place of the header status.
 - Visual tab: Log Depth is dropped. Assets has Reload Models with its own
   copy in place of Clear Cache & Hard Refresh. Performance (MSAA, Frame Cap,
   Auto Quality), Displays (HUD and touchscreen display, Re-tile) and
   Diagnostics (Touch Test, renderer readout) columns follow the web's columns,
   through the same draft and Save. MSAA, Frame Cap and the display selectors
   use text cells (Inter 600 24 px) in the web selector's 80 px cells, which
-  the web selector does not have.
+  the web selector does not have. The extra columns make the strip wider
+  than the tab, so the 5 px accent overflow bar shows under it (the web's two
+  columns never overflow).
 - The in-app keyboard (`PwKeyboard`) stands in for the OS keyboard.
 - Custom touch handling remains only for sliders, the selector, swipe
   dismissal, orbit and pinch, tap-versus-drag on buttons and cards, and touch

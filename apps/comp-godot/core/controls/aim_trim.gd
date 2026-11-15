@@ -17,6 +17,7 @@ const STATUS_DISCONNECTED := "Robot not connected"
 const STATUS_WAITING := "Waiting for the robot to confirm"
 const STATUS_CONFIRMED := "Robot confirmed this trim"
 const STATUS_UNKNOWN := "No trim reported by the robot yet"
+const PUBLISH_FAILED := "Could not publish %s"
 
 var link: ControlLink
 var publish_topic := Topics.AIM_TRIM_PUBLISH
@@ -24,6 +25,7 @@ var readback_topic := Topics.AIM_TRIM_READBACK
 var requested: Variant = null
 var last_sent: Variant = null
 var publishes := 0
+var publish_error := ""
 var _was_connected := false
 
 
@@ -68,7 +70,7 @@ func set_trim(deg: float) -> bool:
 		return false
 	last_sent = v
 	publishes += 1
-	link.publish(publish_topic, "double", v)
+	publish_error = "" if link.publish(publish_topic, "double", v) else PUBLISH_FAILED % publish_topic
 	return true
 
 
@@ -110,4 +112,4 @@ func status() -> String:
 
 func snapshot() -> Dictionary:
 	return {"requested": requested, "robot": robot_trim(), "slider": slider_value(), "status": status(),
-		"connected": connected(), "publishes": publishes, "last_sent": last_sent}
+		"connected": connected(), "publishes": publishes, "last_sent": last_sent, "publish_error": publish_error}

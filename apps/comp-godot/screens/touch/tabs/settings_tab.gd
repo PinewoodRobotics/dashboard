@@ -5,11 +5,11 @@ extends Control
 ## like useTouchscreenSettingsForm.ts: Save is enabled only when the form is
 ## valid and differs from the saved settings, Reset writes the schema
 ## defaults, and every save goes to the shared file. The header status is the
-## NetworkTables client's (the web shows Autobahn's), with the current attempt
-## while it connects, and Reconnect stays shown in every state: it drops the
-## connection and opens a new one at once. After the web's columns (the
+## NetworkTables client's (the web shows Autobahn's), and Reconnect shows only
+## while it is not connected, as on the web. After the web's columns (the
 ## Autobahn one is dropped: the port has no Autobahn) come two Godot-only
-## columns: the client's diagnostics and the auto export with Reload Autos.
+## columns: the client's diagnostics, with the current attempt, and the auto
+## export with Reload Autos.
 
 const VALUE_LABEL := "{v}s — close stuck connections after this many seconds"
 
@@ -88,7 +88,7 @@ func _ready() -> void:
 	cols.add_child(c3["panel"])
 
 	var c4 := UiKit.column("Diagnostics", false)
-	diag = InfoBox.new("NT Client", [["state", "State"], ["server", "Server"], ["rtt", "Round trip"], ["reconnects", "Reconnects"], ["last_close", "Last close"]])
+	diag = InfoBox.new("NT Client", [["state", "State"], ["attempt", "Attempt"], ["server", "Server"], ["rtt", "Round trip"], ["reconnects", "Reconnects"], ["last_close", "Last close"]])
 	diag.name = "Diagnostics"
 	c4["box"].add_child(diag)
 	cols.add_child(c4["panel"])
@@ -178,7 +178,8 @@ func is_connected_nt() -> bool:
 	return nt != null and nt.is_ready()
 
 
-## "Connected", or what the client is doing: "Connecting, attempt 3 (0.4 s)".
+## The Diagnostics attempt line: "Connected", or what the client is doing,
+## such as "Connecting, attempt 3 (0.4 s)".
 static func status_text(d: Dictionary) -> String:
 	var attempt := int(d.get("attempt", 0))
 	match str(d.get("state", "")):
@@ -198,13 +199,14 @@ static func status_text(d: Dictionary) -> String:
 
 func _update_status() -> void:
 	var ok := is_connected_nt()
+	header.set_status(save_error if save_error != "" else ("Connected" if ok else "Disconnected"), ok and save_error == "")
+	reconnect.visible = not ok
 	if nt == null or nt.fixture_mode:
-		header.set_status(save_error if save_error != "" else ("Connected" if ok else "Disconnected"), ok and save_error == "")
 		diag.set_value("state", "" if nt == null else ("READY" if ok else "IDLE") + " (fixture)")
 		return
 	var d := nt.diagnostics()
-	header.set_status(save_error if save_error != "" else status_text(d), ok and save_error == "")
 	diag.set_value("state", str(d.get("state", "")))
+	diag.set_value("attempt", status_text(d))
 	diag.set_value("server", "%s:%d" % [nt.client.host, nt.client.port])
 	diag.set_value("rtt", "%.1f ms" % (float(d["rtt_us"]) / 1000.0) if ok and int(d.get("rtt_us", -1)) >= 0 else "--")
 	diag.set_value("reconnects", "%d (manual %d)" % [int(d.get("reconnects", 0)), int(d.get("manual_reconnects", 0))])
