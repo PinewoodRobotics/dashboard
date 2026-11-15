@@ -14,6 +14,7 @@ func _init(panel_title: String = "") -> void:
 
 func _ready() -> void:
 	var col := UiKit.vbox(16)
-	col.add_child(UiKit.label(title, 36, 500))
-	col.add_child(UiKit.wrapped("Controls coming soon.", Tokens.FONT_TEXT_SM))
+	var heading := PwText.new(title, 36, 500, Tokens.TEXT, PwText.NORMAL)
+	col.add_child(heading)
+	col.add_child(PwText.new("Controls coming soon.", 14, 400, Tokens.ZINC_400, 20.0))
 	add_child(UiKit.full(UiKit.margin(col, 10, 10, 10, 10)))

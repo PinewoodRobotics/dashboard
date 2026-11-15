@@ -85,6 +85,7 @@ func _ready() -> void:
 	if autos != null:
 		autos.library_changed.connect(_rebuild_cards)
 	resized.connect(_layout)
+	_detail_left.minimum_size_changed.connect(_layout)
 	_layout()
 	refresh()
 

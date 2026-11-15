@@ -50,7 +50,7 @@ link died without closing:
 
 - After a lost connection or a failed attempt it retries after 0.1 s, 0.25 s,
   then every 0.5 s. A refused connect is one SYN and one RST on the robot LAN.
-- Connect Timeout (Settings tab; `reconnectTimeoutSeconds` in the shared file,
+- Reconnect Timeout (Settings tab; `reconnectTimeoutSeconds` in the shared file,
   1 to 60 s, default 2): an attempt that has not connected after this long is
   dropped and a new one starts at once. While a robot boots its SYNs go
   unanswered and the OS retransmits them further and further apart (1.9 s
@@ -63,34 +63,37 @@ link died without closing:
   2 s is dropped, so a link outage shorter than that resumes without a
   reconnect. A slow or stalled frame counts as one probe period, so it cannot
   drop a healthy link; robot GC pauses do not stop ntcore's network thread.
-- Reconnect in the Settings header is always shown. It drops whatever the
-  client is doing (open socket, hung connect, pending retry), resets the
-  attempt count and opens a new connection in the same frame. Saving a changed
-  host, port or timeout does the same. The header shows the state with the
-  attempt number and its age, or the failed attempt and the time to the next.
+- Reconnect in the Settings header is always shown (the web shows it only
+  while disconnected). It drops whatever the client is doing (open socket,
+  hung connect, pending retry), resets the attempt count and opens a new
+  connection in the same frame. Saving a changed host, port or timeout does
+  the same. The header status shows the attempt number and its age, or the
+  failed attempt and the time to the next; the Diagnostics column has the
+  client state, server, round trip, reconnect count and last close reason.
 - Closing a hung attempt never waits on its worker thread (it may sit in a
   hostname lookup); the thread is joined once it returns.
 
 ### Auto tab
 
-- The list starts with which export is loaded (built-in or event update, with
-  its export time) and a Reload Autos button.
+- The layout is the web's; everything the 3D preview adds stays inside its
+  box. Which export is loaded (built-in or event update, with its export
+  time) and the Reload Autos button are in the Settings tab's Autos column.
 - Whether the preview can be trusted: a path edited and deployed without a
   re-export keeps the same auto names, so the robot's auto list cannot tell.
-  When the robot publishes `PathPlanner/DeployHash` (below), the list header
-  says "matches robot" (green) or "differs from robot" (red, with a warning
-  on every auto). Without it, the header shows the export's age and turns
-  amber with a warning once the export is more than 3 days old.
+  When the robot publishes `PathPlanner/DeployHash` (below), the Autos column
+  says "matches robot" (green) or "differs from robot" (red, and every
+  preview shows a warning). Without it, it shows the export's age and turns
+  amber, with a warning on the preview, once the export is more than 3 days old.
 - Every auto file of an export is checked when it loads. If one in an event
   update is broken (truncated, missing samples), that auto falls back to the
-  built-in export with an amber note; with no older copy, its card says
-  "Preview failed to load" and the preview area shows why. The log gets one
-  warning per broken file, not one per frame.
+  built-in export with an amber note over its preview; with no older copy,
+  its preview shows the web's "Failed to load preview" picture. The log gets
+  one warning per broken file, not one per frame.
 - Autos the robot lists (`PathPlanner/ValidNames/Autos`) that the export lacks
   get their own cards marked "On the robot: no preview, not exported". They
   can be selected like any other auto, so a stale export never blocks a new
   auto.
-- The detail pane compares the live robot pose with the viewed auto's start
+- The preview compares the live robot pose with the viewed auto's start
   pose ("Start pose off by 1.37 m / 135°", green within 0.15 m and 8°). The HUD
   shows the same chip under the auto name before the match.
 - The preview's expand button (top right) hides the list and the detail pane.
@@ -147,8 +150,8 @@ exactly 1920x1080 and the touchscreen on the one that is exactly 1920x515.
 Sizes are physical pixels, so Windows display scaling does not break the match.
 A display with no match leaves that window windowed; two windows on a single
 screen both stay windowed. The touchscreen Visual tab has a Displays section
-(HUD and touchscreen display: Auto or 1 to 3) and a Re-tile button; those
-overrides are saved and beat the size match. Ctrl+Shift+F (Cmd+Shift+F on
+(HUD and touchscreen display: Auto or 1 to 3) and a Re-tile button; like
+every Visual setting they apply on Save, are saved and beat the size match. Ctrl+Shift+F (Cmd+Shift+F on
 macOS) re-tiles from either window.
 
 ## Driver station install (Windows x64)
@@ -182,7 +185,7 @@ Electron dashboard stays the primary dashboard and this one is the trial.
       Windows display scaling left as it is. Unplug and replug the
       touchscreen: within 2 s it gets its window back (`--kiosk`).
       Ctrl+Shift+F re-tiles. If a display reports a slightly different size,
-      set it in Visual > Displays. Visual > Window Tiling shows which display
+      set it in Visual > Displays (then Save), which also shows which display
       each window took and why.
 - [ ] Touch on the second window: Visual > Diagnostics > Touch Test (scroll the
       Visual tab right). Tap all four corners and the middle, drag across the
@@ -351,7 +354,7 @@ apps/comp-godot/tools/fonts/build_sf_symbols.sh
 Lucide (`ui/icons/lucide.json`) remains only where the web uses lucide too
 (Aim Trim chevrons, the auto sync-conflict triangle), for the HUD (not yet
 ported to SF Symbols) and for Godot-only controls with no web counterpart (the
-in-app keyboard, the auto preview overlay, the Visual tab's extra buttons).
+in-app keyboard, the auto preview overlay).
 
 ## PathPlanner autos
 
@@ -393,8 +396,8 @@ default `~/.wpilib/2027_alpha7/jdk`); without it the script keeps the last
 dump, which is fine while the paths are unchanged. When the laptop lacks any
 of this, use the second form on a dev machine and copy the folder over.
 
-Then tap Reload Autos on the Auto tab (or restart the dashboard); the list
-header says "event update" with the export time. Autos the robot has that
+Then tap Reload Autos in the Settings tab's Autos column (or restart the
+dashboard); it says "event update" with the export time. Autos the robot has that
 are not exported yet stay selectable without a preview in the meantime.
 
 ### Robot-side deploy hash (recommended)

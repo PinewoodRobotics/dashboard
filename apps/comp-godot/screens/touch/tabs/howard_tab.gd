@@ -63,6 +63,7 @@ func _ready() -> void:
 	_loading.align = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_loading)
 	resized.connect(_layout)
+	_left.minimum_size_changed.connect(_layout)
 	_layout()
 	show_index(pick_other(-1, entries.size(), rng))
 
