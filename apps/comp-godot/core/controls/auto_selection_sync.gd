@@ -317,13 +317,13 @@ static func validity_text(v: Validity) -> String:
 
 ## Select button of the detail pane for the auto being viewed.
 func button_for(view: String) -> Dictionary:
-	if locked():
-		return {"text": "Locked During Match", "enabled": false, "selected": active_name() == view}
-	if pending != "":
-		return {"text": "Selecting..." if pending == view else "Select", "enabled": false, "selected": active_name() == view}
-	if view != "" and active_name() == view:
-		return {"text": "Selected", "enabled": true, "selected": true}
-	return {"text": "Select", "enabled": view != "", "selected": false}
+	var active := view != "" and active_name() == view
+	var text := "Selected" if active else "Select"
+	if pending != "" and pending == view:
+		text = "Selecting..."
+	elif locked():
+		text = "Locked During Match"
+	return {"text": text, "enabled": view != "" and pending == "" and not locked(), "selected": active}
 
 
 func snapshot() -> Dictionary:
