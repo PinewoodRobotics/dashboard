@@ -479,7 +479,7 @@ cp apps/comp-godot/tools/windows/*.bat apps/comp-godot/build/windows-arm64/
 on the Linux CI runner; export to `build/macos/PWRUP-Comp.app` or `.zip`).
 `tools/export/check_export.py` checks an exe's PE machine type and its pck,
 `tools/export/check_macos.py` a macOS zip's arch and ad-hoc signature without
-macOS tools. CI (`.github/workflows/comp-godot-windows.yml`) exports all three
+macOS tools. CI (`.github/workflows/comp-godot-build.yml`) exports all three
 on every qualifying push to `main` and publishes `PWRUP-Comp-windows-arm64.zip`,
 `PWRUP-Comp-windows-x64.zip` and `PWRUP-Comp-macos-arm64.zip` on the rolling
 `comp-godot-latest` release. Both include `*.json`

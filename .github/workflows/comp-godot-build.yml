@@ -6,7 +6,7 @@ on:
     paths:
       - "apps/comp-godot/**"
       - "apps/comp/cad-assets/**"
-      - ".github/workflows/comp-godot-windows.yml"
+      - ".github/workflows/comp-godot-build.yml"
   workflow_dispatch:
 
 concurrency:
