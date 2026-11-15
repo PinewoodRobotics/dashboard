@@ -383,6 +383,27 @@ func test_one_touch_view_renders() -> void:
 	check(ts.orbit.is_rendering(), "renders again as soon as the overlay leaves")
 
 
+func test_robot3d_orbit_stops_on_release_and_the_driver_view_glides() -> void:
+	ts.state.switch_tab("robot3d")
+	ts.step(1.0)
+	var tab := ts.tab_content("robot3d") as Robot3DTab
+	for cam: OrbitCamera in [tab.view.cam, ts.orbit.cam]:
+		var glides := cam == ts.orbit.cam
+		check_eq(cam.frame_updates, glides, "only the driver view updates OrbitControls every frame")
+		cam.begin_interaction()
+		cam.rotate(-50.0, 0.0, 499.0)
+		cam.end_interaction()
+		var released := cam.theta
+		for i in 30:
+			cam.step(1.0 / 60.0)
+		if glides:
+			check(cam.theta > released, "the driver view glides on after release")
+		else:
+			check_eq(cam.theta, released, "Robot 3D stops dead on release")
+	check(not tab.view.cam.idle_return, "Robot 3D has no idle return")
+	check_eq(tab.view.light_rig, CadLighting.ROBOT_3D)
+
+
 func _rendering_in_touch() -> int:
 	var n := 0
 	for v: CadView in tree.get_nodes_in_group(CadView.GROUP):
