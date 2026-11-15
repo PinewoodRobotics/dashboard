@@ -79,10 +79,6 @@ func slot_rect() -> Rect2:
 	return Rect2(slot_center() - slot.size * 0.5, slot.size)
 
 
-func canvas_center() -> Vector2:
-	return slot_center()
-
-
 func shift_to(offset: Vector2, stretch: Vector2 = Vector2.ONE, animate: bool = true) -> void:
 	var targets := [offset.x, offset.y, stretch.x, stretch.y]
 	var anims: Array = _shift + _stretch
