@@ -23,6 +23,7 @@ func _ready() -> void:
 	var row := UiKit.hbox(8)
 	view = RobotOrbitView.new()
 	view.name = "Robot3DView"
+	view.light_rig = CadLighting.ROBOT_3D
 	view.cam.idle_return = false
 	view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(view)

@@ -205,7 +205,7 @@ func _update_diag() -> void:
 		tiling.text = "\n".join(parts) if not kiosk.last_plan.is_empty() else "Not tiled yet: windows stay where they opened"
 	var rs := RenderingServer
 	var lines := PackedStringArray([
-		"Renderer   %s" % rs.get_current_rendering_driver_name(),
+		"Renderer   %s, %s" % [rs.get_current_rendering_driver_name(), rs.get_current_rendering_method()],
 		"Adapter    %s" % rs.get_video_adapter_name().left(28),
 		"FPS        %d (cap %d)" % [Engine.get_frames_per_second(), Engine.max_fps],
 		"Draw calls %d" % rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),

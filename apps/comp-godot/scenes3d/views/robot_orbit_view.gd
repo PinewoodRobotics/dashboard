@@ -15,6 +15,7 @@ var _pinch_dist := 0.0
 
 func _init() -> void:
 	super()
+	light_rig = CadLighting.DRIVER
 	add_to_group("pw_grab")
 
 
