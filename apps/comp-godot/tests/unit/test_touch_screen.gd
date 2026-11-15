@@ -145,6 +145,23 @@ func test_slides_restart_from_their_first_keyframe() -> void:
 	check_eq(ts.overlay_layer.get_child(-1), ts.overlay_node("effects"), "the entering tab is on top")
 
 
+func test_entering_tab_hides_the_tab_sliding_out_under_it() -> void:
+	ts.state.switch_tab("effects")
+	ts.step(1.0)
+	ts.state.switch_tab("howard")
+	var leaving := ts.overlay_node("effects")
+	var entering := ts.overlay_node("howard")
+	check(leaving.clip_contents, "the tab sliding out is clipped")
+	for t: float in [0.0, 0.05, 0.05, 0.05]:
+		ts.step(t)
+		var shown := maxf(0.0, entering.position.y - leaving.position.y)
+		check_near(leaving.size.y, minf(shown, 515.0), 0.01, "cut off where the entering tab starts")
+		check_eq(ts.tab_content("effects").size, Vector2(leaving.size.x, 515.0), "its content keeps its full size")
+		check_eq(ts.tab_content("howard").size.y, 515.0)
+	check_eq(leaving.size.y, 0.0, "nothing of it shows once the entering tab passes it")
+	check(not entering.clip_contents, "the entering tab is not clipped")
+
+
 func test_first_open_waits_for_its_first_drawn_frame() -> void:
 	UiAnim.frame_holds = true
 	ts.state.switch_tab("visual")

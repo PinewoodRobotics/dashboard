@@ -247,10 +247,10 @@ func _create_overlay(id: String, y: float) -> Dictionary:
 	bg.color = Color.BLACK
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.z_index = -2
-	holder.add_child(UiKit.full(bg))
+	holder.add_child(bg)
 	var content := make_tab(id)
 	content.name = "Content"
-	holder.add_child(UiKit.full(content))
+	holder.add_child(content)
 	overlay_layer.add_child(holder)
 	var entry := {"node": holder, "y": UiAnim.new(y, true), "exit": false}
 	overlays[id] = entry
@@ -293,13 +293,30 @@ func layer_height() -> float:
 func _place_overlay(entry: Dictionary) -> void:
 	var r := overlay_rect()
 	var node: Control = entry["node"]
-	node.position = Vector2(r.position.x, (entry["y"] as UiAnim).value)
-	node.size = r.size
+	var y: float = (entry["y"] as UiAnim).value
+	node.position = Vector2(r.position.x, y)
+	node.size = Vector2(r.size.x, _uncovered_height(entry, y, r.size.y))
+	for c: Control in [node.get_child(0), node.get_child(1)]:
+		c.position = Vector2.ZERO
+		c.size = r.size
 	# The rail and drawer share the overlays' z, so their shapes batch with
 	# the overlay's; overlay text sits above them and must not spill under
-	# the open drawer.
-	if node.clip_contents != drawer.is_expanded():
-		node.clip_contents = drawer.is_expanded()
+	# the open drawer. A tab sliding out shares the entering tab's z too, so
+	# its text would show through the entering tab: it is cut off where the
+	# entering tab starts, which the web gets from the later layer's opaque
+	# black.
+	var clip: bool = entry["exit"] or drawer.is_expanded()
+	if node.clip_contents != clip:
+		node.clip_contents = clip
+
+
+func _uncovered_height(entry: Dictionary, y: float, h: float) -> float:
+	if not entry["exit"]:
+		return h
+	var front: Dictionary = overlays.get(state.active_tab, {})
+	if front.is_empty() or front["exit"]:
+		return h
+	return clampf((front["y"] as UiAnim).value - y, 0.0, h)
 
 
 func entry_done() -> bool:
