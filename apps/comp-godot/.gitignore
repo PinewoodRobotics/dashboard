@@ -6,3 +6,6 @@ tools/**/.venv/
 __pycache__/
 *.tmp
 .scratch/
+
+# Build products of tools/assets/build_models.mjs (too large for git)
+assets/models/*.glb

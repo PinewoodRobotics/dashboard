@@ -7,21 +7,17 @@ extends Node
 ## a --render-scale override, and in offline fixture runs unless
 ## --auto-quality=on. Test-only stand-ins for a GPU that is too slow for the
 ## full-quality scene: --simulate-gpu-ms=N stalls each frame for N ms times the
-## 3D pixel load (render scale squared, 0.8 with MSAA off), and
-## --simulate-vertex-ms=N for N ms times the vertex load (1 with the full
-## models, LITE_VERTEX_LOAD with the light ones).
+## 3D pixel load (render scale squared, 0.8 with MSAA off).
 ## Every LOG_EVERY_S it logs the frame rate and the slowest frame, so a
 ## driver station log shows how the laptop held up during a match.
 
 const GROUP := "perf_governor"
 const LOG_EVERY_S := 60.0
-const LITE_VERTEX_LOAD := 0.2
 
 var args := {}
 var governor := FrameGovernor.new()
 var settings: SettingsService
 var _simulate_ms := 0.0
-var _simulate_vertex_ms := 0.0
 var _log_s := 0.0
 var _log_frames := 0
 var _log_worst_s := 0.0
@@ -36,7 +32,6 @@ func _ready() -> void:
 	if settings == null:
 		settings = get_node_or_null("/root/Settings") as SettingsService
 	_simulate_ms = CliArgs.get_float(args, "simulate_gpu_ms", 0.0)
-	_simulate_vertex_ms = CliArgs.get_float(args, "simulate_vertex_ms", 0.0)
 	governor.reset()
 	if settings != null:
 		settings.changed.connect(_on_settings_changed)
@@ -68,11 +63,10 @@ func restart() -> void:
 
 
 func _process(delta: float) -> void:
-	if (_simulate_ms > 0.0 or _simulate_vertex_ms > 0.0) and settings != null:
+	if _simulate_ms > 0.0 and settings != null:
 		var v := settings.effective_visual()
 		var pixel_load := float(v["render_scale"]) * float(v["render_scale"]) * (1.0 if int(v["msaa"]) > 0 else 0.8)
-		var vertex_load := LITE_VERTEX_LOAD if str(v.get("models", "full")) == "lite" else 1.0
-		OS.delay_usec(int((_simulate_ms * pixel_load + _simulate_vertex_ms * vertex_load) * 1000.0))
+		OS.delay_usec(int(_simulate_ms * pixel_load * 1000.0))
 	_log_frame(delta)
 	if not enabled():
 		return

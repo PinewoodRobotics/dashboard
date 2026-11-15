@@ -13,10 +13,16 @@ address from the shared connection file.
 | Godot 4.7.2 (standard, not .NET) on `PATH` as `godot` | everything (`GODOT=/path/to/godot` overrides it in the scripts) |
 | Godot 4.7.2 export templates | Windows and macOS exports |
 | `uv` and Python 3.12 or 3.13 | fake robot, PathPlanner export, chaos and render-scale checks |
-| Node 20+ | only to rebuild the 3D models or the icon set |
+| Node 20+ | building the 3D models once after cloning and after a CAD change (see 3D models), rebuilding the icon set |
 | FIR robot checkout and WPILib 2027 alpha 7 (`~/.wpilib/2027_alpha7/jdk`) | only the robot sim e2e and the Java PathPlanner parity dump |
 
 ## Run
+
+Build the 3D models once first (they are not in git, see 3D models):
+
+```sh
+cd apps/comp-godot/tools/assets && npm ci && node build_models.mjs
+```
 
 ```sh
 godot --path apps/comp-godot                       # HUD + touchscreen, windowed on a dev machine
@@ -123,17 +129,15 @@ at the top of `services/dev_service.gd` and `services/perf_governor.gd`.
 
 With Visual > Auto Quality on (the default), the dashboard watches the frame
 rate while a 3D view renders. When 3 s average below 92% of the frame cap, it
-tries, one at a time until the cap holds: MSAA off, the light models
-(`robot-lite.glb` and `field-lite.glb`, about a fifth of the triangles: 580k
-primitives per frame drop to about 145k with the preview playing), render
-scale 0.75, then 0.5. A step that does not raise the frame rate is undone and
-the rest of that knob is skipped, so a GPU limited by vertices still gets the
-light models after MSAA off did nothing, and one limited by pixels still gets
-the lower render scale. If no step helps, the GPU is not the limit (a CPU
-limit, or two vsynced windows at half rate) and the fallback stops at full
-quality. The saved settings never change; Visual > Diagnostics shows the
-effective scale, MSAA and models and the fallback's state, and changing a
-Visual setting starts it over. The log gets a frame rate line every minute.
+tries, one at a time until the cap holds: MSAA off, render scale 0.75, then
+0.5. A step that does not raise the frame rate is undone and the rest of that
+knob is skipped, so a GPU limited by pixels still gets the lower render scale
+after MSAA off did nothing. The robot and field models are never simplified,
+so if no step helps, the frame rate is held back by something these knobs do
+not fix (vertex load from the full CAD models, a CPU limit, or two vsynced
+windows at half rate) and the fallback stops at full quality. The saved
+settings never change; Visual > Diagnostics shows the effective scale and MSAA
+and the fallback's state, and changing a Visual setting starts it over. The log gets a frame rate line every minute.
 
 ### Window placement
 
@@ -199,7 +203,7 @@ Electron dashboard stays the primary dashboard and this one is the trial.
       mirroring it) with the native OpenGL driver and with ANGLE, about 40 s
       each, and opens `benchmark_native.txt` and `benchmark_angle.txt` from
       `%APPDATA%\PWRUP\CompDashboard`: frame rate, p95 frame time and
-      primitives per render scale and with the light models, the result at the
+      primitives per render scale, the result at the
       60 fps cap, and a recommendation. Use
       the faster renderer (for ANGLE, `set PWRUP_ENGINE_ARGS=--rendering-driver
       opengl3_angle` before the launcher, or edit it) and set Visual > Render
@@ -228,7 +232,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
 | `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, drag scrolling of the panels and tabs (touch and mouse, strokes starting on sliders and buttons), restart persistence, the touch test | 2 min |
 | `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring, expand and touch orbit, start pose chips, robot-only autos, a user-folder export, a broken one, the export age and robot hash warnings, the log comparison selftest | 3 min |
-| `run_perf.sh` | perf budget over a whole 8x fake match with both windows and the preview playing (45 draw calls per frame, 2D and 3D); render scale 0.5 halves the 3D resolution; the auto quality fallback under simulated fill-bound and vertex-bound GPUs (the second must switch every 3D view to the light models); the driver-station benchmark end to end | 3 min |
+| `run_perf.sh` | frame time, draw calls and primitives over a whole 8x fake match with both windows and the preview playing (reported, not budgeted); render scale 0.5 halves the 3D resolution; the auto quality fallback under a simulated fill-bound GPU; the driver-station benchmark end to end | 3 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
 | `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
@@ -256,19 +260,37 @@ godot --path apps/comp-godot -- --screen=hud --design-size --fixture=hud_shift_w
 
 ## 3D models
 
-`assets/models/{robot,field}.glb` are simplified from the raw CAD exports in
-`apps/comp/cad-assets` (read in place), and so are the light variants
-`{robot,field}-lite.glb` that auto quality swaps in (same node names and rest
-transforms, so the joint rig drives either). Rebuild after a CAD change:
+`assets/models/{robot,field}.glb` are the raw CAD exports in
+`apps/comp/cad-assets` (read in place) at full fidelity: every triangle, the
+original normals and every material's base color, metallic, roughness and
+alpha. Godot cannot import the robot export as is (it uses Draco mesh
+compression and mesh quantization), so `tools/assets/build_models.mjs` decodes
+it to float32 and joins the parts under each joint-rig node by material, which
+keeps the rig node names and rest transforms. The only things left out are the
+robot's two wheel-spin animations and the field's 456 staged Fuel balls (the web
+minimap hides them too). The `.import` files turn off Godot's LOD generation
+and vertex compression, so nothing is simplified or quantized on import either.
+
+The GLBs are about 400 MB and 130 MB, too large for git, so they are build
+products: build them after cloning and after a CAD change (CI does the same
+before exporting):
 
 ```sh
 cd apps/comp-godot/tools/assets && npm ci && node build_models.mjs
 ```
 
-The script enforces the triangle, surface and size budgets and writes
-`models.manifest.json`; a unit test fails when the manifest's source hashes no
-longer match the raw files. Commit the GLBs, their `.import` files and the
-manifest. The rig and camera metadata are in `data/rig/`.
+The script checks that every source triangle reached the output and writes
+`models.manifest.json`; unit tests fail when the GLBs are missing or stale, or
+the manifest's source hashes no longer match the raw files. Commit the
+`.import` files and the manifest. The rig and camera metadata are in
+`data/rig/`.
+
+The CAD shader (`scenes3d/cad_material.gdshader`) shades each surface per pixel
+from its own glTF material under a fixed light rig (sky/ground hemisphere and
+three directional lights, the web minimap's), with specular highlights from
+the roughness and hemisphere reflections for metals (the views have no
+Environment, sky or scene lights, so the shader does the lighting itself and
+writes sRGB, as the Compatibility renderer does not encode its output).
 
 ## UI drawing and fonts
 

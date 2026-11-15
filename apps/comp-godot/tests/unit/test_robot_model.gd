@@ -63,26 +63,57 @@ func test_rest_transforms_match_the_manifest_exactly() -> void:
 		check(n.scale.distance_to(Vector3(s[0], s[1], s[2])) < 1e-6, name + " scale")
 
 
-func test_surface_and_triangle_budgets() -> void:
-	var surfaces := 0
+func _triangles(root: Node) -> int:
 	var tris := 0
-	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
-		surfaces += mi.mesh.get_surface_count()
+	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		for i in mi.mesh.get_surface_count():
 			tris += mi.mesh.surface_get_array_index_len(i) / 3
-	check(surfaces <= 10, "robot surfaces %d <= 10" % surfaces)
-	check(tris <= 220000, "robot triangles %d <= 220k" % tris)
+	return tris
+
+
+func test_models_keep_every_source_triangle() -> void:
+	var m := _manifest()
+	check(bool(m["lossless"]), "manifest marks the build lossless")
+	check_eq(_triangles(model), int(m["robot"]["source_triangles"]), "robot triangles equal the CAD export's")
+	check_eq(int(m["robot"]["triangles"]), int(m["robot"]["source_triangles"]))
 	var field: Node3D = (load(ModelsService.PATHS["field"]) as PackedScene).instantiate()
-	var fs := 0
-	var ft := 0
-	for mi: MeshInstance3D in field.find_children("*", "MeshInstance3D", true, false):
-		fs += mi.mesh.get_surface_count()
-		for i in mi.mesh.get_surface_count():
-			ft += mi.mesh.surface_get_array_index_len(i) / 3
-	check(fs <= 6, "field surfaces %d <= 6" % fs)
-	check(ft <= 120000, "field triangles %d <= 120k" % ft)
+	check_eq(_triangles(field), int(m["field"]["triangles"]))
+	check_eq(int(m["field"]["triangles"]) + int(m["field"]["fuel_triangles_dropped"]), int(m["field"]["source_triangles"]),
+		"field triangles plus the staged Fuel equal the CAD export's")
 	check(field.find_children("GE-26900*", "", true, false).is_empty(), "no Fuel nodes")
 	field.free()
+
+
+func test_import_keeps_full_precision_and_no_lods() -> void:
+	for key: String in ModelsService.PATHS:
+		var cfg := ConfigFile.new()
+		check_eq(cfg.load(ModelsService.PATHS[key] + ".import"), OK, key + ".import")
+		check_eq(cfg.get_value("params", "meshes/generate_lods"), false, key + " generates no LODs")
+		check_eq(cfg.get_value("params", "meshes/force_disable_compression"), true, key + " vertex compression off")
+		var root: Node3D = (load(ModelsService.PATHS[key]) as PackedScene).instantiate()
+		for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+			for i in mi.mesh.get_surface_count():
+				check(mi.mesh.surface_get_format(i) & Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES == 0, "%s %s surface %d uncompressed" % [key, mi.name, i])
+		root.free()
+
+
+func test_surfaces_keep_their_cad_materials() -> void:
+	var seen := {}
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			if check(mat != null, "%s surface %d has its glTF material" % [mi.name, i]):
+				seen[mat.resource_name] = mat
+	var grey := seen.get("0.400000_0.400000_0.400000_0.000000_0.000000") as BaseMaterial3D
+	if check(grey != null, "a named CAD material survives"):
+		var p := CadMaterials.params(grey)
+		check(absf((p["albedo"] as Color).r - 0.4) < 1e-3, "shader gets the linear base color back (%s)" % p["albedo"])
+		check_eq(p["roughness"], 1.0)
+	var glass := seen.get("Material") as BaseMaterial3D
+	if check(glass != null, "the polycarbonate material survives"):
+		check(CadMaterials.is_blend(glass), "it stays blended")
+		check(absf(glass.albedo_color.a - 0.45) < 1e-3, "with its alpha")
+		check(absf(glass.roughness - 0.1825) < 1e-3, "and its roughness")
 
 
 func test_joint_transform_conventions() -> void:
@@ -137,7 +168,7 @@ func test_manifest_is_current() -> void:
 	for key: String in ModelsService.PATHS:
 		var entry: Dictionary = m[key]
 		var out_path := "res://" + str(entry["output"])
-		check_eq(FileAccess.get_sha256(out_path), entry["output_sha256"], key + " GLB matches the manifest")
+		check_eq(FileAccess.get_sha256(out_path), entry["output_sha256"], key + " GLB matches the manifest: run tools/assets/build_models.mjs")
 		var src := ProjectSettings.globalize_path("res://").path_join("..").path_join("..").path_join(str(entry["source"]))
 		if not FileAccess.file_exists(src):
 			note("source %s not present; staleness check skipped" % src)
@@ -145,28 +176,13 @@ func test_manifest_is_current() -> void:
 		check_eq(FileAccess.get_sha256(src), entry["source_sha256"], "%s source changed since the models were built: run tools/assets/build_models.mjs" % key)
 
 
-func test_light_robot_keeps_the_rig_nodes_and_rest_transforms() -> void:
-	var lite := (load(ModelsService.PATHS["robot_lite"]) as PackedScene).instantiate() as Node3D
-	var m := _manifest()
-	check_eq(m["robot_lite"]["rest_transforms"], m["robot"]["rest_transforms"])
-	check(int(m["robot_lite"]["triangles"]) * 4 < int(m["robot"]["triangles"]), "light robot is under a quarter of the triangles")
-	check(int(m["field_lite"]["triangles"]) * 4 < int(m["field"]["triangles"]), "light field is under a quarter of the triangles")
-	for name: String in REST:
-		var full := model.find_child(name, true, false) as Node3D
-		var n := lite.find_child(name, true, false) as Node3D
-		if not check(n != null, "light robot node %s" % name):
-			continue
-		check(n.transform.is_equal_approx(full.transform), name + " transform")
-	var rig := RobotRig.new(lite)
-	check(rig.bumper != null, "the rig finds the bumper in the light robot")
-	lite.free()
-
-
 func test_glbs_declare_no_extensions() -> void:
 	for key: String in ModelsService.PATHS:
-		var bytes := FileAccess.get_file_as_bytes(ModelsService.PATHS[key])
-		var json_len := bytes.decode_u32(12)
-		var header: Dictionary = JSON.parse_string(bytes.slice(20, 20 + json_len).get_string_from_utf8())
+		var f := FileAccess.open(ModelsService.PATHS[key], FileAccess.READ)
+		f.seek(12)
+		var json_len := f.get_32()
+		f.seek(20)
+		var header: Dictionary = JSON.parse_string(f.get_buffer(json_len).get_string_from_utf8())
 		check(not header.has("extensionsRequired"), key + " extensionsRequired")
 		check(not header.has("extensionsUsed"), key + " extensionsUsed")
 		check(not header.has("animations"), key + " animations dropped")

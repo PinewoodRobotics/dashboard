@@ -3,18 +3,17 @@ extends RefCounted
 
 ## Automatic quality fallback for a GPU that cannot hold the frame cap. Frame
 ## times are averaged over WINDOW_S while a 3D view renders; a window below
-## SLOW_FRACTION of the target tries the next step: MSAA off, light models
-## (fewer vertices), render scale 0.75, then 0.5. Steps that change nothing on
-## top of the saved settings are skipped. A step that does not raise the frame
-## rate by MIN_GAIN_FPS is undone and every later step on the same knob is
-## skipped, so a vertex-bound GPU still gets the light models after MSAA off
-## did nothing, and a fill-bound one still gets the lower render scale after
-## the light models did nothing. When no step is left to try the governor
-## stops; if nothing helped, the frame rate is held back by something these
-## knobs do not fix (CPU, a vsync pair running at half rate). It never raises
-## quality again by itself; reset() starts over.
+## SLOW_FRACTION of the target tries the next step: MSAA off, render scale
+## 0.75, then 0.5. Steps that change nothing on top of the saved settings are
+## skipped. A step that does not raise the frame rate by MIN_GAIN_FPS is undone
+## and every later step on the same knob is skipped, so a fill-bound GPU still
+## gets the lower render scale after MSAA off did nothing. When no step is left
+## to try the governor stops; if nothing helped, the frame rate is held back by
+## something these knobs do not fix (vertex load, CPU, a vsync pair running at
+## half rate). The models are never simplified. It never raises quality again
+## by itself; reset() starts over.
 
-const STEPS := [{"msaa": 0}, {"models": "lite"}, {"render_scale": 0.75}, {"render_scale": 0.5}]
+const STEPS := [{"msaa": 0}, {"render_scale": 0.75}, {"render_scale": 0.5}]
 const WINDOW_S := 3.0
 const WARMUP_S := 5.0
 const SETTLE_S := 1.5
@@ -117,7 +116,6 @@ static func applied(c: Dictionary, base: Dictionary) -> Dictionary:
 	for k: String in ["render_scale", "msaa"]:
 		var saved: float = float(base.get(k, INF))
 		out[k] = minf(saved, float(c[k])) if c.has(k) else saved
-	out["models"] = str(c.get("models", base.get("models", "full")))
 	return out
 
 
@@ -145,6 +143,4 @@ static func describe(c: Dictionary) -> String:
 		parts.append("%sx scale" % str(c["render_scale"]))
 	if c.has("msaa"):
 		parts.append("MSAA off")
-	if c.has("models"):
-		parts.append("light models")
 	return ", ".join(parts)

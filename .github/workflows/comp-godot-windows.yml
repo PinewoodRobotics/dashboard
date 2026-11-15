@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/comp-godot/**"
+      - "apps/comp/cad-assets/**"
       - ".github/workflows/comp-godot-windows.yml"
   workflow_dispatch:
 
@@ -55,6 +56,10 @@ jobs:
           cp ~/godot/templates/* "$tpl/"
           chmod +x ~/godot/godot
           echo "$HOME/godot" >> "$GITHUB_PATH"
+
+      - name: Build the robot and field models from the CAD exports
+        working-directory: ${{ env.APP }}/tools/assets
+        run: npm ci && node build_models.mjs
 
       - name: Import project
         run: godot --headless --path "$APP" --import

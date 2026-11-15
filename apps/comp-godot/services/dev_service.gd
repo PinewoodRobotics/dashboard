@@ -444,9 +444,6 @@ func _benchmark() -> Dictionary:
 	var rows: Array = []
 	for s: float in BENCHMARK_SCALES:
 		rows.append(await _benchmark_pass(s, frames))
-	Settings.visual_overrides["models"] = "lite"
-	var lite := await _benchmark_pass(1.0, frames)
-	Settings.visual_overrides.erase("models")
 	for key: String in windows:
 		DisplayServer.window_set_vsync_mode(vsync[key], (windows[key] as Window).get_window_id())
 	Engine.max_fps = cap
@@ -472,7 +469,7 @@ func _benchmark() -> Dictionary:
 		"renderer": RenderingServer.get_current_rendering_driver_name(), "adapter": RenderingServer.get_video_adapter_name(),
 		"vendor": RenderingServer.get_video_adapter_vendor(), "api": RenderingServer.get_video_adapter_api_version(),
 		"screens": screens, "windows": windows.keys(), "msaa": int(Settings.effective_visual()["msaa"]),
-		"frames_per_pass": frames, "uncapped": rows, "uncapped_lite": lite, "recommended_scale": best,
+		"frames_per_pass": frames, "uncapped": rows, "recommended_scale": best,
 		"capped": {"render_scale": capped_scale, "max_fps": cap, "fps": capped["fps"],
 			"frame_ms_p95": capped["frame_ms_p95"], "vsync": vsync.values().map(func(m: int) -> String: return "on" if m != DisplayServer.VSYNC_DISABLED else "off")},
 	}
@@ -505,18 +502,12 @@ static func benchmark_text(b: Dictionary) -> String:
 	for r: Dictionary in b["uncapped"]:
 		lines.append("  render scale %.2f   %6.1f fps   p50 %5.1f ms   p95 %5.1f ms   %7d primitives   %s" % [r["render_scale"], r["fps"],
 			r["frame_ms_p50"], r["frame_ms_p95"], r["max_primitives"], "holds 60 fps" if r["ok_60"] else "too slow for 60 fps"])
-	var lite: Dictionary = b.get("uncapped_lite", {})
-	if not lite.is_empty():
-		lines.append("  light models, 1.00   %6.1f fps   p50 %5.1f ms   p95 %5.1f ms   %7d primitives   %s" % [lite["fps"],
-			lite["frame_ms_p50"], lite["frame_ms_p95"], lite["max_primitives"], "holds 60 fps" if lite["ok_60"] else "too slow for 60 fps"])
 	var c: Dictionary = b["capped"]
 	lines.append("")
 	lines.append("At the %d fps cap with vsync as launched (render scale %.2f): %.1f fps, p95 %.1f ms" % [c["max_fps"], c["render_scale"], c["fps"], c["frame_ms_p95"]])
 	lines.append("")
 	if float(b["recommended_scale"]) == 1.0:
 		lines.append("Recommended: Visual > Render Scale 1x (full quality holds 60 fps).")
-	elif not lite.is_empty() and lite["ok_60"]:
-		lines.append("Recommended: keep Visual > Auto Quality on. The light models hold 60 fps at full resolution, and it switches to them after MSAA off.")
 	elif float(b["recommended_scale"]) > 0.0:
 		lines.append("Recommended: Visual > Render Scale %sx (the highest scale whose p95 frame time stays under %.0f ms)." % [str(b["recommended_scale"]), BENCHMARK_OK_P95_MS])
 	else:
@@ -593,7 +584,6 @@ func _sample_perf(frames: int) -> Dictionary:
 			"primitives": RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
 			"objects": RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME),
 			"scaling_3d_scale": (views[key] as CadView).viewport.scaling_3d_scale,
-			"lite_models": (views[key] as CadView).lite_models,
 		}
 	return {
 		"frames": frames,

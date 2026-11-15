@@ -49,7 +49,7 @@ func apply(solver: RigSolver, values: Dictionary) -> void:
 func ensure_bumper_material() -> void:
 	if bumper == null or bumper_material != null:
 		return
-	bumper_material = CadMaterials.tintable()
+	bumper_material = CadMaterials.create(bumper.mesh.surface_get_material(0))
 	for i in bumper.mesh.get_surface_count():
 		bumper.set_surface_override_material(i, bumper_material)
 
