@@ -5,7 +5,7 @@
   {"call": "stage_autos"},
   {"wait_ms": 200},
   {"expect": {"auto_tab.card_count": 10}},
-  {"tap": "find:ReloadAutos"},
-  {"expect": {"auto_tab.summary": "10 autos · event update\nexported 2999-01-02 03:04 UTC", "auto_tab.card_count": 11, "auto_tab.summary_clipped": false, "auto_tab.desc_clipped": false}},
+  {"call": "reload_autos"},
+  {"expect": {"auto_tab.summary": "10 autos · event update\nexported 2999-01-02 03:04 UTC", "auto_tab.card_count": 11, "auto_tab.desc_clipped": false}},
   {"screenshot": "reloaded"}
  ]}

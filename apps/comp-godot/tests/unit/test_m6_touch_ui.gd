@@ -105,7 +105,9 @@ func test_lock_banner_and_locked_button() -> void:
 	var n := link.published.size()
 	t._on_select()
 	check_eq(link.published.size(), n, "no publish while locked")
-	check(t._list_pane.position.y >= AutoTab.BANNER_H, "banner pushes the list down")
+	check_eq(t._list_pane.position.y, 0.0, "the banner covers the list instead of pushing it")
+	check(t.banner.size.y > 38.0 and t.banner.size.y < 40.0, "banner height %s" % t.banner.size.y)
+	check(not t.select_button.selected, "not the active auto")
 
 
 func test_conflict_popup_dismiss_and_resync() -> void:
@@ -128,15 +130,16 @@ func test_conflict_popup_dismiss_and_resync() -> void:
 	check_eq(link.count(REQ), n + 1, "Resync Now republishes")
 
 
-func test_validity_warning_on_card_and_detail() -> void:
+func test_validity_warning_over_the_preview() -> void:
 	var t := _auto_tab()
 	link.up = true
 	link.values[Topics.PP_VALID_AUTOS] = PackedStringArray(["Stay And Shoot"])
 	controls.sync.select("Ball Shooter Left")
 	t.view("Ball Shooter Left")
-	check_eq(t.card("Ball Shooter Left").warning.text, "Not in the robot's auto list")
-	check_eq(t.card("Stay And Shoot").warning.text, "")
-	check_eq(t.detail_warning.text, "Not in the robot's auto list")
+	check_eq(t.probe()["warning"], "Not in the robot's auto list")
+	check(t.preview.warning.visible)
+	t.view("Stay And Shoot")
+	check(not t.preview.warning.visible or t.probe()["warning"] != "Not in the robot's auto list")
 
 
 func test_settings_status_text() -> void:
@@ -229,16 +232,14 @@ func test_failed_library_shows_a_retry_row_that_reloads() -> void:
 	t.size = host.size
 	host.add_child(t)
 	t.set_process(false)
-	check_eq(t.cards.size(), 2, "No Auto plus the status row")
-	var row := t.cards[1]
-	check_eq(row.auto_name, AutoTab.RETRY)
-	check_eq(row.title.text, "Failed to load autos")
-	check(row.desc.text.ends_with("Tap to retry."), row.desc.text)
+	check_eq(t.cards.size(), 1, "No Auto")
+	check(t.status_row != null)
+	check_eq(t.status_row.text.text, "Failed to load. Tap to retry.")
 	check_eq(t.viewing, "NONE", "nothing to view but No Auto")
 	t._on_card_tapped(1)
 	check(autos.library.is_loaded(), "tapping the row reloads the library")
 	check_eq(t.cards.size(), autos.library.names().size() + 1, "the cards come back")
-	check(t.card(AutoTab.RETRY) == null, "status row gone")
+	check(t.status_row == null, "status row gone")
 	autos.queue_free()
 
 
@@ -277,12 +278,16 @@ func test_reload_autos_picks_up_a_newer_user_export() -> void:
 	host.add_child(t)
 	t.set_process(false)
 	check_eq(autos.library.dir, AutoLibrary.BUILTIN_DIR)
-	check(t.list_summary.text.begins_with("9 autos · built-in · "), t.list_summary.text)
-	check(t.list_summary.text.contains("\nexported "), t.list_summary.text)
+	var box := AutoExportBox.new()
+	box.autos = autos
+	host.add_child(box)
+	check(box.summary.text.begins_with("9 autos · built-in · "), box.summary.text)
+	check(box.summary.text.contains("\nexported "), box.summary.text)
 	_copy_export(user, "2999-01-02T03:04:05Z", "Event Fix Auto")
-	t.reload_button.pressed.emit()
+	box.reload_button.pressed.emit()
 	check_eq(autos.library.dir, user, "Reload Autos loads the newer export")
-	check_eq(t.list_summary.text, "10 autos · event update\nexported 2999-01-02 03:04 UTC")
+	check_eq(box.summary.text, "10 autos · event update\nexported 2999-01-02 03:04 UTC")
+	check_eq(t.probe()["summary"], box.summary.text)
 	check(t.card("Event Fix Auto") != null, "the new auto has a card")
 	check(autos.library.get_auto("Event Fix Auto") != null)
 	autos.queue_free()
@@ -310,6 +315,7 @@ func test_robot_only_autos_get_cards_without_preview() -> void:
 	check(c != null and c.file.text == AutoTab.ROBOT_ONLY_FILE)
 	t.view("Fresh Auto")
 	check(t.no_preview.visible and not t.preview.visible)
+	check_eq(t.howard.heading.text, "Failed to load preview")
 	check_eq(t.detail_title.text, "Fresh Auto")
 	check_eq(t.select_button.text, "Select")
 	t._on_select()

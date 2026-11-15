@@ -4,11 +4,11 @@
       "Move Forward And Shoot Right", "Stay And Shoot", "Two Piece Outpost"]},
  "touch": {"active_tab": "auto"},
  "input": [
-  {"expect": {"auto_tab.card_count": 11, "auto_tab.robot_only": ["Two Piece Outpost"], "auto_tab.cards.Two Piece Outpost.warning": ""}},
+  {"expect": {"auto_tab.card_count": 11, "auto_tab.robot_only": ["Two Piece Outpost"]}},
   {"drag": {"from": "find:List", "to": {"node": "find:List", "offset": [0, -2000]}, "ms": 300}},
   {"wait_ms": 300},
   {"tap": "find:Card_Two_Piece_Outpost"},
-  {"expect": {"auto_tab.viewing": "Two Piece Outpost", "auto_tab.no_preview": true, "auto_tab.preview": {},
+  {"expect": {"auto_tab.viewing": "Two Piece Outpost", "auto_tab.no_preview": true, "auto_tab.no_preview_title": "Failed to load preview", "auto_tab.preview": {},
     "auto_tab.detail_file": "On the robot: no preview, not exported", "auto_tab.button": "Select", "auto_tab.button_enabled": true}},
   {"screenshot": "detail"},
   {"tap": "find:Select"},

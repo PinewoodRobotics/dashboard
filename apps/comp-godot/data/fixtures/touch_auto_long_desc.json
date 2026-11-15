@@ -6,6 +6,6 @@
  "preview": {"meta": {"Move Forward And Shoot Center": {"name": "Move Forward And Shoot Center",
    "description": "From the center of the alliance area, drives forward, aims the turret at the hub and shoots the preloaded fuel, then backs off toward the neutral zone line and waits there for teleop"}}},
  "input": [
-  {"expect": {"auto_tab.desc_clipped": false, "auto_tab.title_clipped": false, "auto_tab.robot_clipped": false,
+  {"expect": {"auto_tab.desc_clipped": false,
     "auto_tab.start_chip": {"ne": ""}}}
  ]}

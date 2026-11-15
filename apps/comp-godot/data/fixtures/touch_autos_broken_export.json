@@ -7,10 +7,7 @@
  "input": [
   {"wait_ms": 300},
   {"expect": {"auto_tab.summary": "10 autos · event update\nexported 2999-01-02 03:04 UTC", "auto_tab.card_count": 11,
-    "auto_tab.cards.Ball Shooter Right.warning": "Event copy broken: older preview",
-    "auto_tab.cards.Event Fix Auto.warning": "Preview failed to load",
-    "auto_tab.cards.Ball Shooter Left.warning": "",
-    "auto_tab.viewing": "Ball Shooter Right", "auto_tab.no_preview": false, "auto_tab.detail_warning": {"ne": ""},
+    "auto_tab.viewing": "Ball Shooter Right", "auto_tab.no_preview": false, "auto_tab.warning": "Event copy broken: older preview",
     "auto_tab.preview.auto": "Ball Shooter Right"}},
   {"tap": "find:PlayPause"},
   {"wait_ms": 1000},
@@ -24,7 +21,7 @@
   {"expect": {"auto_tab.viewing": "Event Fix Auto", "auto_tab.no_preview": true, "auto_tab.no_preview_title": "Failed to load preview",
     "auto_tab.expanded": false}},
   {"screenshot": "failed"},
-  {"tap": "find:ReloadAutos"},
+  {"call": "reload_autos"},
   {"wait_ms": 200},
   {"expect": {"auto_tab.viewing": "Event Fix Auto", "auto_tab.no_preview_title": "Failed to load preview"}}
  ]}
