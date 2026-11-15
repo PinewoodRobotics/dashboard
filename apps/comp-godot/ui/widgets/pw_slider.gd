@@ -20,9 +20,6 @@ const HINT_PX := 16
 var label := ""
 ## Shown between label and track; "{v}" is replaced by the formatted value.
 var value_label := ""
-## Godot-only: the value right-aligned on the label's line instead (the web's
-## Robot 3D joint rows, which are not CustomSliders).
-var value_beside := false
 var min_value := 0.0
 var max_value := 1.0
 var step := 0.0
@@ -95,7 +92,7 @@ func _update_min_size() -> void:
 
 
 func _value_lines() -> PackedStringArray:
-	if value_label == "" or value_beside:
+	if value_label == "":
 		return PackedStringArray()
 	return PwText.wrap_lines(_interpolate(value_label), Tokens.inter(500), VALUE_PX, size.x)
 
@@ -297,17 +294,17 @@ func _draw() -> void:
 	var a := 0.5 if disabled else 1.0
 	if label != "":
 		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, label_size, 0.0)), label, label_size, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
-	if value_label != "" and value_beside:
-		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, label_size, 0.0)), _interpolate(value_label), label_size, Color(1, 1, 1, 0.6 * a), HORIZONTAL_ALIGNMENT_RIGHT, size.x)
-	else:
-		var lines := _value_lines()
-		for i in lines.size():
-			UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, VALUE_PX, _value_top() + i * _line_h(500, VALUE_PX))), lines[i], VALUE_PX, Color(1, 1, 1, 0.7 * a))
+	var lines := _value_lines()
+	for i in lines.size():
+		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, VALUE_PX, _value_top() + i * _line_h(500, VALUE_PX))), lines[i], VALUE_PX, Color(1, 1, 1, 0.7 * a))
 	var bar := bar_rect()
-	UiDraw.rect(ci, bar, _faded(_track_bg.value(), a))
 	var inner := bar.grow(-Tokens.BORDER)
 	var fw := inner.size.x * _fill.value
 	var fill_rect := Rect2(inner.end.x - fw, inner.position.y, fw, inner.size.y) if reversed else Rect2(inner.position, Vector2(fw, inner.size.y))
+	var rest_rect := Rect2(inner.position, Vector2(inner.size.x - fw, inner.size.y)) if reversed else Rect2(inner.position.x + fw, inner.position.y, inner.size.x - fw, inner.size.y)
+	# Track, fill and border tile without overlapping, so the per-shape 50% of a
+	# disabled slider composites like the web's opacity-50 on the whole group.
+	UiDraw.rect(ci, rest_rect, _faded(_track_bg.value(), a))
 	UiDraw.rect(ci, fill_rect, _faded(_fill_col.value(), a))
 	var eps := _dot_epsilon()
 	for i in snap_points.size():

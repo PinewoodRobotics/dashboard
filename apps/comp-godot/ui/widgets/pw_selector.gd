@@ -55,9 +55,30 @@ func configure(lbl: String, opts: Array, current: Variant) -> PwSelector:
 	options = opts
 	index = maxi(0, index_of(current))
 	_hl.jump(index * STRIDE)
-	custom_minimum_size = Vector2(cells_width(options.size()), _cells_top() + CELL + (GAP + _line_h(HINT_PX) if _has_hints() else 0.0))
+	_update_min_size()
 	queue_redraw()
 	return self
+
+
+func _update_min_size() -> void:
+	var n := _hint_lines().size()
+	var h := _cells_top() + CELL + (GAP + n * _line_h(HINT_PX) if n > 0 else 0.0)
+	var m := Vector2(cells_width(options.size()), h)
+	if not custom_minimum_size.is_equal_approx(m):
+		custom_minimum_size = m
+
+
+func _hint_lines() -> PackedStringArray:
+	var shown := displayed_index()
+	if shown >= options.size():
+		return PackedStringArray()
+	var w := maxf(size.x, cells_width(options.size()))
+	return PwText.wrap_lines(str(options[shown].get("hint", "")), Tokens.inter(400), HINT_PX, w)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_update_min_size()
 
 
 func index_of(v: Variant) -> int:
@@ -115,6 +136,7 @@ func set_index(i: int, emit: bool = false, animate: bool = true) -> void:
 		set_process(true)
 	else:
 		_hl.jump(i * STRIDE)
+	_update_min_size()
 	queue_redraw()
 	if emit and changed:
 		selected.emit(current_value())
@@ -128,13 +150,6 @@ func select_value(v: Variant, animate: bool = true) -> void:
 
 func _cells_top() -> float:
 	return _line_h(LABEL_PX) + GAP if label != "" else 0.0
-
-
-func _has_hints() -> bool:
-	for o: Dictionary in options:
-		if str(o.get("hint", "")) != "":
-			return true
-	return false
 
 
 func _process(delta: float) -> void:
@@ -166,6 +181,7 @@ func _gui_input(event: InputEvent) -> void:
 			if absf(dx) > DRAG_PX:
 				dragging = true
 			_hl.jump(clampf(index * STRIDE + dx, 0.0, (options.size() - 1) * STRIDE))
+			_update_min_size()
 			queue_redraw()
 			accept_event()
 		PointerInput.Kind.UP:
@@ -191,11 +207,9 @@ func _draw() -> void:
 		_draw_option(options[i], r, Color(1, 1, 1, a), false)
 	_window.position = Vector2(_hl.value, top)
 	_window.queue_redraw()
-	var shown := displayed_index()
-	if shown < options.size():
-		var hint := str(options[shown].get("hint", ""))
-		var f := Tokens.inter(400)
-		UiDraw.text(self, f, Vector2(0, roundf(top + CELL + GAP + f.get_ascent(HINT_PX))), hint, HINT_PX, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, maxf(size.x, CELL))
+	var hint := _hint_lines()
+	for i in hint.size():
+		UiDraw.text(self, Tokens.inter(400), Vector2(0, _baseline(400, HINT_PX, top + CELL + GAP + i * _line_h(HINT_PX))), hint[i], HINT_PX, Color(1, 1, 1, a))
 
 
 ## The green layer: fill, border and every option's filled symbol at its own

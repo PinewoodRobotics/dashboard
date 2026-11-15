@@ -232,3 +232,33 @@ func test_buttons_take_the_web_sizes() -> void:
 	check_eq(more.radius, 0.0, "square")
 	for b in [save, more, pill]:
 		b.free()
+
+
+func test_selector_hint_sits_in_a_24px_line_and_wraps() -> void:
+	var sel := _add(PwSelector.new().configure("Mode", MapSettingsPanel.MODE_OPTIONS, "follow")) as PwSelector
+	var f := Tokens.inter(400)
+	var top := sel._cells_top() + PwSelector.CELL + PwSelector.GAP
+	check_eq(PwSelector._baseline(400, 16, top), roundf(top + (24.0 - f.get_ascent(16) - f.get_descent(16)) * 0.5 + f.get_ascent(16)))
+	check_eq(sel.custom_minimum_size.y, top + 24.0)
+	sel.size.x = 156.0
+	sel.options = [{"value": 0, "symbol": Sf.MODE_DRIVER, "hint": "a hint long enough to need more than one line here"}, sel.options[1]]
+	sel.set_index(0, false, false)
+	check(sel._hint_lines().size() > 1, "wraps at the selector's width like the web's <p>")
+	check_eq(sel.custom_minimum_size.y, top + 24.0 * sel._hint_lines().size())
+
+
+func test_pill_glow_is_the_css_gaussian_shadow() -> void:
+	var cells := [
+		[UiDraw._box_shadow_cell(Vector2i(34, 34), 17, 15, 23, Rect2i(-3, -13, 40, 40), 20), Vector2i(-40, -30)],
+		[UiDraw._box_shadow_cell(Vector2i(32, 32), 16, 6, 9, Rect2i(-4, -8, 40, 40), 20), Vector2i(-25, -21)],
+	]
+	var img := UiDraw.atlas_image()
+	for probe: Array in [[3, 0.135], [6, 0.089], [10, 0.050]]:
+		var p := Vector2i(0, 20 + int(probe[0]))
+		var keep := 1.0
+		for c: Array in cells:
+			var cell: Rect2i = c[0]
+			keep *= 1.0 - 0.2 * img.get_pixelv(cell.position + p - (c[1] as Vector2i)).a
+		check_near(1.0 - keep, probe[1], 0.012, "white/20 shadow-lg %d px under the pill" % probe[0])
+	var under := cells[0][0] as Rect2i
+	check_eq(img.get_pixelv(under.position + Vector2i(0, 10) - Vector2i(-40, -30)).a, 0.0, "no shadow under the pill itself")

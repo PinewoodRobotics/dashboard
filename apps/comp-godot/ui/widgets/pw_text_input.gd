@@ -46,7 +46,7 @@ func _init(lbl: String = "", hint: String = "", is_numeric: bool = false) -> voi
 	placeholder = hint
 	numeric = is_numeric
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	custom_minimum_size = Vector2(240, _field_top() + FIELD_H)
+	custom_minimum_size = Vector2(0, _field_top() + FIELD_H)
 
 
 static func filter(s: String, digits_only: bool) -> String:

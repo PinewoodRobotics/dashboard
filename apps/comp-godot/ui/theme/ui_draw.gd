@@ -210,6 +210,66 @@ static func shadow(ci: RID, r: Rect2, radius: float, blur: int, color: Color) ->
 	_nine(ci, r.grow(blur), _shadow_cell(c, blur), c + blur, color, true)
 
 
+## A CSS box-shadow of a small element. `r` is the shadow box (offset and
+## spread applied); it is blurred by a gaussian of sigma blur / 2 like the
+## browser's, and an outer shadow never paints under `hole`, the element's box.
+## The cell is built even while the color is transparent, so the blur's cost
+## lands on the first draw and not on the frame a glow starts fading in.
+static func box_shadow(ci: RID, r: Rect2, radius: float, blur: int, color: Color, hole := Rect2(), hole_radius := 0.0) -> void:
+	var pad := ceili(blur * 1.5)
+	var cell := _box_shadow_cell(Vector2i(r.size.round()), _fit_radius(r, radius), blur, pad,
+		Rect2i(Vector2i((hole.position - r.position).round()), Vector2i(hole.size.round())), roundi(hole_radius))
+	if color.a > 0.0:
+		_blit(ci, Rect2(r.position - Vector2(pad, pad), Vector2(cell.size)), Rect2(cell), color)
+
+
+static func _box_shadow_cell(shape: Vector2i, radius: int, blur: int, pad: int, hole: Rect2i, hole_radius: int) -> Rect2i:
+	var key := "bshadow%s_%d_%d_%s_%d" % [shape, radius, blur, hole, hole_radius]
+	if _cells.has(key):
+		return _cells[key]
+	var w := shape.x + 2 * pad
+	var h := shape.y + 2 * pad
+	var mask := PackedFloat32Array()
+	mask.resize(w * h)
+	for y in h:
+		for x in w:
+			mask[y * w + x] = _cov(_rounded_sdf(Vector2(x + 0.5 - pad, y + 0.5 - pad), Vector2(shape), radius))
+	if blur > 0:
+		var sigma := blur * 0.5
+		var kernel := PackedFloat32Array()
+		var total := 0.0
+		for i in range(-pad, pad + 1):
+			var k := exp(-i * i / (2.0 * sigma * sigma))
+			kernel.append(k)
+			total += k
+		for i in kernel.size():
+			kernel[i] /= total
+		mask = _convolve(mask, w, h, kernel, pad, Vector2i(1, 0))
+		mask = _convolve(mask, w, h, kernel, pad, Vector2i(0, 1))
+	if hole.size != Vector2i.ZERO:
+		var hr := clampi(hole_radius, 0, mini(hole.size.x, hole.size.y) / 2)
+		for y in h:
+			for x in w:
+				var p := Vector2(x + 0.5 - pad, y + 0.5 - pad) - Vector2(hole.position)
+				mask[y * w + x] *= 1.0 - _cov(_rounded_sdf(p, Vector2(hole.size), hr))
+	return _raster(key, w, h, func(p: Vector2) -> float: return mask[int(p.y) * w + int(p.x)])
+
+
+static func _convolve(src: PackedFloat32Array, w: int, h: int, kernel: PackedFloat32Array, reach: int, axis: Vector2i) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(w * h)
+	for y in h:
+		for x in w:
+			var acc := 0.0
+			for i in range(-reach, reach + 1):
+				var sx := x + i * axis.x
+				var sy := y + i * axis.y
+				if sx >= 0 and sx < w and sy >= 0 and sy < h:
+					acc += src[sy * w + sx] * kernel[i + reach]
+			out[y * w + x] = acc
+	return out
+
+
 static func circle(ci: RID, center: Vector2, radius: float, color: Color) -> void:
 	var r := roundi(radius)
 	if r <= 0 or color.a <= 0.0:

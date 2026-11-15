@@ -248,8 +248,9 @@ func _draw() -> void:
 	if variant == Style.PILL:
 		var glow := Color(1, 1, 1, 0.2 * _glow.value * a)
 		var c := r.get_center()
-		UiDraw.shadow(ci, Rect2(c + Vector2(-17, -17 + 10), Vector2(34, 34)), 17, 15, glow)
-		UiDraw.shadow(ci, Rect2(c + Vector2(-16, -16 + 4), Vector2(32, 32)), 16, 6, glow)
+		var pill := Rect2(c - Vector2(PILL_PX, PILL_PX) * 0.5, Vector2(PILL_PX, PILL_PX))
+		UiDraw.box_shadow(ci, Rect2(c + Vector2(-17, -17 + 10), Vector2(34, 34)), 17, 15, glow, pill, PILL_PX * 0.5)
+		UiDraw.box_shadow(ci, Rect2(c + Vector2(-16, -16 + 4), Vector2(32, 32)), 16, 6, glow, pill, PILL_PX * 0.5)
 		UiDraw.circle(ci, c, PILL_PX * 0.5, bg)
 	else:
 		var border := 0
