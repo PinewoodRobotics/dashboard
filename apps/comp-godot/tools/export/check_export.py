@@ -1,7 +1,8 @@
-"""Checks an exported build: the Windows exe is a PE32+ x86-64 image with a
-separate .pck that holds every runtime file the project loads.
+"""Checks an exported build: the Windows exe is a PE32+ image for the given
+architecture (x86_64 or arm64) with a separate .pck that holds every runtime
+file the project loads.
 
-Usage: python3 check_export.py APP_DIR WINDOWS_EXE
+Usage: python3 check_export.py APP_DIR WINDOWS_EXE [x86_64|arm64]
 """
 
 import struct
@@ -12,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from pck_list import read_pck  # noqa: E402
 
 app, exe = Path(sys.argv[1]), Path(sys.argv[2])
+arch = sys.argv[3] if len(sys.argv) > 3 else "x86_64"
+MACHINE = {"x86_64": 0x8664, "arm64": 0xAA64}[arch]
 pck = exe.with_suffix(".pck")
 errors: list[str] = []
 
@@ -28,7 +31,7 @@ check(pe > 0 and head[pe : pe + 4] == b"PE\0\0", f"{exe.name} is a PE image")
 if pe > 0:
     machine = struct.unpack_from("<H", head, pe + 4)[0]
     magic = struct.unpack_from("<H", head, pe + 24)[0]
-    check(machine == 0x8664 and magic == 0x20B, f"{exe.name} is x86-64 PE32+ (machine {machine:#x}, magic {magic:#x})")
+    check(machine == MACHINE and magic == 0x20B, f"{exe.name} is {arch} PE32+ (machine {machine:#x}, magic {magic:#x})")
 check(pck.exists(), f"{pck.name} next to the exe ({pck.stat().st_size / 1e6:.1f} MB)" if pck.exists() else f"{pck.name} exists")
 if errors:
     sys.exit(1)

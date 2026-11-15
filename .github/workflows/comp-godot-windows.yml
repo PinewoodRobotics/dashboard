@@ -1,4 +1,4 @@
-name: Comp dashboard (Godot) Windows build
+name: Comp dashboard (Godot) builds
 
 on:
   push:
@@ -24,30 +24,28 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
 
-      - name: Cache Godot and Windows export templates
+      - name: Cache Godot and export templates
         id: godot-cache
         uses: actions/cache@v6
         with:
           path: ~/godot
-          key: godot-${{ env.GODOT_VERSION }}-windows-templates
+          key: godot-${{ env.GODOT_VERSION }}-templates-windows-arm64-x86_64-macos-arm64-${{ hashFiles('apps/comp-godot/tools/export/fetch_templates.py') }}
 
-      - name: Download Godot and Windows export templates
+      - name: Download Godot and the Windows and macOS export templates
         if: steps.godot-cache.outputs.cache-hit != 'true'
         run: |
           base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
-          mkdir -p ~/godot/templates
+          mkdir -p ~/godot
           cd ~/godot
           curl -fsSLO "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
-          curl -fsSLO "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
-          unzip -q -j "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" \
-            'templates/version.txt' 'templates/windows_*_x86_64*' 'templates/icudt_godot.dat' -d templates
-          rm -f ./*.zip ./*.tpz
+          rm -f ./*.zip
+          python3 "$GITHUB_WORKSPACE/$APP/tools/export/fetch_templates.py" "$GODOT_VERSION" ~/godot/templates
 
       - name: Install Godot
         run: |
@@ -67,20 +65,35 @@ jobs:
       - name: Unit tests
         run: GODOT=godot "$APP/tools/test/run_unit.sh"
 
-      - name: Export Windows build
+      - name: Export Windows ARM64 and x64 builds
         run: |
-          mkdir -p "$APP/build/windows"
-          godot --headless --path "$APP" --export-release "Windows Desktop" build/windows/PWRUP-Comp.exe
-          test -s "$APP/build/windows/PWRUP-Comp.exe"
-          test -s "$APP/build/windows/PWRUP-Comp.pck"
-          cp "$APP"/tools/windows/*.bat "$APP/build/windows/"
-          cd "$APP/build/windows"
-          zip -q -r "$GITHUB_WORKSPACE/PWRUP-Comp-windows-x64.zip" .
+          for arch in arm64 x64; do
+            case "$arch" in
+              arm64) preset="Windows ARM64" machine=arm64 ;;
+              x64) preset="Windows x64" machine=x86_64 ;;
+            esac
+            dir="$APP/build/windows-$arch"
+            mkdir -p "$dir"
+            godot --headless --path "$APP" --export-release "$preset" "build/windows-$arch/PWRUP-Comp.exe"
+            cp "$APP"/tools/windows/*.bat "$dir/"
+            python3 "$APP/tools/export/check_export.py" "$APP" "$dir/PWRUP-Comp.exe" "$machine"
+            (cd "$dir" && zip -q -r "$GITHUB_WORKSPACE/PWRUP-Comp-windows-$arch.zip" .)
+          done
+
+      - name: Export macOS ARM64 build (ad-hoc signed)
+        run: |
+          mkdir -p "$APP/build/macos"
+          godot --headless --path "$APP" --export-release macOS build/macos/PWRUP-Comp.zip
+          python3 "$APP/tools/export/check_macos.py" "$APP/build/macos/PWRUP-Comp.zip"
+          cp "$APP/build/macos/PWRUP-Comp.zip" "$GITHUB_WORKSPACE/PWRUP-Comp-macos-arm64.zip"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: PWRUP-Comp-windows-x64
-          path: PWRUP-Comp-windows-x64.zip
+          name: PWRUP-Comp
+          path: |
+            PWRUP-Comp-windows-arm64.zip
+            PWRUP-Comp-windows-x64.zip
+            PWRUP-Comp-macos-arm64.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -91,8 +104,9 @@ jobs:
         run: |
           short="${GITHUB_SHA::7}"
           gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
-          gh release create "$RELEASE_TAG" PWRUP-Comp-windows-x64.zip \
+          gh release create "$RELEASE_TAG" \
+            PWRUP-Comp-windows-arm64.zip PWRUP-Comp-windows-x64.zip PWRUP-Comp-macos-arm64.zip \
             --target "$GITHUB_SHA" \
             --latest \
             --title "Comp dashboard (Godot), main ($short)" \
-            --notes "Windows x64 build of apps/comp-godot from ${short}. Unzip and run PWRUP-Comp.bat."
+            --notes "Builds of apps/comp-godot from ${short}. Windows: PWRUP-Comp-windows-arm64.zip for Snapdragon (ARM64) laptops, PWRUP-Comp-windows-x64.zip for Intel and AMD; unzip and run PWRUP-Comp.bat. macOS (Apple silicon, ad-hoc signed, not notarized): unzip PWRUP-Comp-macos-arm64.zip and clear the download quarantine once with xattr -dr com.apple.quarantine on the app, or allow it in System Settings > Privacy & Security."
