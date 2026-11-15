@@ -77,6 +77,7 @@ jobs:
           name: PWRUP-Comp-windows-x64
           path: PWRUP-Comp-windows-x64.zip
           if-no-files-found: error
+          retention-days: 7
 
       - name: Publish rolling release
         if: github.ref == 'refs/heads/main'
@@ -87,6 +88,6 @@ jobs:
           gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
           gh release create "$RELEASE_TAG" PWRUP-Comp-windows-x64.zip \
             --target "$GITHUB_SHA" \
-            --prerelease \
-            --title "Comp dashboard (Godot), latest main ($short)" \
+            --latest \
+            --title "Comp dashboard (Godot), main ($short)" \
             --notes "Windows x64 build of apps/comp-godot from ${short}. Unzip and run PWRUP-Comp.bat."

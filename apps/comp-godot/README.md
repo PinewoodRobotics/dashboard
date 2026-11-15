@@ -148,8 +148,11 @@ macOS) re-tiles from either window.
 
 ## Driver station install (Windows x64)
 
-1. Export (below) or take `build/windows/` from a teammate: `PWRUP-Comp.exe`,
-   `PWRUP-Comp.pck` and the `.bat` launchers must stay in one folder.
+1. Download the build of the latest `main` from
+   <https://github.com/PinewoodRobotics/dashboard/releases/latest/download/PWRUP-Comp-windows-x64.zip>
+   (CI publishes it on every merge that touches `apps/comp-godot`), or export
+   it yourself (below), and unzip it. `PWRUP-Comp.exe`, `PWRUP-Comp.pck` and the
+   `.bat` launchers must stay in one folder.
 2. Copy the folder anywhere (not necessarily writable: logs and settings go to
    `%APPDATA%\PWRUP\CompDashboard`).
 3. Start `PWRUP-Comp.bat`. It runs the dashboard with `--kiosk` and restarts it
