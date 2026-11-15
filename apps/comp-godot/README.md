@@ -482,7 +482,7 @@ on the Linux CI runner; export to `build/macos/PWRUP-Comp.app` or `.zip`).
 macOS tools. CI (`.github/workflows/comp-godot-build.yml`) exports all three
 on every qualifying push to `main` and publishes `PWRUP-Comp-windows-arm64.zip`,
 `PWRUP-Comp-windows-x64.zip` and `PWRUP-Comp-macos-arm64.zip` on the rolling
-`comp-godot-latest` release. Both include `*.json`
+`comp-godot-latest` release. All three include `*.json`
 so the raw data (`data/**`, `ui/icons/lucide.json`, the model manifest) ships
 in the pck, and exclude `tests/`, `tools/` and scratch folders. The Windows
 exe is not code-signed, so SmartScreen may ask once on a new laptop.
