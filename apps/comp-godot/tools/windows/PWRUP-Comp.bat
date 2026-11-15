@@ -3,9 +3,10 @@ rem PWRUP Comp Dashboard launcher for the driver station.
 rem Starts PWRUP-Comp.exe in kiosk mode and restarts it whenever it exits with
 rem an error (a crash or a GPU driver reset). A normal quit ends the loop.
 rem Arguments are passed to the dashboard, e.g.  PWRUP-Comp.bat --nt-host=10.47.65.2
-rem PWRUP_ENGINE_ARGS adds engine arguments, e.g. --rendering-driver opengl3_angle.
-rem After 3 crashes within 30 s of starting, the rest of the session uses ANGLE
-rem (Direct3D 11), the fallback for broken OpenGL drivers.
+rem PWRUP_ENGINE_ARGS adds engine arguments, e.g. --rendering-driver vulkan.
+rem After 3 crashes within 30 s of starting, the rest of the session uses Vulkan
+rem instead of Direct3D 12; after 3 more, the Compatibility renderer (OpenGL ES
+rem through ANGLE on Direct3D 11), the emergency fallback.
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 set "EXE=%~dp0PWRUP-Comp.exe"
@@ -31,16 +32,27 @@ set /a RAN=END_S-START_S
 if !RAN! lss 0 set /a RAN+=86400
 >>"%LOG%" echo [%DATE% %TIME%] exit code !CODE! after !RAN! s, restarting
 if !RAN! lss 30 (set /a FAST_CRASHES+=1) else (set FAST_CRASHES=0)
-if !FAST_CRASHES! geq 3 if "!ENGINE_ARGS!"=="" (
-  set "ENGINE_ARGS=--rendering-driver opengl3_angle"
-  >>"%LOG%" echo [%DATE% %TIME%] 3 fast crashes in a row: switching to ANGLE
-)
+if !FAST_CRASHES! geq 3 call :fallback
 timeout /t 2 /nobreak >nul
 goto :loop
 
 :done
 >>"%LOG%" echo [%DATE% %TIME%] clean exit
 endlocal
+exit /b 0
+
+rem Next renderer after 3 fast crashes; a PWRUP_ENGINE_ARGS choice is kept.
+:fallback
+set FAST_CRASHES=0
+if "!ENGINE_ARGS!"=="" (
+  set "ENGINE_ARGS=--rendering-driver vulkan"
+  >>"%LOG%" echo [%DATE% %TIME%] 3 fast crashes in a row: switching to Vulkan
+  exit /b 0
+)
+if "!ENGINE_ARGS!"=="--rendering-driver vulkan" (
+  set "ENGINE_ARGS=--rendering-method gl_compatibility --rendering-driver opengl3_angle"
+  >>"%LOG%" echo [%DATE% %TIME%] 3 more fast crashes: switching to the Compatibility renderer
+)
 exit /b 0
 
 rem Seconds since midnight from %TIME% (H:MM:SS.cc; the hour may have a leading
