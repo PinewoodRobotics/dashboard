@@ -381,6 +381,9 @@ func _input(event: InputEvent) -> void:
 			var was := _swipe.is_tracking()
 			_swipe.move(p.pos, t)
 			if _swipe.is_tracking():
+				if not was:
+					get_tree().call_group("pw_scroll", "cancel_touch")
+					get_tree().call_group("pw_hscroll", "cancel_touch")
 				if not was and _swipe_target == "drawer":
 					drawer.begin_swipe()
 				_apply_swipe(_swipe.delta)
@@ -481,7 +484,7 @@ func apply_fixture(tf: Dictionary) -> void:
 		intake.scroll.scroll_vertical = int(tf["panel_scroll"])
 	if tf.has("view_auto") and content is AutoTab:
 		(content as AutoTab).view(str(tf["view_auto"]))
-		(content as AutoTab).list.reveal((content as AutoTab).cards.find((content as AutoTab).card(str(tf["view_auto"]))))
+		(content as AutoTab).list.reveal_index((content as AutoTab).cards.find((content as AutoTab).card(str(tf["view_auto"]))))
 	if tf.has("tab_scroll_x") and content != null:
 		var scrolls := scrollers(content)
 		if not scrolls.is_empty():
@@ -521,13 +524,17 @@ func probe() -> Dictionary:
 		for key: String in (content as Robot3DTab).rows:
 			var r: Dictionary = (content as Robot3DTab).rows[key]
 			rows[key] = {"disabled": (r["slider"] as PwSlider).disabled, "value": (r["slider"] as PwSlider).value, "source": (r["source"] as Label).text}
+		var v := (content as Robot3DTab).view
+		var t := v.cam.target
+		rows["camera"] = {"theta": v.cam.theta, "phi": v.cam.phi, "dist": v.cam.dist, "target": [t.x, t.y, t.z]}
 		out["robot3d"] = rows
 	var scrolls := {}
 	for sc in scrollers(self):
 		if sc.is_visible_in_tree():
 			scrolls[String(sc.name)] = {"offset": sc.scroll_offset, "max": sc.max_scroll(), "dragging": sc.dragging}
 	out["scrolls"] = scrolls
-	out["driver"] = {"preset": orbit.cam.preset, "theta": orbit.cam.theta, "phi": orbit.cam.phi, "dist": orbit.cam.dist}
+	out["driver"] = {"preset": orbit.cam.preset, "theta": orbit.cam.theta, "phi": orbit.cam.phi, "dist": orbit.cam.dist,
+		"gliding": orbit.cam.is_gliding(), "tweening": orbit.cam.is_tweening()}
 	return out
 
 

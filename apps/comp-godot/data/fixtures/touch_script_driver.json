@@ -1,19 +1,172 @@
 {
   "extends": "touch_base",
   "input": [
-    {"expect": {"driver.preset": 0}},
-    {"tap": "DriverView/PresetBar/Preset3"},
-    {"wait_ms": 500},
-    {"expect": {"driver.preset": 2}},
-    {"mark": "turret"},
-    {"drag": {"from": [700, 250], "to": [900, 200], "ms": 200}},
-    {"expect": {"driver.theta": {"changed_since": "turret"}}},
-    {"wait_ms": 800},
-    {"expect": {"driver.theta": {"changed_since": "turret"}}},
-    {"wait_ms": 1000},
-    {"expect": {"driver.theta": {"same_as": "turret", "tol": 0.001}, "driver.phi": {"same_as": "turret", "tol": 0.001}, "driver.dist": {"same_as": "turret", "tol": 0.001}}},
-    {"tap": "DriverView/PresetBar/Preset1"},
-    {"wait_ms": 500},
-    {"expect": {"driver.preset": 0}}
+    {
+      "expect": {
+        "driver.preset": 0
+      }
+    },
+    {
+      "tap": "DriverView/PresetBar/Preset3"
+    },
+    {
+      "wait_ms": 500
+    },
+    {
+      "expect": {
+        "driver.preset": 2
+      }
+    },
+    {
+      "mark": "turret"
+    },
+    {
+      "drag": {
+        "from": [
+          700,
+          250
+        ],
+        "to": [
+          900,
+          200
+        ],
+        "ms": 200
+      }
+    },
+    {
+      "expect": {
+        "driver.theta": {
+          "changed_since": "turret"
+        },
+        "driver.gliding": true
+      }
+    },
+    {
+      "mark": "released"
+    },
+    {
+      "wait_ms": 150
+    },
+    {
+      "expect": {
+        "driver.theta": {
+          "changed_since": "released"
+        }
+      }
+    },
+    {
+      "wait_ms": 650
+    },
+    {
+      "expect": {
+        "driver.theta": {
+          "changed_since": "turret"
+        },
+        "driver.tweening": false
+      }
+    },
+    {
+      "wait_ms": 1000
+    },
+    {
+      "expect": {
+        "driver.theta": {
+          "same_as": "turret",
+          "tol": 0.001
+        },
+        "driver.phi": {
+          "same_as": "turret",
+          "tol": 0.001
+        },
+        "driver.dist": {
+          "same_as": "turret",
+          "tol": 0.001
+        }
+      }
+    },
+    {
+      "mark": "home"
+    },
+    {
+      "wheel": {
+        "at": [
+          900,
+          250
+        ],
+        "dir": "up",
+        "count": 2
+      }
+    },
+    {
+      "expect": {
+        "driver.dist": {
+          "changed_since": "home"
+        }
+      }
+    },
+    {
+      "mark": "wheeled"
+    },
+    {
+      "scroll": {
+        "at": [
+          900,
+          250
+        ],
+        "delta": [
+          0,
+          300
+        ],
+        "steps": 10,
+        "ms": 150
+      }
+    },
+    {
+      "expect": {
+        "driver.dist": {
+          "changed_since": "wheeled"
+        }
+      }
+    },
+    {
+      "mouse": true
+    },
+    {
+      "mark": "pre_right"
+    },
+    {
+      "drag": {
+        "from": [
+          900,
+          250
+        ],
+        "to": [
+          1000,
+          250
+        ],
+        "ms": 150
+      }
+    },
+    {
+      "expect": {
+        "driver.theta": {
+          "changed_since": "pre_right"
+        }
+      }
+    },
+    {
+      "mouse": false
+    },
+    {
+      "tap": "DriverView/PresetBar/Preset1"
+    },
+    {
+      "wait_ms": 500
+    },
+    {
+      "expect": {
+        "driver.preset": 0
+      }
+    }
   ]
 }

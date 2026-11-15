@@ -119,7 +119,7 @@ func _ready() -> void:
 	_list_pane.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_list_pane)
 	_list_pane.add_child(_build_list_header())
-	list = PwTapList.new(10)
+	list = PwTapList.new(10, 10)
 	list.name = "List"
 	list.item_tapped.connect(_on_card_tapped)
 	_list_pane.add_child(list)
@@ -153,8 +153,8 @@ func _layout() -> void:
 	var header := _list_pane.get_node("ListHeader") as Control
 	header.position = Vector2(10, 6)
 	header.size = Vector2(list_w - 20, LIST_HEADER_H - 6)
-	list.position = Vector2(10, LIST_HEADER_H + 4)
-	list.size = Vector2(list_w - 20, size.y - top - LIST_HEADER_H - 14)
+	list.position = Vector2(0, LIST_HEADER_H - 6)
+	list.size = Vector2(list_w, size.y - top - LIST_HEADER_H + 6)
 	_detail_pane.position = Vector2(list_w, top)
 	_detail_pane.size = Vector2(size.x - list_w, size.y - top)
 	banner.position = Vector2.ZERO

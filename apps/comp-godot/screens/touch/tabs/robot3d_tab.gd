@@ -23,7 +23,7 @@ func _ready() -> void:
 	var row := UiKit.hbox(8)
 	view = RobotOrbitView.new()
 	view.name = "Robot3DView"
-	view.cam.idle_return = false
+	view.use_robot_viewer()
 	view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(view)
 

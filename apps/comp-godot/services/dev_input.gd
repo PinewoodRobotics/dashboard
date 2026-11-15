@@ -13,6 +13,10 @@ extends RefCounted
 ##   {"drag": {"from": P, "to": P, "ms": 300}} (no hold)   {"release": P}   {"wait_ms": N}
 ##   {"pinch": {"at": P, "from": px, "to": px, "pan": [dx, dy], "ms": 300}} two touches
 ##     spread horizontally from `from` to `to` px apart while their midpoint moves by pan
+##   {"wheel": {"at": P, "dir": "down"|"up"|"left"|"right", "factor": 1.0, "count": 1, "shift": false}}
+##     mouse wheel events (factor as the platform reports it, see NativeScroll)
+##   {"scroll": {"at": P, "delta": [dx, dy], "steps": 10, "ms": 200}} a trackpad or
+##     macOS touch scroll: pan gestures adding up to delta OS px (WheelEvent sign)
 ##   {"mouse": true|false}  {"window": "touch"|"hud"}  {"mark": "name"}
 ##   {"expect": {"dotted.path": value | {"ne": v} | {"le": v} | {"ge": v} | {"near": v, "tol": t}
 ##     | {"changed_since": "mark"} | {"same_as": "mark", "tol": t} | {"ratio_since": "mark", "ge": r}}}
@@ -63,6 +67,10 @@ func run(steps: Array, prefix: String) -> void:
 			await _stroke(s["drag"], 0.0)
 		if s.has("pinch"):
 			await _pinch(s["pinch"])
+		if s.has("wheel"):
+			await _wheel(s["wheel"])
+		if s.has("scroll"):
+			await _scroll(s["scroll"])
 		if s.has("hold_drag"):
 			await _stroke(s["hold_drag"], float(s["hold_drag"].get("hold_ms", 350)) / 1000.0)
 		if s.has("mark"):
@@ -193,6 +201,39 @@ func _pinch(spec: Dictionary) -> void:
 		t.position = _to_window(finger.call(i, c1, d1))
 		Input.parse_input_event(t)
 		await _frames(1)
+	await _frames(2)
+
+
+func _wheel(spec: Dictionary) -> void:
+	var wp := _to_window(_pos(spec["at"]))
+	var button: MouseButton = {"down": MOUSE_BUTTON_WHEEL_DOWN, "up": MOUSE_BUTTON_WHEEL_UP,
+		"left": MOUSE_BUTTON_WHEEL_LEFT, "right": MOUSE_BUTTON_WHEEL_RIGHT}[str(spec.get("dir", "down"))]
+	for k in int(spec.get("count", 1)):
+		for pressed in [true, false]:
+			var e := InputEventMouseButton.new()
+			e.window_id = _window().get_window_id()
+			e.button_index = button
+			e.pressed = pressed
+			e.factor = float(spec.get("factor", 1.0))
+			e.shift_pressed = bool(spec.get("shift", false))
+			e.position = wp
+			e.global_position = wp
+			Input.parse_input_event(e)
+		await _frames(1)
+	await _frames(2)
+
+
+func _scroll(spec: Dictionary) -> void:
+	var wp := _to_window(_pos(spec["at"]))
+	var n := maxi(1, int(spec.get("steps", 10)))
+	var total := Vector2(spec["delta"][0], spec["delta"][1])
+	for k in n:
+		var e := InputEventPanGesture.new()
+		e.window_id = _window().get_window_id()
+		e.position = wp
+		e.delta = total / n * NativeScroll.MAC_PAN_SCALE
+		Input.parse_input_event(e)
+		await _sleep(float(spec.get("ms", 200)) / 1000.0 / n)
 	await _frames(2)
 
 

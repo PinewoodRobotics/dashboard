@@ -66,7 +66,7 @@ func _ready() -> void:
 	header.add_child(reset)
 	root.add_child(UiKit.margin(header, 32, 16, 32, 0))
 
-	var scroll := UiKit.hscroll()
+	var scroll := UiKit.hscroll(false)
 	scroll.name = "VisualScroll"
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var cols := UiKit.hbox(0)

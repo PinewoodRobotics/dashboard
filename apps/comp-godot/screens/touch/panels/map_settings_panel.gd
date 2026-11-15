@@ -55,7 +55,7 @@ func _ready() -> void:
 	reset.name = "Reset"
 	reset.pressed.connect(func() -> void: settings.reset("map"))
 	body.add_child(reset)
-	scroll.add_child(UiKit.margin(body, 0, 0, 14, 0))
+	scroll.add_child(UiKit.margin(body, 0, 0, 10, 0))
 	(scroll.get_child(0) as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(scroll)
 	add_child(UiKit.full(col))

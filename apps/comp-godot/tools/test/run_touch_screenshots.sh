@@ -5,7 +5,8 @@
 # and mouse input through the Dev hook and fail on any unmet expectation; the
 # *_restart runs reuse the settings file of the run before them to prove the
 # layout, map and visual settings survive an app restart. The *_scroll runs drag
-# the scrolling panels and tabs with touch and the mouse, including strokes
+# the scrolling panels and tabs with touch (the mouse must not scroll them) and
+# scroll them with wheel and trackpad events, including strokes
 # that start on sliders and buttons. The *_controls_live run
 # selects an auto and drives the intake slider against the fake robot.
 # PNGs, logs and JSON reports land in $OUT (default apps/comp-godot/.screenshots/m4).

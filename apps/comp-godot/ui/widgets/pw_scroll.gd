@@ -1,26 +1,33 @@
 class_name PwScroll
 extends Container
 
-## One-axis scroller that drags with mouse and touch alike, with the web's
-## 5 px accent scrollbar. ScrollContainer only drag-scrolls when the OS reports
-## a touchscreen and never when the press lands on a button or slider, so this
-## watches the stroke in _input instead: once it travels further than a tap
-## along the scroll axis, it scrolls. The widgets under the finger drop the
-## stroke on their own at that distance (buttons past PwButton.TAP_SLOP_PX,
-## sliders and selectors on cross-axis intent). A horizontal scroller leaves
-## strokes that start on horizontal-drag widgets (pw_hgrab) to them, and
-## neither axis takes strokes from grab widgets (pw_grab: 3D views, keyboard)
-## or from a widget's touch_action_none() area (the web's touch-action: none,
-## e.g. a slider track).
-## Dragging along the bar's edge moves the bar instead, as a desktop
-## scrollbar does. The single child keeps its minimum size along the axis and fills the other.
+## One-axis overflow scroller: the web's overflow-y-scroll / overflow-x-scroll
+## (or -auto) with its custom 5 px scrollbar (settings/constants.ts colScroll
+## and the horizontal strips). Like a classic Chromium bar the bar's thickness
+## sits beside the content, always (always_bar) or only while the content
+## overflows; the square ACCENT thumb runs on a track_color track, drags, and a
+## press on the track pages toward the pointer.
+## Scrolling comes from the OS: the mouse wheel, and trackpad or touch
+## scrolling with the OS's own momentum (pan gestures), at Chromium's pixel
+## rates. An event goes to the innermost scroller that can still move along the
+## gesture's main axis, otherwise on to its parents. A mouse drag on the
+## content never scrolls, as in a desktop browser.
+## Touchscreens that report only touches (Windows, Linux) get Chromium's touch
+## scrolling in its place: past the tap slop along the axis the touch drags the
+## content, then flings (TouchFling). Touches that start on grab widgets
+## (pw_grab: 3D views, keyboard), on horizontal-drag widgets for a horizontal
+## scroller (pw_hgrab) or in a widget's touch_action_none() area (the web's
+## touch-action: none) stay with that widget.
 
 const DRAG_PX := PwButton.TAP_SLOP_PX
-const WHEEL_PX := 60.0
 const BAR_W := 5.0
-const BAR_HIT_PX := 14.0
+const PAGE_FRACTION := 0.875
+const PAGE_REPEAT_DELAY_S := 0.25
+const PAGE_REPEAT_S := 0.05
 
 var vertical := true
+var always_bar := true
+var track_color := Color(0, 0, 0, 0)
 var scroll_offset := 0.0:
 	set(v):
 		var c := clampf(v, 0.0, max_scroll())
@@ -42,17 +49,29 @@ var scroll_horizontal: int:
 		if not vertical:
 			scroll_offset = v
 var dragging := false
-var _pressed := false
-var _on_bar := false
-var _start := Vector2.ZERO
-var _start_scroll := 0.0
+var fling := TouchFling.new()
+var _touch_pressed := false
+var _touch_start := Vector2.ZERO
+var _touch_start_scroll := 0.0
+var _thumb_drag := false
+var _thumb_grab := 0.0
+var _page_dir := 0.0
+var _page_at := 0.0
+var _page_wait := 0.0
+var _bar_was := true
 
 
-func _init(is_vertical: bool = true) -> void:
+func _init(is_vertical: bool = true, bar_always: bool = true, track: Color = Color(0, 0, 0, 0)) -> void:
 	vertical = is_vertical
+	always_bar = bar_always
+	track_color = track
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	add_to_group("pw_scroll" if vertical else "pw_hscroll")
+
+
+func _ready() -> void:
+	set_process(false)
 
 
 func content() -> Control:
@@ -78,12 +97,20 @@ func max_scroll() -> float:
 	return maxf(0.0, content_length() - view_length())
 
 
+func bar_visible() -> bool:
+	return always_bar or content_length() > view_length() + 0.5
+
+
+func _bar_thickness() -> float:
+	return BAR_W if bar_visible() else 0.0
+
+
 func _get_minimum_size() -> Vector2:
 	var c := content()
 	if c == null:
-		return Vector2.ZERO
+		return Vector2(BAR_W, 0.0) if vertical and always_bar else Vector2(0.0, BAR_W if always_bar else 0.0)
 	var m := c.get_combined_minimum_size()
-	return Vector2(m.x, 0.0) if vertical else Vector2(0.0, m.y)
+	return Vector2(m.x + _bar_thickness(), 0.0) if vertical else Vector2(0.0, m.y + _bar_thickness())
 
 
 func _notification(what: int) -> void:
@@ -94,9 +121,12 @@ func _notification(what: int) -> void:
 			return
 		var len := maxf(content_length(), view_length())
 		if vertical:
-			fit_child_in_rect(c, Rect2(0.0, -scroll_offset, size.x, len))
+			fit_child_in_rect(c, Rect2(0.0, -scroll_offset, size.x - _bar_thickness(), len))
 		else:
-			fit_child_in_rect(c, Rect2(-scroll_offset, 0.0, len, size.y))
+			fit_child_in_rect(c, Rect2(-scroll_offset, 0.0, len, size.y - _bar_thickness()))
+		if bar_visible() != _bar_was:
+			_bar_was = bar_visible()
+			update_minimum_size()
 		queue_redraw()
 
 
@@ -112,6 +142,158 @@ func reveal(ctl: Control) -> void:
 		scroll_offset += hi - view_length()
 
 
+## Scrolls by an OS delta (NativeScroll units) when its main axis is ours and
+## there is room in that direction. Returns whether it scrolled.
+func scroll_by_native(delta: Vector2) -> bool:
+	var along := delta.y if vertical else delta.x
+	var across := delta.x if vertical else delta.y
+	if along == 0.0 or absf(along) < absf(across):
+		return false
+	var before := scroll_offset
+	scroll_offset += along
+	if scroll_offset == before:
+		return false
+	fling.active = false
+	return true
+
+
+func _gui_input(event: InputEvent) -> void:
+	_scroll_input(event)
+
+
+## Wheel, pan gesture and scrollbar input; returns whether it took the event.
+func _scroll_input(event: InputEvent) -> bool:
+	if event is InputEventPanGesture:
+		if scroll_by_native(NativeScroll.pan_delta(event as InputEventPanGesture, self)):
+			accept_event()
+			return true
+		return false
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if NativeScroll.is_wheel(mb):
+			if mb.pressed and scroll_by_native(NativeScroll.wheel_delta(mb, self)):
+				accept_event()
+				return true
+			return false
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return false
+		if mb.pressed and _on_bar(mb.position):
+			_press_bar(mb.position)
+			accept_event()
+			return true
+		if not mb.pressed and (_thumb_drag or _page_dir != 0.0):
+			_thumb_drag = false
+			dragging = false
+			_page_dir = 0.0
+			accept_event()
+			return true
+	elif event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if _thumb_drag:
+			var at := (mm.position.y if vertical else mm.position.x) - _thumb_grab
+			var room := maxf(1.0, view_length() - bar_length())
+			scroll_offset = at * max_scroll() / room
+			accept_event()
+			return true
+		if _page_dir != 0.0:
+			_page_at = mm.position.y if vertical else mm.position.x
+			return true
+	return false
+
+
+func _on_bar(local: Vector2) -> bool:
+	if not bar_visible() or max_scroll() <= 0.0:
+		return false
+	return local.x >= size.x - BAR_W if vertical else local.y >= size.y - BAR_W
+
+
+func _press_bar(local: Vector2) -> void:
+	fling.active = false
+	var at := local.y if vertical else local.x
+	var thumb_at := thumb_start()
+	if at >= thumb_at and at <= thumb_at + bar_length():
+		_thumb_drag = true
+		dragging = true
+		_thumb_grab = at - thumb_at
+		return
+	_page_at = at
+	_page_dir = 1.0 if at > thumb_at else -1.0
+	_page_once()
+	_page_wait = PAGE_REPEAT_DELAY_S
+	set_process(true)
+
+
+func _page_once() -> void:
+	var thumb_at := thumb_start()
+	var toward := 1.0 if _page_at > thumb_at + bar_length() else (-1.0 if _page_at < thumb_at else 0.0)
+	if toward != _page_dir:
+		return
+	scroll_offset += _page_dir * maxf(1.0, view_length() * PAGE_FRACTION)
+
+
+func _process(delta: float) -> void:
+	if _page_dir != 0.0:
+		_page_wait -= delta
+		if _page_wait <= 0.0:
+			_page_wait += PAGE_REPEAT_S
+			_page_once()
+	if fling.active:
+		var before := scroll_offset
+		scroll_offset += fling.step(delta)
+		if scroll_offset == before and (scroll_offset <= 0.0 or scroll_offset >= max_scroll()):
+			fling.active = false
+	if _page_dir == 0.0 and not fling.active:
+		set_process(false)
+
+
+## Stops a touch scroll that another gesture (a swipe dismissal) has claimed.
+func cancel_touch() -> void:
+	_touch_pressed = false
+	dragging = false
+	fling.active = false
+
+
+func _input(event: InputEvent) -> void:
+	var p := PointerInput.from_event(event)
+	if not p.is_touch:
+		return
+	var along_pos := p.pos.y if vertical else p.pos.x
+	var t := float(PointerInput.now_ms())
+	match p.kind:
+		PointerInput.Kind.DOWN:
+			fling.active = false
+			dragging = false
+			var local := get_global_transform().affine_inverse() * p.pos
+			_touch_pressed = max_scroll() > 0.0 and not _on_bar(local) and _owns_press(p.pos)
+			_touch_start = p.pos
+			_touch_start_scroll = scroll_offset
+			fling.reset()
+		PointerInput.Kind.MOVE:
+			if not _touch_pressed:
+				return
+			var d := p.pos - _touch_start
+			var along := d.y if vertical else d.x
+			var across := d.x if vertical else d.y
+			if not dragging:
+				if absf(along) > DRAG_PX and absf(along) >= absf(across):
+					dragging = true
+					_touch_start = p.pos
+					_touch_start_scroll = scroll_offset
+				elif d.length() > DRAG_PX:
+					_touch_pressed = false
+				return
+			scroll_offset = _touch_start_scroll - along
+			fling.add_sample(along_pos, t)
+		PointerInput.Kind.UP:
+			if _touch_pressed and dragging:
+				fling.add_sample(along_pos, t)
+				var window_len := get_viewport_rect().size.y if vertical else get_viewport_rect().size.x
+				if fling.start(-fling.release_velocity(t), window_len):
+					set_process(true)
+			_touch_pressed = false
+			dragging = false
+
+
 func _owns_press(pos: Vector2) -> bool:
 	if not is_visible_in_tree() or not get_global_rect().has_point(pos):
 		return false
@@ -121,6 +303,8 @@ func _owns_press(pos: Vector2) -> bool:
 	var n: Node = hit
 	while n != null and n != self:
 		if n.is_in_group("pw_grab") or (not vertical and n.is_in_group("pw_hgrab")):
+			return false
+		if n is PwScroll and (n as PwScroll).vertical == vertical and (n as PwScroll).max_scroll() > 0.0:
 			return false
 		if n.has_method("touch_action_none") and n.touch_action_none((n as Control).get_global_transform().affine_inverse() * pos):
 			return false
@@ -168,66 +352,29 @@ static func _pick_control(c: Control, pos: Vector2) -> Control:
 	return c if inside and c.mouse_filter != Control.MOUSE_FILTER_IGNORE else null
 
 
-func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
-		var mb := event as InputEventMouseButton
-		var step := 0.0
-		match mb.button_index:
-			MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_RIGHT:
-				step = WHEEL_PX
-			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_LEFT:
-				step = -WHEEL_PX
-		if step != 0.0:
-			if max_scroll() > 0.0 and _owns_press(mb.position):
-				scroll_offset += step
-				get_viewport().set_input_as_handled()
-			return
-	var p := PointerInput.from_event(event)
-	match p.kind:
-		PointerInput.Kind.DOWN:
-			_pressed = max_scroll() > 0.0 and _owns_press(p.pos)
-			var local := get_global_transform().affine_inverse() * p.pos
-			_on_bar = _pressed and (local.x >= size.x - BAR_HIT_PX if vertical else local.y >= size.y - BAR_HIT_PX)
-			dragging = false
-			_start = p.pos
-			_start_scroll = scroll_offset
-		PointerInput.Kind.MOVE:
-			if not _pressed:
-				return
-			var d := p.pos - _start
-			var along := d.y if vertical else d.x
-			var across := d.x if vertical else d.y
-			if _on_bar:
-				dragging = true
-				scroll_offset = _start_scroll + along * max_scroll() / maxf(1.0, view_length() - bar_length())
-				return
-			if not dragging:
-				if absf(along) > DRAG_PX and absf(along) >= absf(across):
-					dragging = true
-					_start = p.pos
-					_start_scroll = scroll_offset
-				elif d.length() > DRAG_PX:
-					_pressed = false
-				return
-			scroll_offset = _start_scroll - along
-		PointerInput.Kind.UP:
-			_pressed = false
-			_on_bar = false
-			dragging = false
-
-
+## Thumb length along the track: proportional, as a ::-webkit-scrollbar-thumb
+## without a min-height.
 func bar_length() -> float:
 	var total := content_length()
 	var view := view_length()
-	return maxf(24.0, view * view / total) if total > 0.0 else view
+	return clampf(view * view / total, 1.0, view) if total > 0.0 else view
+
+
+func thumb_start() -> float:
+	var room := view_length() - bar_length()
+	return room * scroll_offset / max_scroll() if max_scroll() > 0.0 else 0.0
 
 
 func _draw() -> void:
-	var total := content_length()
-	var view := view_length()
-	if total <= view + 0.5:
+	if not bar_visible():
 		return
+	var view := view_length()
+	var track := Rect2(size.x - BAR_W, 0.0, BAR_W, size.y) if vertical else Rect2(0.0, size.y - BAR_W, size.x, BAR_W)
+	if track_color.a > 0.0:
+		UiDraw.rect(get_canvas_item(), track, track_color)
+	if content_length() <= view + 0.5:
+		return
+	var at := thumb_start()
 	var len := bar_length()
-	var at := (view - len) * scroll_offset / max_scroll()
 	var r := Rect2(size.x - BAR_W, at, BAR_W, len) if vertical else Rect2(at, size.y - BAR_W, len, BAR_W)
 	UiDraw.rect(get_canvas_item(), r, Tokens.ACCENT)

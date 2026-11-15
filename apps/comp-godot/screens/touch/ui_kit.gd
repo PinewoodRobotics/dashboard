@@ -43,12 +43,16 @@ static func margin(child: Control, l: int, t: int, r: int, b: int) -> MarginCont
 	return m
 
 
+## colScroll (settings/constants.ts): overflow-y-scroll, 5 px bar always
+## reserved, transparent track.
 static func vscroll() -> PwScroll:
 	return PwScroll.new(true)
 
 
-static func hscroll() -> PwScroll:
-	return PwScroll.new(false)
+## A horizontal strip: overflow-x-scroll (always) or overflow-x-auto, 5 px
+## bar on a #272727 track.
+static func hscroll(always := true) -> PwScroll:
+	return PwScroll.new(false, always, Tokens.PANEL)
 
 
 static func full(c: Control) -> Control:
@@ -56,18 +60,22 @@ static func full(c: Control) -> Control:
 	return c
 
 
-## A 420 px settings column (SettingsColumn.tsx): 32 px padding, 24 px title, 28 px gap.
+## A 420 px settings column (SettingsColumn.tsx): its own colScroll, the bar
+## inside the 2 px right border, 32 px padding, 24 px title, 28 px gap.
 static func column(title: String, border_right: bool = true, pad: int = 32, gap: int = 28) -> Dictionary:
 	var panel := PanelContainer.new()
 	var sb := PwBox.new()
 	sb.bg_color = Color(0, 0, 0, 0)
 	sb.border_color = Tokens.HAIRLINE
 	sb.border_width_right = 2 if border_right else 0
-	sb.set_content_margin_all(pad)
+	sb.set_content_margin_all(0)
+	sb.content_margin_right = sb.border_width_right
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.custom_minimum_size.x = 420
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var scroll := vscroll()
 	var box := vbox(gap)
 	box.add_child(label(title, 24, 600))
-	panel.add_child(box)
-	return {"panel": panel, "box": box}
+	scroll.add_child(margin(box, pad, pad, pad, pad))
+	panel.add_child(scroll)
+	return {"panel": panel, "box": box, "scroll": scroll}

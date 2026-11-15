@@ -22,6 +22,7 @@ var touches := {}
 var trail: PackedVector2Array = []
 var presses := 0
 var drags := 0
+var scrolls := 0
 var canvas: Canvas
 
 
@@ -116,6 +117,9 @@ func _input(event: InputEvent) -> void:
 			trail.append(touches[sd.index])
 			if trail.size() > TRAIL_MAX:
 				trail = trail.slice(trail.size() - TRAIL_MAX)
+	elif event is InputEventPanGesture or event is InputEventMouseButton and NativeScroll.is_wheel(event) and event.pressed:
+		scrolls += 1
+		print("touch-test: %s window scroll %s" % [window_key, event.as_text()])
 	elif event is InputEventMouseButton and window_key == "touch":
 		var mb := event as InputEventMouseButton
 		if not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and close_rect(canvas.size).has_point(_local(mb.position)):
@@ -136,4 +140,4 @@ func _local(p: Vector2) -> Vector2:
 
 
 func report() -> Dictionary:
-	return {"window": window_key, "presses": presses, "drags": drags, "down": touches.size()}
+	return {"window": window_key, "presses": presses, "drags": drags, "scrolls": scrolls, "down": touches.size()}

@@ -1,21 +1,39 @@
 class_name OrbitCamera
 extends RefCounted
 
-## Driver-view orbit camera (DriverRobotViewer.tsx): spherical coordinates
-## around a target, presets from camera-poses.json reached by a 400 ms
-## easeOutCubic tween on the shortest arc, user orbit and zoom within the web
-## limits, and an idle return to the selected preset 1000 ms after the last
-## input, over 600 ms. Time is passed in, so tests drive it directly.
+## three.js OrbitControls (r187) as the web tunes it, plus the driver view's
+## presets (DriverRobotViewer.tsx). Rotation and pan go into a pool that every
+## update() applies DAMPING of and then shrinks by (1 - DAMPING), so a drag
+## glides on after release; zoom applies at once. Like OrbitControls, update()
+## runs once per input event and once per frame (frame steps are scaled to
+## 60 fps). Rotation is 2 pi * rotate_speed per view height of drag on both
+## axes; the wheel scales the distance by 0.95^(zoom_speed * |deltaY| / 100),
+## a pinch by (spread ratio)^zoom_speed, a pan moves the target in screen space
+## by 2 * px * dist * tan(fov / 2) / view height.
+## Presets are reached by a 400 ms easeOutCubic tween on the shortest arc, and
+## 1000 ms after the last input a 600 ms tween returns to the selected preset.
+## Tweens run on unclamped poses and the update clamps polar angle and
+## distance every frame, as controls.update() does after the web's tween.
 
-const MIN_POLAR := 0.1
-const MAX_POLAR := PI / 2.0 - 0.05
-const MIN_DIST := 0.5
-const MAX_DIST := 4.0
+const DAMPING := 0.08
+const EPS := 1e-6
 const PRESET_TWEEN_S := 0.4
 const IDLE_DELAY_S := 1.0
 const IDLE_RETURN_S := 0.6
-const ROTATE_RAD_PER_PX := 0.006
-const ZOOM_STEP := 0.9
+
+const DRIVER := {"rotate_speed": 0.5, "zoom_speed": 0.8, "pan_speed": 1.0, "enable_pan": false,
+	"min_polar": 0.1, "max_polar": PI / 2.0 - 0.05, "min_dist": 0.5, "max_dist": 4.0}
+const ROBOT_VIEWER := {"rotate_speed": 1.0, "zoom_speed": 1.0, "pan_speed": 1.0, "enable_pan": true,
+	"min_polar": 0.0, "max_polar": PI, "min_dist": 0.2, "max_dist": 6.0}
+
+var rotate_speed := 0.5
+var zoom_speed := 0.8
+var pan_speed := 1.0
+var enable_pan := false
+var min_polar := 0.1
+var max_polar := PI / 2.0 - 0.05
+var min_dist := 0.5
+var max_dist := 4.0
 
 var presets: Array = []
 var preset := 0
@@ -26,6 +44,10 @@ var dist := 2.0
 var fov := 50.0
 var idle_return := true
 
+var _pool_theta := 0.0
+var _pool_phi := 0.0
+var _pool_pan := Vector3.ZERO
+var _scale := 1.0
 var _tween_from := {}
 var _tween_to := {}
 var _tween_t := 0.0
@@ -46,7 +68,7 @@ static func load_presets(path: String) -> Array:
 	return out
 
 
-## {target, theta, phi, dist, fov, label} from a {position, target, fov} pose.
+## {target, theta, phi, dist, fov, label} from a {position, target, fov} pose, unclamped.
 static func pose_to_spherical(pose: Dictionary) -> Dictionary:
 	var p: Array = pose.get("position", [1.38, 0.45, 1.38])
 	var t: Array = pose.get("target", [0, 0.25, 0])
@@ -57,24 +79,48 @@ static func pose_to_spherical(pose: Dictionary) -> Dictionary:
 		"label": str(pose.get("label", "")),
 		"target": tgt,
 		"theta": atan2(off.x, off.z),
-		"phi": clampf(acos(clampf(off.y / r, -1.0, 1.0)), MIN_POLAR, MAX_POLAR),
-		"dist": clampf(r, MIN_DIST, MAX_DIST),
+		"phi": acos(clampf(off.y / r, -1.0, 1.0)),
+		"dist": r,
 		"fov": float(pose.get("fov", 50.0)),
 	}
+
+
+## RobotViewer.tsx: camera at (1.5, 1, 1.5) looking at the origin, fov 50.
+static func robot_viewer() -> OrbitCamera:
+	var c := OrbitCamera.new()
+	c.configure(ROBOT_VIEWER)
+	c.idle_return = false
+	c._set_from(pose_to_spherical({"position": [1.5, 1.0, 1.5], "target": [0, 0, 0], "fov": 50.0}))
+	c.update(0.0)
+	return c
 
 
 func _init(preset_list: Array = []) -> void:
 	presets = preset_list
 	if not presets.is_empty():
 		_set_from(presets[0])
+		update(0.0)
+
+
+func configure(cfg: Dictionary) -> void:
+	for k: String in cfg:
+		set(k, cfg[k])
 
 
 func position() -> Vector3:
 	return target + dist * Vector3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta))
 
 
+func user_moved() -> bool:
+	return _user_moved
+
+
 func is_tweening() -> bool:
 	return _tweening
+
+
+func is_gliding() -> bool:
+	return absf(_pool_theta) > 1e-5 or absf(_pool_phi) > 1e-5 or _pool_pan.length() > 1e-5
 
 
 func select_preset(index: int, animate: bool = true) -> void:
@@ -86,56 +132,147 @@ func select_preset(index: int, animate: bool = true) -> void:
 	if animate:
 		_start_tween(presets[index], PRESET_TWEEN_S)
 	else:
-		_tweening = false
-		_set_from(presets[index])
+		jump_to(presets[index])
 
 
+## Places the camera at a {target, theta, phi, dist, fov} pose at once,
+## dropping any glide or tween; it counts as not moved by the user.
+func jump_to(pose: Dictionary) -> void:
+	_tweening = false
+	_pool_theta = 0.0
+	_pool_phi = 0.0
+	_pool_pan = Vector3.ZERO
+	_scale = 1.0
+	_user_moved = false
+	_idle_s = 0.0
+	_set_from(pose)
+	update(0.0)
+
+
+## OrbitControls "start": a pointer went down on the view.
 func begin_interaction() -> void:
 	_interacting = true
-	_tweening = false
+	_cancel_tween()
 	_idle_s = 0.0
 
 
+## OrbitControls "end": the last pointer came up.
 func end_interaction() -> void:
 	_interacting = false
 	_idle_s = 0.0
 
 
-func orbit(dx_px: float, dy_px: float) -> void:
-	_tweening = false
-	theta -= dx_px * ROTATE_RAD_PER_PX
-	phi = clampf(phi - dy_px * ROTATE_RAD_PER_PX, MIN_POLAR, MAX_POLAR)
-	_user_moved = true
-	_idle_s = 0.0
+func is_interacting() -> bool:
+	return _interacting
 
 
-## steps > 0 zooms in.
-func zoom(steps: float) -> void:
-	_tweening = false
-	dist = clampf(dist * pow(ZOOM_STEP, steps), MIN_DIST, MAX_DIST)
-	_user_moved = true
-	_idle_s = 0.0
+func rotate(dx_px: float, dy_px: float, view_h: float) -> void:
+	var h := maxf(view_h, 1.0)
+	_pool_theta -= TAU * dx_px * rotate_speed / h
+	_pool_phi -= TAU * dy_px * rotate_speed / h
+	_moved()
+	update(DAMPING)
+
+
+func pan(dx_px: float, dy_px: float, view_h: float) -> void:
+	if not enable_pan:
+		return
+	var h := maxf(view_h, 1.0)
+	var target_dist := dist * tan(deg_to_rad(fov) * 0.5)
+	var basis := view_basis()
+	_pool_pan += -basis.x * (2.0 * dx_px * pan_speed * target_dist / h)
+	_pool_pan += basis.y * (2.0 * dy_px * pan_speed * target_dist / h)
+	_moved()
+	update(DAMPING)
+
+
+## A wheel event (WheelEvent.deltaY px, negative zooms in): OrbitControls
+## dispatches start and end around it.
+func wheel(delta_y_px: float) -> void:
+	if delta_y_px == 0.0:
+		return
+	_cancel_tween()
+	var s := pow(0.95, zoom_speed * absf(delta_y_px * 0.01))
+	_scale = _scale * s if delta_y_px < 0.0 else _scale / s
+	_moved()
+	update(DAMPING)
+
+
+## A trackpad pinch step. Chromium sends it as a ctrl wheel event of
+## deltaY = -100 ln(factor), which OrbitControls multiplies by 10.
+func magnify(factor: float) -> void:
+	if factor > 0.0 and is_finite(factor):
+		wheel(-1000.0 * log(factor))
+
+
+## A two-finger touch step: spread_ratio = new spread / previous spread.
+func pinch(spread_ratio: float) -> void:
+	if spread_ratio <= 0.0 or not is_finite(spread_ratio):
+		return
+	_scale /= pow(spread_ratio, zoom_speed)
+	_moved()
+	update(DAMPING)
+
+
+## Camera axes (right, up, back) for the current pose, as Object3D.lookAt builds them.
+func view_basis() -> Basis:
+	var back := Vector3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta))
+	var right := Vector3.UP.cross(back)
+	if right.length_squared() < 1e-12:
+		right = Vector3(cos(theta), 0.0, -sin(theta))
+	right = right.normalized()
+	return Basis(right, back.cross(right).normalized(), back)
+
+
+## OrbitControls.update() with damping factor k: applies k of the pooled
+## rotation and pan, the pending zoom, the limits, then shrinks the pool.
+func update(k: float) -> void:
+	theta += _pool_theta * k
+	phi += _pool_phi * k
+	phi = clampf(phi, min_polar, max_polar)
+	phi = clampf(phi, EPS, PI - EPS)
+	target += _pool_pan * k
+	dist = clampf(dist * _scale, min_dist, max_dist)
+	_pool_theta *= 1.0 - k
+	_pool_phi *= 1.0 - k
+	_pool_pan *= 1.0 - k
+	_scale = 1.0
 
 
 func step(dt: float) -> void:
+	var k := 1.0 - pow(1.0 - DAMPING, dt * 60.0)
 	if _tweening:
 		_tween_t += dt
-		var k := Easing.out_cubic(_tween_t / _tween_s)
-		theta = lerpf(_tween_from["theta"], _tween_to["theta"], k)
-		phi = lerpf(_tween_from["phi"], _tween_to["phi"], k)
-		dist = lerpf(_tween_from["dist"], _tween_to["dist"], k)
-		target = (_tween_from["target"] as Vector3).lerp(_tween_to["target"], k)
-		fov = lerpf(_tween_from["fov"], _tween_to["fov"], k)
+		var e := Easing.out_cubic(_tween_t / _tween_s)
+		theta = lerpf(_tween_from["theta"], _tween_to["theta"], e)
+		phi = lerpf(_tween_from["phi"], _tween_to["phi"], e)
+		dist = lerpf(_tween_from["dist"], _tween_to["dist"], e)
+		target = (_tween_from["target"] as Vector3).lerp(_tween_to["target"], e)
+		fov = lerpf(_tween_from["fov"], _tween_to["fov"], e)
 		if _tween_t >= _tween_s:
 			_tweening = false
 			_set_from(_tween_to)
+		update(k)
 		return
-	if _interacting or not _user_moved or not idle_return:
-		return
-	_idle_s += dt
-	if _idle_s >= IDLE_DELAY_S and preset < presets.size():
-		_user_moved = false
-		_start_tween(presets[preset], IDLE_RETURN_S)
+	if not _interacting and _user_moved and idle_return and preset < presets.size():
+		_idle_s += dt
+		if _idle_s > IDLE_DELAY_S:
+			_user_moved = false
+			_start_tween(presets[preset], IDLE_RETURN_S)
+	update(k)
+
+
+## A tween stopped part way leaves the camera off the preset.
+func _cancel_tween() -> void:
+	if _tweening:
+		_tweening = false
+		_user_moved = true
+	_idle_s = 0.0
+
+
+func _moved() -> void:
+	_user_moved = true
+	_idle_s = 0.0
 
 
 func _start_tween(to: Dictionary, seconds: float) -> void:
