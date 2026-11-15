@@ -6,6 +6,8 @@ extends Control
 ## 12/6 px padding, a 12 px red-500 dot, 8 px gap, 14/20 px Inter medium
 ## red-400 text with 0.025em tracking. Its owner places it (the web: bottom
 ## center of the window, 24 px up, over everything, never taking input).
+## The reds are Tailwind 4's palette classes, unlike the #ef4444 the web
+## hard-codes elsewhere (Tokens.ERROR).
 
 const PAD := Vector2(12, 6)
 const DOT := 12.0
@@ -14,6 +16,8 @@ const TEXT_PX := 14
 const LINE_H := 20.0
 const TRACKING := 0.025 * TEXT_PX
 const TEXT := "NT Disconnected"
+const RED_500 := Color("#fb2c36")
+const RED_400 := Color("#ff6467")
 
 var nt: NtService
 var _font: Font
@@ -25,7 +29,7 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_font = Tokens.text_font(500)
 	_box.bg_color = Color(0, 0, 0, 0.85)
-	_box.border_color = Color(Tokens.ERROR, 0.4)
+	_box.border_color = Color(RED_500, 0.4)
 	_box.set_border_width_all(1)
 	_box.set_corner_radius_all(4)
 	size = Vector2(1 + PAD.x + DOT + GAP + text_width() + PAD.x + 1, 1 + PAD.y + LINE_H + PAD.y + 1)
@@ -55,7 +59,7 @@ func _draw() -> void:
 	UiDraw.begin(self)
 	draw_style_box(_box, Rect2(Vector2.ZERO, size))
 	var cy := size.y * 0.5
-	UiDraw.circle(get_canvas_item(), Vector2(1 + PAD.x + DOT * 0.5, cy), DOT * 0.5, Tokens.ERROR)
+	UiDraw.circle(get_canvas_item(), Vector2(1 + PAD.x + DOT * 0.5, cy), DOT * 0.5, RED_500)
 	var asc := _font.get_ascent(TEXT_PX)
 	var baseline := 1 + PAD.y + (LINE_H - (asc + _font.get_descent(TEXT_PX))) * 0.5 + asc
-	UiDraw.text_tracked(self, _font, Vector2(1 + PAD.x + DOT + GAP, baseline), TEXT, TEXT_PX, Tokens.ERROR_TEXT, TRACKING)
+	UiDraw.text_tracked(self, _font, Vector2(1 + PAD.x + DOT + GAP, baseline), TEXT, TEXT_PX, RED_400, TRACKING)

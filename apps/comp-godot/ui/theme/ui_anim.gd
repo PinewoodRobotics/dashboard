@@ -5,11 +5,15 @@ extends RefCounted
 ##
 ## With hold_until_drawn set and frame holds enabled (windowed runs), a started
 ## transition shows its from-value until the frame that shows it has been
-## drawn, then advances at most one 60 Hz frame on its first step. Like a
-## compositor animation in the browser, whose clock starts at the first painted
-## frame, so building and first-drawing a tab or panel never eats the motion.
+## drawn, then advances at most one 60 Hz frame on each of its first
+## FIRST_STEPS steps. Like a compositor animation in the browser, whose clock
+## starts at the first painted frame, so building and first-drawing a tab or
+## panel never eats the motion. The later steps are clamped too because a node
+## held off-screen may only pay its first-use cost (glyph and texture uploads,
+## a first 3D present) on the frame it first comes into view.
 
 const FIRST_STEP_S := 1.0 / 60.0
+const FIRST_STEPS := 3
 ## Steps a held transition waits for a drawn frame before it starts anyway
 ## (no window drawing, e.g. minimized).
 const MAX_HOLD_STEPS := 3
@@ -28,7 +32,7 @@ var running := false
 var hold_until_drawn := false
 var held := false
 var _hold_steps := 0
-var _first_step := false
+var _first_steps := 0
 
 
 func _init(initial: float = 0.0, holds: bool = false) -> void:
@@ -50,7 +54,7 @@ static func release_held() -> void:
 	for a in _held:
 		if a.held:
 			a.held = false
-			a._first_step = true
+			a._first_steps = FIRST_STEPS
 	_held.clear()
 
 
@@ -63,7 +67,7 @@ func start(target: float, duration: float, ease_fn: Callable = Easing.css, delay
 	curve = ease_fn
 	running = (duration_s > 0.0 or delay_s > 0.0) and not is_equal_approx(from, to)
 	held = false
-	_first_step = false
+	_first_steps = 0
 	if not running:
 		value = to
 	elif hold_until_drawn and frame_holds:
@@ -106,9 +110,9 @@ func step(dt: float) -> bool:
 		if _hold_steps < MAX_HOLD_STEPS:
 			return false
 		held = false
-		_first_step = true
-	if _first_step:
-		_first_step = false
+		_first_steps = FIRST_STEPS
+	if _first_steps > 0:
+		_first_steps -= 1
 		dt = minf(dt, FIRST_STEP_S)
 	elapsed_s += dt
 	if elapsed_s < delay_s:

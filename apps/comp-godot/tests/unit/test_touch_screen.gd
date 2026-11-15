@@ -154,7 +154,9 @@ func test_first_open_waits_for_its_first_drawn_frame() -> void:
 	UiAnim.release_held()
 	ts.step(0.15)
 	check_near(node.position.y, 515.0 * (1.0 - Easing.css(1.0 / 60.0 / 0.2)), 0.01, "then one frame of motion")
-	for i in 11:
+	ts.step(0.1)
+	check_near(node.position.y, 515.0 * (1.0 - Easing.css(2.0 / 60.0 / 0.2)), 0.01, "a first-visible-frame hitch moves one frame too")
+	for i in 10:
 		ts.step(1.0 / 60.0)
 	check(node.position.y > 0.0, "still sliding 12 frames in")
 	ts.step(1.0 / 60.0)

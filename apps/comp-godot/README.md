@@ -315,11 +315,12 @@ web's Backdrop Blur toggle) replaces it with black at 90%, as on the web.
 Touchscreen chrome motion follows the web's CSS: keyframe slides restart from
 their first keyframe, transitions retarget. A started slide or transition
 (`UiAnim` with `hold_until_drawn`) shows its from-value until that frame has
-been drawn and only then starts its clock, and its first step after that
-advances it by at most 1/60 s, so building a tab or panel on first open never
-eats its 200 ms slide (the browser starts compositor animations at the first
-painted frame). After that the motion runs on the wall clock, so a long frame
-advances it by its full length, as in the browser.
+been drawn and only then starts its clock, and its first three steps after that
+advance it by at most 1/60 s each, so building a tab or panel on first open, or
+its first-use cost when it first comes into view, never eats its 200 ms slide
+(the browser starts compositor animations at the first painted frame). After
+that the motion runs on the wall clock, so a long frame advances it by its full
+length, as in the browser.
 
 A tab sliding out is a fresh instance, as the web remounts it (`exit-<id>`),
 so it shows its first-open state (scroll at the top, default camera, the first
