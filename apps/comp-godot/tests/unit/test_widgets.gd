@@ -266,12 +266,20 @@ func test_pill_glow_is_the_css_gaussian_shadow() -> void:
 		[UiDraw._box_shadow_cell(Vector2i(32, 32), 16, 6, 9, Rect2i(-4, -8, 40, 40), 20), Vector2i(-25, -21)],
 	]
 	var img := UiDraw.atlas_image()
-	for probe: Array in [[3, 0.135], [6, 0.089], [10, 0.050]]:
-		var p := Vector2i(0, 20 + int(probe[0]))
+	var probes := [
+		[Vector2i(0, 20), 0.211], [Vector2i(0, 21), 0.183], [Vector2i(0, 23), 0.135], [Vector2i(0, 26), 0.089],
+		[Vector2i(0, 30), 0.050], [Vector2i(0, 34), 0.024], [Vector2i(0, 38), 0.009], [Vector2i(0, 44), 0.001],
+		[Vector2i(20, 10), 0.055], [Vector2i(24, 10), 0.024], [Vector2i(28, 10), 0.009], [Vector2i(32, 10), 0.003],
+		[Vector2i(0, -21), 0.005], [Vector2i(0, -25), 0.001],
+	]
+	for probe: Array in probes:
+		var p: Vector2i = probe[0]
 		var keep := 1.0
 		for c: Array in cells:
 			var cell: Rect2i = c[0]
-			keep *= 1.0 - 0.2 * img.get_pixelv(cell.position + p - (c[1] as Vector2i)).a
-		check_near(1.0 - keep, probe[1], 0.012, "white/20 shadow-lg %d px under the pill" % probe[0])
+			var at := p - (c[1] as Vector2i)
+			if Rect2i(Vector2i.ZERO, cell.size).has_point(at):
+				keep *= 1.0 - 0.2 * img.get_pixelv(cell.position + at).a
+		check_near(1.0 - keep, probe[1], 0.004, "white/20 shadow-lg at %s from the pill center" % p)
 	var under := cells[0][0] as Rect2i
 	check_eq(img.get_pixelv(under.position + Vector2i(0, 10) - Vector2i(-40, -30)).a, 0.0, "no shadow under the pill itself")
