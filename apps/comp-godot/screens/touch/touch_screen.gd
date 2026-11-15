@@ -138,7 +138,7 @@ func _make_panel(id: String) -> Control:
 func make_tab(id: String) -> Control:
 	match id:
 		"effects":
-			return PlaceholderTab.new("Special effects tab is coming soon")
+			return PlaceholderTab.new("Special effects tab")
 		"auto":
 			return AutoTab.new()
 		"settings":

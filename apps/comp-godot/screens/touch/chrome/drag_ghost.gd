@@ -1,9 +1,10 @@
 class_name DragGhost
 extends Control
 
-## The dragged tab: a bare white 48 px glyph at 80% opacity on the pointer.
+## The dragged tab: its bare white outline symbol, 48 px, at 80% opacity on
+## the pointer (TouchscreenDragGhost.tsx).
 
-var icon_name := ""
+var symbol := 0
 
 
 func _init() -> void:
@@ -13,8 +14,8 @@ func _init() -> void:
 	visible = false
 
 
-func show_at(icon: String, canvas_pos: Vector2) -> void:
-	icon_name = icon
+func show_at(sym: int, canvas_pos: Vector2) -> void:
+	symbol = sym
 	visible = true
 	move_to(canvas_pos)
 	queue_redraw()
@@ -25,6 +26,5 @@ func move_to(canvas_pos: Vector2) -> void:
 
 
 func _draw() -> void:
-	var tex := Icons.texture(icon_name, Tokens.ICON)
-	if tex != null:
-		draw_texture(tex, Vector2.ZERO, Color(1, 1, 1, 0.8))
+	UiDraw.begin(self)
+	Sf.draw(self, symbol, size * 0.5, Tokens.ICON, Color(1, 1, 1, 0.8))

@@ -256,7 +256,6 @@ func _button(n: String, text: String, icon: String, min_size: Vector2, style: Pw
 	b.name = n
 	b.icon_name = icon
 	b.font_size = 22 if text == "" else 20
-	b.radius = 6.0
 	return b
 
 

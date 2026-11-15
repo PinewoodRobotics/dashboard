@@ -176,7 +176,6 @@ func _build_list_header() -> Control:
 	reload_button.name = "ReloadAutos"
 	reload_button.icon_name = "refresh-cw"
 	reload_button.font_size = 18
-	reload_button.radius = 6.0
 	reload_button.pressed.connect(reload_autos)
 	row.add_child(reload_button)
 	return row

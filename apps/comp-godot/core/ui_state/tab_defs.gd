@@ -8,22 +8,24 @@ const TABS := ["auto", "settings", "effects", "howard", "robot3d", "visual"]
 const DEFAULT_RAIL := ["auto", "settings"]
 
 const TAB_INFO := {
-	"auto": {"label": "Auto Select", "icon": "route"},
-	"settings": {"label": "Connection Settings", "icon": "settings"},
-	"effects": {"label": "Special Effects", "icon": "sparkles"},
-	"howard": {"label": "Pictures of Howard", "icon": "image"},
-	"robot3d": {"label": "Robot 3D", "icon": "box"},
-	"visual": {"label": "Visual Settings", "icon": "eye"},
+	"auto": {"label": "Auto Select", "symbol": Sf.AUTO, "active_symbol": Sf.AUTO_FILL},
+	"settings": {"label": "Connection Settings", "symbol": Sf.SETTINGS, "active_symbol": Sf.SETTINGS_FILL},
+	"effects": {"label": "Special Effects", "symbol": Sf.EFFECTS, "active_symbol": Sf.EFFECTS_FILL},
+	"howard": {"label": "Pictures of Howard", "symbol": Sf.HOWARD, "active_symbol": Sf.HOWARD_FILL},
+	"robot3d": {"label": "Robot 3D", "symbol": Sf.ROBOT3D, "active_symbol": Sf.ROBOT3D_FILL},
+	"visual": {"label": "Visual Settings", "symbol": Sf.VISUAL, "active_symbol": Sf.VISUAL_FILL},
 }
 
 const PANELS := ["showMap", "intakeSpeed"]
 const PANEL_INFO := {
-	"showMap": {"label": "Map", "icon": "map"},
-	"intakeSpeed": {"label": "Intake Speed", "icon": "gauge"},
+	"showMap": {"label": "Map", "symbol": Sf.MAP, "active_symbol": Sf.MAP_FILL},
+	"intakeSpeed": {"label": "Intake Speed", "symbol": Sf.INTAKE, "active_symbol": Sf.INTAKE_FILL},
 }
 
-const HOME_ICON := "bot"
-const DOCK_ICON := "layout-grid"
+## LeftRail.tsx: home is filled while the driver view is the base; the dock
+## toggle has no filled form.
+const HOME_INFO := {"symbol": Sf.HOME, "active_symbol": Sf.HOME_FILL}
+const DOCK_INFO := {"symbol": Sf.DOCK, "active_symbol": Sf.DOCK}
 
 
 static func is_tab(id: Variant) -> bool:

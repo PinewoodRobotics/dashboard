@@ -1,22 +1,28 @@
 class_name PwSlider
 extends Control
 
-## CustomSlider.tsx: a 48 px bar with a 4 px border and relative drag. The value
-## moves by dx / track width * range from the value at drag start, so a plain
-## tap changes nothing. A drag claims the pointer once it travels 8 px mostly
-## horizontally (it wins over the drawer swipe); a mostly vertical drag is
-## left to the overlay's swipe-down. `reversed` fills from the right and
-## inverts the drag. Step snaps from min, then snap points to the nearest one.
+## CustomSlider.tsx: label, optional value line, a 48 px track with a 4 px
+## border, optional hint. A press on the track turns it green (100 ms fade)
+## and the value then moves by dx / track width * range from the value at the
+## press, from the first pixel, so a tap changes nothing. `reversed` fills from
+## the right and inverts the drag. Step snaps from min, then snap points to the
+## nearest one; with snap points the fill width eases over 150 ms.
 
 signal value_changed(value: float)
 signal drag_started
 signal drag_ended
 
-const INTENT_PX := 8.0
 const DOT := 6.0
+const GAP := 8.0
+const VALUE_PX := 18
+const HINT_PX := 16
 
 var label := ""
+## Shown between label and track; "{v}" is replaced by the formatted value.
 var value_label := ""
+## Godot-only: the value right-aligned on the label's line instead (the web's
+## Robot 3D joint rows, which are not CustomSliders).
+var value_beside := false
 var min_value := 0.0
 var max_value := 1.0
 var step := 0.0
@@ -35,12 +41,16 @@ var disabled := false:
 var label_size := 24
 var bar_height := 48.0
 var value := 0.0
+## True while pressed (the web's isDragging).
 var dragging := false
 
-var _pressed := false
 var _start := Vector2.ZERO
 var _start_value := 0.0
 var _fill := UiAnim.new(0.0)
+var _track_bg := ColorAnim.new(Tokens.PANEL)
+var _border := ColorAnim.new(Tokens.TEXT)
+var _fill_col := ColorAnim.new(Tokens.TEXT)
+var _dots: Array[Dictionary] = []
 
 
 func _init() -> void:
@@ -50,6 +60,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	_fill.jump(fraction())
+	_sync_dots(false)
 	_update_min_size()
 
 
@@ -58,33 +69,42 @@ func configure(opts: Dictionary) -> PwSlider:
 		set(k, opts[k])
 	value = quantize(value, min_value, max_value, step, snap_points)
 	_fill.jump(fraction())
+	_sync_dots(false)
 	_update_min_size()
 	queue_redraw()
 	return self
 
 
+static func _line_h(weight: int, px: int) -> float:
+	var f := Tokens.inter(weight)
+	return f.get_ascent(px) + f.get_descent(px)
+
+
 func _update_min_size() -> void:
-	custom_minimum_size.y = _bar_top() + bar_height + (_hint_h() if not hints.is_empty() else 0.0)
+	custom_minimum_size.y = _bar_top() + bar_height + (GAP + _line_h(400, HINT_PX) if not hints.is_empty() else 0.0)
 
 
-func _label_h() -> float:
-	return 0.0 if label == "" and value_label == "" else label_size + 12.0
-
-
-func _hint_h() -> float:
-	return 30.0
+func _value_top() -> float:
+	return _line_h(500, label_size) + GAP if label != "" else 0.0
 
 
 func _bar_top() -> float:
-	return _label_h()
+	return _value_top() + (_line_h(500, VALUE_PX) + GAP if value_label != "" and not value_beside else 0.0)
 
 
 func bar_rect() -> Rect2:
 	return Rect2(0, _bar_top(), size.x, bar_height)
 
 
+## The track is `touch-action: none` in the web: a stroke that starts on it
+## never scrolls the panel.
+func touch_action_none(local_pos: Vector2) -> bool:
+	return bar_rect().has_point(local_pos)
+
+
+## The web divides by the track's border-box width (getBoundingClientRect).
 func track_width() -> float:
-	return maxf(1.0, size.x - 2.0 * Tokens.BORDER)
+	return maxf(1.0, size.x)
 
 
 func fraction() -> float:
@@ -105,7 +125,7 @@ static func quantize(v: float, lo: float, hi: float, step_size: float, snaps: Ar
 			if absf(s - out) < absf(best - out):
 				best = s
 		out = best
-	return clampf(out, lo, hi)
+	return out
 
 
 static func drag_value(start_value: float, dx: float, track_w: float, lo: float, hi: float, step_size: float, snaps: Array, is_reversed: bool) -> float:
@@ -128,8 +148,12 @@ func formatted() -> String:
 	if format_value.is_valid():
 		return str(format_value.call(value))
 	if decimals >= 0:
-		return String.num(value, decimals) if decimals > 0 else str(int(roundf(value)))
+		return ("%." + str(decimals) + "f") % value
 	return str(value)
+
+
+func _interpolate(s: String) -> String:
+	return s.replace("{v}", formatted())
 
 
 func set_value(v: float, emit: bool = false) -> void:
@@ -140,17 +164,73 @@ func set_value(v: float, emit: bool = false) -> void:
 	if snap_points.is_empty() or not is_inside_tree():
 		_fill.jump(fraction())
 	else:
-		_fill.start(fraction(), Tokens.MOTION_SLIDER_FILL_S, Easing.out_cubic)
-	set_process(_fill.running)
-	queue_redraw()
+		_fill.retarget(fraction(), Tokens.MOTION_SLIDER_FILL_S, Easing.css_ease_out)
+	_sync_dots(true)
+	_kick()
 	if emit:
 		value_changed.emit(value)
 
 
-func _process(delta: float) -> void:
-	_fill.step(delta)
+func _dot_epsilon() -> float:
+	return (max_value - min_value) * 0.005
+
+
+func _dot_target(s: float) -> Dictionary:
+	var t := fraction()
+	var pt := value_fraction(s, min_value, max_value)
+	var in_fill := pt > 1.0 - t if reversed else pt < t
+	var col: Color
+	if in_fill:
+		col = Tokens.SELECTED_FILL if dragging else Tokens.PANEL
+	else:
+		col = Tokens.ACCENT if dragging else Tokens.TEXT
+	return {"color": col, "alpha": 0.0 if absf(s - value) < _dot_epsilon() else 1.0}
+
+
+func _sync_dots(animate: bool) -> void:
+	if _dots.size() != snap_points.size():
+		_dots.clear()
+		for s: float in snap_points:
+			_dots.append({"color": ColorAnim.new(), "alpha": UiAnim.new(1.0)})
+		animate = false
+	for i in snap_points.size():
+		var want := _dot_target(snap_points[i])
+		var d := _dots[i]
+		if animate and is_inside_tree():
+			(d["color"] as ColorAnim).set_target(want["color"], Tokens.MOTION_PRESS_S)
+			(d["alpha"] as UiAnim).retarget(want["alpha"], 0.05, Easing.css, 0.05)
+		else:
+			(d["color"] as ColorAnim).jump(want["color"])
+			(d["alpha"] as UiAnim).jump(want["alpha"])
+
+
+func _set_pressed(on: bool) -> void:
+	dragging = on
+	var accent := Tokens.ACCENT if on else Tokens.TEXT
+	_track_bg.set_target(Tokens.SELECTED_FILL if on else Tokens.PANEL, Tokens.MOTION_PRESS_S, Easing.tailwind)
+	_border.set_target(accent, Tokens.MOTION_PRESS_S, Easing.tailwind)
+	_fill_col.set_target(accent, Tokens.MOTION_PRESS_S)
+	_sync_dots(true)
+	_kick()
+
+
+func _kick() -> void:
+	set_process(true)
 	queue_redraw()
-	if not _fill.running:
+
+
+func _process(delta: float) -> void:
+	var busy := _fill.running
+	_fill.step(delta)
+	for c: ColorAnim in [_track_bg, _border, _fill_col]:
+		busy = c.running() or busy
+		c.step(delta)
+	for d: Dictionary in _dots:
+		busy = (d["color"] as ColorAnim).running() or (d["alpha"] as UiAnim).running or busy
+		(d["color"] as ColorAnim).step(delta)
+		(d["alpha"] as UiAnim).step(delta)
+	queue_redraw()
+	if not busy:
 		set_process(false)
 
 
@@ -160,64 +240,61 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	match p.kind:
 		PointerInput.Kind.DOWN:
-			_pressed = true
+			if not bar_rect().has_point(p.pos):
+				return
 			_start = p.pos
 			_start_value = value
+			_set_pressed(true)
+			drag_started.emit()
 			accept_event()
 		PointerInput.Kind.MOVE:
-			if not _pressed:
-				return
-			var d := p.pos - _start
 			if not dragging:
-				if d.length() < INTENT_PX:
-					return
-				if absf(d.x) <= absf(d.y):
-					_pressed = false
-					return
-				dragging = true
-				drag_started.emit()
-				queue_redraw()
-			set_value(drag_value(_start_value, d.x, track_width(), min_value, max_value, step, snap_points, reversed), true)
+				return
+			set_value(drag_value(_start_value, p.pos.x - _start.x, track_width(), min_value, max_value, step, snap_points, reversed), true)
 			accept_event()
 		PointerInput.Kind.UP:
 			_end_drag()
 
 
 func _end_drag() -> void:
-	_pressed = false
 	if dragging:
-		dragging = false
+		_set_pressed(false)
 		drag_ended.emit()
-		queue_redraw()
 
 
 func _draw() -> void:
 	UiDraw.begin(self)
 	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
-	var accent := Tokens.ACCENT if dragging else Tokens.TEXT
-	if _label_h() > 0.0:
+	if label != "":
 		var f := Tokens.inter(500)
-		var base := float(label_size)
-		UiDraw.text(self, f, Vector2(0, base), label, label_size, Color(1, 1, 1, a))
-		if value_label != "":
-			var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size).x
-			var vs := maxi(12, int(label_size * 0.75))
-			UiDraw.text(self, Tokens.inter(400), Vector2(lw + 12.0, base), value_label.replace("{v}", formatted()), vs, Color(1, 1, 1, 0.7 * a), HORIZONTAL_ALIGNMENT_LEFT, size.x - lw - 12.0)
+		UiDraw.text(self, f, Vector2(0, roundf(f.get_ascent(label_size))), label, label_size, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+	if value_label != "" and value_beside:
+		var f := Tokens.inter(500)
+		UiDraw.text(self, f, Vector2(0, roundf(f.get_ascent(label_size))), _interpolate(value_label), label_size, Color(1, 1, 1, 0.6 * a), HORIZONTAL_ALIGNMENT_RIGHT, size.x)
+	elif value_label != "":
+		var f := Tokens.inter(500)
+		UiDraw.text(self, f, Vector2(0, roundf(_value_top() + f.get_ascent(VALUE_PX))), _interpolate(value_label), VALUE_PX, Color(1, 1, 1, 0.7 * a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
 	var bar := bar_rect()
-	var bg := Tokens.SELECTED_FILL if dragging else Tokens.PANEL
-	UiDraw.rect(ci, bar, Color(bg, a))
+	UiDraw.rect(ci, bar, _faded(_track_bg.value(), a))
 	var inner := bar.grow(-Tokens.BORDER)
 	var fw := inner.size.x * _fill.value
 	var fill_rect := Rect2(inner.end.x - fw, inner.position.y, fw, inner.size.y) if reversed else Rect2(inner.position, Vector2(fw, inner.size.y))
-	UiDraw.rect(ci, fill_rect, Color(accent, a))
-	for s: float in snap_points:
-		var fr := value_fraction(s, min_value, max_value)
-		if fr <= 0.0 or fr >= 1.0 or is_equal_approx(s, value):
+	UiDraw.rect(ci, fill_rect, _faded(_fill_col.value(), a))
+	var eps := _dot_epsilon()
+	for i in snap_points.size():
+		var s: float = snap_points[i]
+		if absf(s - min_value) < eps or absf(s - max_value) < eps:
 			continue
-		var x := inner.end.x - inner.size.x * fr if reversed else inner.position.x + inner.size.x * fr
-		var inside := fill_rect.has_point(Vector2(x, inner.get_center().y))
-		UiDraw.circle(ci, Vector2(x, inner.get_center().y), DOT * 0.5, Color(Tokens.PANEL if inside else accent, a))
-	UiDraw.frame(ci, bar, Color(accent, a), Tokens.BORDER)
+		var d := _dots[i]
+		var x := inner.position.x + inner.size.x * value_fraction(s, min_value, max_value)
+		var col := _faded((d["color"] as ColorAnim).value(), a * (d["alpha"] as UiAnim).value)
+		UiDraw.circle(ci, Vector2(x, inner.get_center().y), DOT * 0.5, col)
+	UiDraw.frame(ci, bar, _faded(_border.value(), a), Tokens.BORDER)
 	if not hints.is_empty():
-		UiDraw.text(self, Tokens.inter(400), Vector2(0, bar.end.y + 24.0), hint_for(value, hints), 16, Color(Tokens.ZINC_400, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+		var f := Tokens.inter(400)
+		UiDraw.text(self, f, Vector2(0, roundf(bar.end.y + GAP + f.get_ascent(HINT_PX))), _interpolate(hint_for(value, hints)), HINT_PX, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+
+
+static func _faded(c: Color, a: float) -> Color:
+	return Color(c, c.a * a)

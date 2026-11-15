@@ -23,11 +23,11 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	position = Vector2.ZERO
 	size = Vector2(Tokens.RAIL_W, Tokens.TOUCH_DESIGN.y)
-	home = TabIcon.new(TabDefs.HOME_ICON)
+	home = TabIcon.new(TabDefs.HOME_INFO)
 	home.name = "Home"
 	home.tapped.connect(func() -> void: home_tapped.emit())
 	add_child(home)
-	dock_toggle = TabIcon.new(TabDefs.DOCK_ICON)
+	dock_toggle = TabIcon.new(TabDefs.DOCK_INFO)
 	dock_toggle.name = "DockToggle"
 	dock_toggle.tapped.connect(func() -> void: dock_tapped.emit())
 	add_child(dock_toggle)
@@ -40,7 +40,7 @@ func rebuild() -> void:
 		it.queue_free()
 	items.clear()
 	for id: String in state.rail:
-		var it := TabIcon.new(TabDefs.TAB_INFO[id]["icon"], "rail", id)
+		var it := TabIcon.new(TabDefs.TAB_INFO[id], "rail", id)
 		it.dnd = dnd
 		add_child(it)
 		items.append(it)

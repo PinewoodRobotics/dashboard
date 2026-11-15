@@ -29,7 +29,7 @@ func rebuild() -> void:
 	var per_row := int((Tokens.DOCK_W - 2 * (Tokens.BORDER + Tokens.DOCK_PAD) + Tokens.DOCK_GAP) / (Tokens.DOCK_CELL + Tokens.DOCK_GAP))
 	for i in state.dock.size():
 		var id: String = state.dock[i]
-		var it := TabIcon.new(TabDefs.TAB_INFO[id]["icon"], "dock", id)
+		var it := TabIcon.new(TabDefs.TAB_INFO[id], "dock", id)
 		it.dnd = dnd
 		it.size = Vector2(Tokens.DOCK_CELL, Tokens.DOCK_CELL)
 		it.position = Vector2(Tokens.BORDER + Tokens.DOCK_PAD + (i % per_row) * (Tokens.DOCK_CELL + Tokens.DOCK_GAP),

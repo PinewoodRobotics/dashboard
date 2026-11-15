@@ -55,19 +55,18 @@ func _ready() -> void:
 	header.add_child(status_label)
 	save_error = UiKit.label("", 16, 400, Tokens.ERROR_TEXT)
 	header.add_child(save_error)
-	reconnect = PwButton.new("Reconnect", PwButton.Style.DARK, Vector2(170, 48))
+	reconnect = PwButton.new("Reconnect", PwButton.Style.OUTLINE)
 	reconnect.name = "Reconnect"
-	reconnect.icon_name = "refresh-cw"
 	reconnect.pressed.connect(func() -> void:
 		if nt != null:
 			nt.reconnect()
 		_update_status())
 	header.add_child(reconnect)
-	reset = PwButton.new("Reset", PwButton.Style.OUTLINE, Vector2(130, 48))
+	reset = PwButton.new("Reset", PwButton.Style.OUTLINE)
 	reset.name = "Reset"
 	reset.pressed.connect(_on_reset)
 	header.add_child(reset)
-	save = PwButton.new("Save", PwButton.Style.PRIMARY, Vector2(130, 48))
+	save = PwButton.new("Save", PwButton.Style.PRIMARY)
 	save.name = "Save"
 	save.pressed.connect(_on_save)
 	header.add_child(save)

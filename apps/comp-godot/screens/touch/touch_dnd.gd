@@ -89,7 +89,7 @@ func _process(_delta: float) -> void:
 
 func _start_drag(pos: Vector2) -> void:
 	source.faded = true
-	ghost.show_at(source.icon_name, pos)
+	ghost.show_at(source.symbol, pos)
 
 
 func target_at(pos: Vector2) -> Dictionary:

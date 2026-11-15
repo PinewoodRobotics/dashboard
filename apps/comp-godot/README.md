@@ -311,6 +311,22 @@ so every size of a weight shares one glyph texture. To rebuild them:
 apps/comp-godot/tools/fonts/build_fonts.sh /path/to/InterVariable.ttf /path/to/RobotoMono-VariableFont_wght.ttf
 ```
 
+Icons are the web's SF Symbols (`ui/icons/sf.gd`, the same code points as
+`apps/comp`), drawn from `ui/fonts/SF-Pro-400.ttf`: the web's 26 MB
+`apps/comp/public/fonts/SF-Pro.ttf` cut to those symbols plus Latin text and
+instanced at the web's weight, width and optical size. It is imported as plain
+per-size glyphs rather than MSDF. After adding a symbol to `sf.gd`, add its code
+point to the script's list and rebuild:
+
+```sh
+apps/comp-godot/tools/fonts/build_sf_symbols.sh
+```
+
+Lucide (`ui/icons/lucide.json`) remains only where the web uses lucide too
+(Aim Trim chevrons, the auto sync-conflict triangle), for the HUD (not yet
+ported to SF Symbols) and for Godot-only controls with no web counterpart (the
+in-app keyboard, the auto preview overlay, the Visual tab's extra buttons).
+
 ## PathPlanner autos
 
 The robot's PathPlanner files are copied raw into `data/pathplanner/` and every

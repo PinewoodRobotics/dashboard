@@ -39,9 +39,9 @@ func _ready() -> void:
 	caption = UiKit.wrapped("", 22, Tokens.ZINC_300)
 	caption.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(caption)
-	more = PwButton.new("More Howard", PwButton.Style.DARK, Vector2(0, 72))
+	more = PwButton.new("More Howard", PwButton.Style.DARK)
 	more.name = "More"
-	more.font_size = 34
+	more.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	more.pressed.connect(next_picture)
 	left.add_child(more)
 	row.add_child(left)

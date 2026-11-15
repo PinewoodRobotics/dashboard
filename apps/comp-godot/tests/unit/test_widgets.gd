@@ -14,7 +14,7 @@ func after_each() -> void:
 	await tree.process_frame
 
 
-func _add(c: Control, w: float = 408.0) -> Control:
+func _add(c: Control, w: float = 400.0) -> Control:
 	tree.root.add_child(c)
 	c.size = Vector2(w, c.custom_minimum_size.y)
 	nodes.append(c)
@@ -71,10 +71,33 @@ func test_slider_tap_changes_nothing_and_drag_is_relative() -> void:
 	check_eq(s.value, 0.5, "a tap near the right end changes nothing")
 	check(changes.is_empty())
 	_drag(s, Vector2(50, 24), Vector2(150, 24))
-	check_near(s.value, 0.75, 1e-9, "100 px of a 400 px track")
+	check_near(s.value, 0.75, 1e-9, "100 px of a 400 px track (the border-box width)")
 	check(not s.dragging)
 	_drag(s, Vector2(200, 24), Vector2(200, 80), true)
-	check_near(s.value, 0.75, 1e-9, "a vertical drag is left to the swipe")
+	check_near(s.value, 0.75, 1e-9, "only x moves the value; the vertical stroke goes to the swipe as well")
+
+
+func test_slider_press_is_green_at_once_and_follows_from_the_first_pixel() -> void:
+	var s := _add(PwSlider.new().configure({"label": "Angle", "min_value": 0.0, "max_value": 1.0, "value": 0.5})) as PwSlider
+	var top := s.bar_rect().position.y
+	check_near(top, 29.0 + 8.0, 0.5, "label line (Inter 24 normal) plus 8 px gap above the track")
+	s._gui_input(_btn(Vector2(200, 10), true, true))
+	check(not s.dragging, "the label is not part of the track")
+	check(not s.touch_action_none(Vector2(200, 10)) and s.touch_action_none(Vector2(200, top + 24)), "only the track blocks touch scrolling")
+	s._gui_input(_btn(Vector2(200, 10), false, true))
+	s._gui_input(_btn(Vector2(200, top + 24), true, true))
+	check(s.dragging, "pressed on pointer down, no travel needed")
+	s._gui_input(_mv(Vector2(202, top + 24), true))
+	check_near(s.value, 0.505, 1e-9, "2 px of a 400 px track moves the value")
+	s._process(0.05)
+	check(s._border.value() != Tokens.TEXT and s._border.value() != Tokens.ACCENT, "border fades toward green over 100 ms")
+	s._process(0.06)
+	check_eq(s._border.value(), Tokens.ACCENT)
+	check_eq(s._track_bg.value(), Tokens.SELECTED_FILL)
+	s._gui_input(_btn(Vector2(202, top + 24), false, true))
+	check(not s.dragging)
+	s._process(0.2)
+	check_eq(s._fill_col.value(), Tokens.TEXT)
 
 
 func test_slider_reversed_and_snap_by_touch() -> void:
@@ -107,7 +130,29 @@ func test_selector_math_and_input() -> void:
 	check_eq(sel.current_value(), "follow", "drag slides and snaps to the nearest cell")
 	check_eq(got, ["driver", "follow"])
 	_drag(sel, Vector2(100, 70), Vector2(102, 140), true)
-	check_eq(sel.current_value(), "follow", "a vertical drag selects nothing")
+	check_eq(sel.current_value(), "follow", "no horizontal travel: the release point's cell")
+	check_eq(got, ["driver", "follow"])
+
+
+func test_selector_window_follows_from_the_first_pixel_and_commits_the_hint() -> void:
+	var sel := _add(PwSelector.new().configure("Mode", MapSettingsPanel.MODE_OPTIONS, "follow")) as PwSelector
+	check_near(sel._cells_top(), 37.0, 0.5, "label line 29 px plus 8 px gap")
+	sel._gui_input(_btn(Vector2(100, 70), true, true))
+	sel._gui_input(_mv(Vector2(98, 70), true))
+	check_eq(sel.highlight_x(), 74.0, "2 px of travel moves the window 2 px")
+	sel._gui_input(_mv(Vector2(130, 70), true))
+	check_eq(sel.highlight_x(), 76.0, "clamped at the last cell")
+	sel._gui_input(_mv(Vector2(40, 70), true))
+	check_eq(sel.highlight_x(), 16.0)
+	check_eq(sel.displayed_index(), 0, "while pressed the hint is the option under the window")
+	sel._gui_input(_btn(Vector2(40, 70), false, true))
+	check_eq(sel.current_value(), "driver")
+	check_eq(sel.highlight_x(), 16.0, "the window slides from where it was released")
+	check_eq(sel.displayed_index(), 0, "the hint is the committed option at once")
+	sel._process(0.1)
+	check(sel.highlight_x() > 0.0 and sel.highlight_x() < 16.0)
+	sel._process(0.11)
+	check_eq(sel.highlight_x(), 0.0, "200 ms")
 
 
 func test_text_input_with_keyboard_and_keypad() -> void:
@@ -124,6 +169,9 @@ func test_text_input_with_keyboard_and_keypad() -> void:
 	t._gui_input(_btn(Vector2(50, 60), false, true))
 	check(kb.is_open() and kb.target == t and t.editing, "a tap opens this window's keyboard")
 	check(not kb.numeric)
+	t.invalid = true
+	check_eq(t._border.target(), Tokens.ACCENT, "focus wins over invalid")
+	check_eq(t._bg.target(), Tokens.FOCUS_FILL)
 	for k in ["1", "0", ".", "4"]:
 		kb.press_key(k)
 	kb.press_key("SHIFT")
@@ -137,6 +185,8 @@ func test_text_input_with_keyboard_and_keypad() -> void:
 	kb.press_key("DONE")
 	check(not kb.is_open() and not t.editing)
 	check_eq(submitted, ["10.4A"])
+	check_eq(t._border.target(), Tokens.ERROR)
+	check_eq(t._bg.target(), Tokens.PANEL)
 
 	var port := PwTextInput.new("Port", "5810", true)
 	host.add_child(port)
@@ -169,3 +219,16 @@ func test_button_taps_but_not_after_a_drag() -> void:
 	b._gui_input(_btn(Vector2(60, 24), true))
 	b._gui_input(_btn(Vector2(60, 24), false))
 	check_eq(n[0], 1)
+
+
+func test_buttons_take_the_web_sizes() -> void:
+	var save := PwButton.new("Save", PwButton.Style.PRIMARY)
+	var w := Tokens.inter(600).get_string_size("Save", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	check_eq(save.get_combined_minimum_size(), Vector2(ceilf(w + 64.0), 48), "h-12 px-8 text-sm")
+	var more := PwButton.new("More Howard", PwButton.Style.DARK)
+	check_eq(more.get_combined_minimum_size().y, 42.0, "34 px line + 4 px padding")
+	var pill := PwButton.new("1", PwButton.Style.PILL)
+	check_eq(pill.get_combined_minimum_size(), Vector2(40, 40))
+	check_eq(more.radius, 0.0, "square")
+	for b in [save, more, pill]:
+		b.free()

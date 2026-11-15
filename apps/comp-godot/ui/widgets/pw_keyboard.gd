@@ -140,7 +140,6 @@ func _make_key(k: String) -> PwButton:
 	b.name = key_name(k)
 	b.set_meta("key", k)
 	b.font_size = 22
-	b.radius = 6.0
 	match k:
 		"BKSP":
 			b.text = ""
@@ -204,7 +203,7 @@ func _refresh_captions() -> void:
 		if b.icon_name == "":
 			b.text = _caption(k)
 		if k == "SHIFT":
-			b.variant = PwButton.Style.ACCENT if shift else PwButton.Style.DARK
+			b.selected = shift
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -243,6 +242,6 @@ func _draw() -> void:
 	if target == null:
 		return
 	var f := Tokens.inter(500)
-	UiDraw.text(self, Tokens.label_font(), r.position + Vector2(PAD + 4.0, PAD + 16.0), target.label.to_upper(), 12, Tokens.ZINC_400)
+	UiDraw.text_tracked(self, Tokens.inter(600), r.position + Vector2(PAD + 4.0, PAD + 16.0), target.label, PwTextInput.LABEL_PX, Tokens.ZINC_400, PwTextInput.LABEL_TRACKING)
 	var shown := target.text if target.text != "" else target.placeholder
-	UiDraw.text(self, f, r.position + Vector2(PAD + 4.0, PAD + 46.0), shown, 26, Tokens.TEXT if target.text != "" else Tokens.ZINC_500, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - PAD * 2.0)
+	UiDraw.text(self, f, r.position + Vector2(PAD + 4.0, PAD + 46.0), shown, 26, Tokens.TEXT if target.text != "" else Tokens.ZINC_600, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - PAD * 2.0)

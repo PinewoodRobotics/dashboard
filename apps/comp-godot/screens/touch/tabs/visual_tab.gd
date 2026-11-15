@@ -59,7 +59,7 @@ func _ready() -> void:
 	var title := UiKit.label("Visual Settings", 28, 600)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
-	var reset := PwButton.new("Reset", PwButton.Style.OUTLINE, Vector2(140, 48))
+	var reset := PwButton.new("Reset", PwButton.Style.OUTLINE)
 	reset.name = "Reset"
 	reset.pressed.connect(func() -> void: settings.reset("visual"))
 	header.add_child(reset)

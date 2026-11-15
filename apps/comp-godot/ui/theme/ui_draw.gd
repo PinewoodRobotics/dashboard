@@ -278,6 +278,22 @@ static func text(owner: CanvasItem, font: Font, pos: Vector2, s: String, px: int
 	font.draw_string(text_item(owner, font), pos, s, align, width, px, color)
 
 
+## Text with CSS letter-spacing: `tracking` px after every glyph, fractional
+## (FontVariation.spacing_glyph is whole pixels only).
+static func text_tracked(owner: CanvasItem, font: Font, pos: Vector2, s: String, px: int, color: Color, tracking: float) -> void:
+	if s == "" or color.a <= 0.0:
+		return
+	var ci := text_item(owner, font)
+	var ts := TextServerManager.get_primary_interface()
+	var line := TextLine.new()
+	line.add_string(s, font, px)
+	var x := pos.x
+	for g: Dictionary in ts.shaped_text_get_glyphs(line.get_rid()):
+		var off: Vector2 = g["offset"]
+		ts.font_draw_glyph(g["font_rid"], ci, px, Vector2(x, pos.y) + off, g["index"], color)
+		x += float(g["advance"]) + tracking
+
+
 ## Labels draw their text in their own canvas item, so they take their font's z.
 static func layer_label(l: Label) -> void:
 	if is_instance_valid(l) and l.is_inside_tree():

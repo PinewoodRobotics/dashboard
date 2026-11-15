@@ -4,7 +4,7 @@
   "input": [
     {"wait_ms": 300},
     {"expect": {"scrolls.VisualScroll.offset": 0.0, "scrolls.VisualScroll.max": {"ge": 400}}},
-    {"drag": {"from": {"node": "find:RenderScale", "at": [300, 60]}, "to": {"node": "find:RenderScale", "at": [30, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:RenderScale", "at": [300, 90]}, "to": {"node": "find:RenderScale", "at": [30, 90]}, "ms": 250}},
     {"expect": {"settings.visual.render_scale": 0.25, "scrolls.VisualScroll.offset": 0.0}},
     {"mark": "v0"},
     {"drag": {"from": "find:ReloadModels", "to": {"node": "find:ReloadModels", "offset": [-1000, 30]}, "ms": 300}},

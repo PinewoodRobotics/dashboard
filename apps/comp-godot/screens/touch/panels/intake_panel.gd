@@ -5,7 +5,7 @@ extends Control
 ## override slider with its status line and Reset, then the aim trim (reversed
 ## slider, +-10 deg in 0.25 steps), Center, and the ten shooter readouts.
 
-const SPEED_LABEL := "{v} - duty cycle sent to the intake motor"
+const SPEED_LABEL := "{v} — duty cycle sent to the intake motor"
 
 var controls: ControlsService
 var scroll: PwScroll
@@ -31,7 +31,7 @@ func _ready() -> void:
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	speed = PwSlider.new().configure({"label": "Speed", "min_value": 0.0, "max_value": 1.0, "step": 0.01, "decimals": 2,
-		"value_label": SPEED_LABEL, "label_size": 22, "value": IntakeSpeed.FALLBACK_SPEED})
+		"value_label": SPEED_LABEL, "value": IntakeSpeed.FALLBACK_SPEED})
 	speed.name = "Speed"
 	speed.value_changed.connect(func(v: float) -> void:
 		if controls != null:
@@ -40,7 +40,7 @@ func _ready() -> void:
 	speed_status = UiKit.wrapped("", 16, Tokens.ZINC_400)
 	speed_status.name = "SpeedStatus"
 	body.add_child(speed_status)
-	reset = PwButton.new("Reset", PwButton.Style.OUTLINE, Vector2(0, 48))
+	reset = PwButton.new("Reset", PwButton.Style.OUTLINE_BLOCK)
 	reset.name = "Reset"
 	reset.pressed.connect(func() -> void:
 		if controls != null:
@@ -71,7 +71,7 @@ func _ready() -> void:
 	trim_status = UiKit.wrapped("", 16, Tokens.ZINC_400)
 	trim_status.name = "TrimStatus"
 	body.add_child(trim_status)
-	center = PwButton.new("Center (0°)", PwButton.Style.OUTLINE, Vector2(0, 48))
+	center = PwButton.new("Center (0°)", PwButton.Style.OUTLINE_BLOCK)
 	center.name = "Center"
 	center.pressed.connect(func() -> void:
 		if controls != null:

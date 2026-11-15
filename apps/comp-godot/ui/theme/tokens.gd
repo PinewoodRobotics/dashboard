@@ -21,7 +21,8 @@ const TEXT := Color.WHITE
 const TEXT_DIM := Color(1, 1, 1, 0.45)
 const ZINC_300 := Color("#d4d4d8")
 const ZINC_400 := Color("#a1a1aa")
-const ZINC_500 := Color("#71717a")
+const ZINC_500 := Color("#71717b")
+const ZINC_600 := Color("#52525c")
 const ZINC_700 := Color("#3f3f46")
 const ZINC_800 := Color("#27272a")
 const ZINC_900 := Color("#18181b")
@@ -58,6 +59,8 @@ const BORDER := 4
 const MOTION_OVERLAY_S := 0.2
 const MOTION_DOCK_S := 0.1
 const MOTION_SLIDER_FILL_S := 0.15
+const MOTION_PRESS_S := 0.1
+const MOTION_TAILWIND_S := 0.15
 
 const TOUCH_DESIGN := Vector2(1920, 515)
 const DRAWER_PAD := 20
@@ -69,6 +72,7 @@ const DOCK_GAP := 12
 
 const INTER_WEIGHTS := [300, 400, 500, 600, 700]
 const MONO_WEIGHTS := [400, 500]
+const SF_TEXT_Z := 1 + 5 + 2
 
 static var _fonts := {}
 
@@ -108,10 +112,13 @@ static func inter_tabular(weight: int = 400) -> FontVariation:
 	return _fonts[key]
 
 
-## 12 px semibold labels with 0.2em tracking (settings field labels).
-static func label_font() -> FontVariation:
-	if not _fonts.has("label"):
-		var fv := inter(600).duplicate() as FontVariation
-		fv.spacing_glyph = 2
-		_fonts["label"] = fv
-	return _fonts["label"]
+## SF Pro (tools/fonts/build_sf_symbols.sh) for SF Symbols and the few SF Pro
+## texts of the web dashboard. Imported as plain per-size glyphs, not MSDF:
+## msdfgen leaves stray marks beside SF Pro's letters.
+static func sf() -> FontVariation:
+	if not _fonts.has("sf"):
+		var fv := FontVariation.new()
+		fv.base_font = load("res://ui/fonts/SF-Pro-400.ttf") as FontFile
+		fv.set_meta(&"text_z", SF_TEXT_Z)
+		_fonts["sf"] = fv
+	return _fonts["sf"]

@@ -9,7 +9,9 @@ extends Container
 ## stroke on their own at that distance (buttons past PwButton.TAP_SLOP_PX,
 ## sliders and selectors on cross-axis intent). A horizontal scroller leaves
 ## strokes that start on horizontal-drag widgets (pw_hgrab) to them, and
-## neither axis takes strokes from grab widgets (pw_grab: 3D views, keyboard).
+## neither axis takes strokes from grab widgets (pw_grab: 3D views, keyboard)
+## or from a widget's touch_action_none() area (the web's touch-action: none,
+## e.g. a slider track).
 ## Dragging along the bar's edge moves the bar instead, as a desktop
 ## scrollbar does. The single child keeps its minimum size along the axis and fills the other.
 
@@ -119,6 +121,8 @@ func _owns_press(pos: Vector2) -> bool:
 	var n: Node = hit
 	while n != null and n != self:
 		if n.is_in_group("pw_grab") or (not vertical and n.is_in_group("pw_hgrab")):
+			return false
+		if n.has_method("touch_action_none") and n.touch_action_none((n as Control).get_global_transform().affine_inverse() * pos):
 			return false
 		n = n.get_parent()
 	return true

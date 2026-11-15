@@ -5,8 +5,8 @@ extends Control
 ## reads the same dictionary every frame, so it follows with no restart.
 
 const MODE_OPTIONS := [
-	{"value": "driver", "icon": "user", "hint": "Camera is aligned to the driver station"},
-	{"value": "follow", "icon": "locate-fixed", "hint": "Camera orbits to follow robot rotation"},
+	{"value": "driver", "symbol": Sf.MODE_DRIVER, "filled": Sf.MODE_DRIVER_FILL, "hint": "Camera is aligned to the driver station"},
+	{"value": "follow", "symbol": Sf.MODE_FOLLOW, "filled": Sf.MODE_FOLLOW_FILL, "hint": "Camera orbits to follow robot rotation"},
 ]
 const ANGLE_HINTS := [
 	{"min": 0.0, "text": "Camera is close to the ground"},
@@ -43,15 +43,15 @@ func _ready() -> void:
 	mode.name = "Mode"
 	mode.selected.connect(func(v: Variant) -> void: settings.set_map({"mode": v}))
 	body.add_child(mode)
-	angle = PwSlider.new().configure({"label": "Angle", "min_value": 0.0, "max_value": 1.0, "step": 0.01, "decimals": 2, "value_label": "{v}", "hints": ANGLE_HINTS, "value": float(m["angle"])})
+	angle = PwSlider.new().configure({"label": "Angle", "min_value": 0.0, "max_value": 1.0, "hints": ANGLE_HINTS, "value": float(m["angle"])})
 	angle.name = "Angle"
 	angle.value_changed.connect(func(v: float) -> void: settings.set_map({"angle": v}))
 	body.add_child(angle)
-	zoom = PwSlider.new().configure({"label": "Zoom", "min_value": 0.0, "max_value": 1.0, "step": 0.01, "decimals": 2, "value_label": "{v}", "hints": ZOOM_HINTS, "value": float(m["zoom"])})
+	zoom = PwSlider.new().configure({"label": "Zoom", "min_value": 0.0, "max_value": 1.0, "hints": ZOOM_HINTS, "value": float(m["zoom"])})
 	zoom.name = "Zoom"
 	zoom.value_changed.connect(func(v: float) -> void: settings.set_map({"zoom": v}))
 	body.add_child(zoom)
-	reset = PwButton.new("Reset", PwButton.Style.OUTLINE, Vector2(0, 48))
+	reset = PwButton.new("Reset", PwButton.Style.OUTLINE_BLOCK)
 	reset.name = "Reset"
 	reset.pressed.connect(func() -> void: settings.reset("map"))
 	body.add_child(reset)

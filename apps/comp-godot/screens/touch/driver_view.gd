@@ -13,47 +13,28 @@ var bar: PresetBar
 
 class PresetBar:
 	extends Control
-	## The four 40 px round buttons, drawn in one pass.
 
-	var selected := 0
+	var selected := 0:
+		set(v):
+			selected = v
+			for i in buttons.size():
+				buttons[i].selected = i == v
 	var view: DriverView
+	var buttons: Array[PwButton] = []
 
 	func _init() -> void:
 		name = "PresetBar"
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		size = Vector2(4 * BTN + 3 * GAP, BTN)
 		for i in 4:
-			var hit := Control.new()
-			hit.name = "Preset%d" % (i + 1)
-			hit.position = Vector2(i * (BTN + GAP), 0)
-			hit.size = Vector2(BTN, BTN)
-			hit.mouse_filter = Control.MOUSE_FILTER_STOP
-			hit.gui_input.connect(_on_hit_input.bind(hit, i))
-			add_child(hit)
-
-	func _on_hit_input(event: InputEvent, hit: Control, i: int) -> void:
-		var p := PointerInput.from_event(event)
-		if p.kind == PointerInput.Kind.DOWN:
-			hit.set_meta("down", p.pos)
-		elif p.kind == PointerInput.Kind.UP and hit.has_meta("down"):
-			var start: Vector2 = hit.get_meta("down")
-			hit.remove_meta("down")
-			if p.pos.distance_to(start) <= PwButton.TAP_SLOP_PX and Rect2(Vector2.ZERO, hit.size).has_point(p.pos):
-				view.select_preset(i)
-		if p.kind != PointerInput.Kind.NONE:
-			hit.accept_event()
-
-	func _draw() -> void:
-		UiDraw.begin(self)
-		for i in 4:
-			var c := Vector2(i * (BTN + GAP) + BTN * 0.5, BTN * 0.5)
-			UiDraw.circle(get_canvas_item(), c, BTN * 0.5, Color.WHITE if i == selected else Color(1, 1, 1, 0.1))
-		var f := Tokens.inter(500)
-		for i in 4:
-			var t := str(i + 1)
-			var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-			var pos := Vector2(i * (BTN + GAP) + (BTN - w) * 0.5, (BTN + f.get_ascent(14) - f.get_descent(14)) * 0.5)
-			UiDraw.text(self, f, pos.round(), t, 14, Color.BLACK if i == selected else Color(1, 1, 1, 0.6))
+			var b := PwButton.new(str(i + 1), PwButton.Style.PILL)
+			b.name = "Preset%d" % (i + 1)
+			b.position = Vector2(i * (BTN + GAP), 0)
+			b.size = Vector2(BTN, BTN)
+			b.selected = i == 0
+			b.pressed.connect(func() -> void: view.select_preset(i))
+			add_child(b)
+			buttons.append(b)
 
 
 func _ready() -> void:
@@ -77,7 +58,6 @@ func _layout() -> void:
 func _process(_delta: float) -> void:
 	if bar.selected != orbit.cam.preset:
 		bar.selected = orbit.cam.preset
-		bar.queue_redraw()
 
 
 func select_preset(i: int) -> void:

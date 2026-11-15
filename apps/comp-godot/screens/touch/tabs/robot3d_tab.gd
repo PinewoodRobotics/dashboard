@@ -61,7 +61,7 @@ func _joint_row(j: RigSolver.Joint) -> Control:
 	box.name = "Joint_" + j.key
 	var slider := PwSlider.new().configure({"label": j.debug_label, "label_size": 16, "bar_height": 36.0,
 		"min_value": j.min_value, "max_value": j.max_value, "step": j.debug_step, "decimals": 2,
-		"value_label": "{v}", "value": float(telemetry.manual_joints.get(j.key, j.default_value))})
+		"value_label": "{v}", "value_beside": true, "value": float(telemetry.manual_joints.get(j.key, j.default_value))})
 	slider.name = "Slider"
 	slider.value_changed.connect(func(v: float) -> void: telemetry.manual_joints[j.key] = v)
 	box.add_child(slider)

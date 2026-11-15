@@ -1,14 +1,16 @@
 class_name TabIcon
 extends Control
 
-## One 48 px glyph cell in the rail, dock or drawer column: white, accent when
-## active, faded while it is the drag source. Rail and dock items report their
-## pointer stream to the TouchDnd controller (tap or hold-drag); other cells
-## just emit `tapped`.
+## One 48 px SF Symbol in the rail, dock or drawer column, centered on the
+## cell: the white outline symbol, or the green filled one when active (no
+## transition), faded while it is the drag source. Rail and dock items report
+## their pointer stream to the TouchDnd controller (tap or hold-drag); other
+## cells just emit `tapped`.
 
 signal tapped
 
-var icon_name := ""
+var symbol := 0
+var active_symbol := 0
 ## "rail", "dock" or "" (not draggable).
 var zone := ""
 var tab_id := ""
@@ -27,11 +29,13 @@ var _down := false
 var _start := Vector2.ZERO
 
 
-func _init(icon: String = "", item_zone: String = "", id: String = "") -> void:
-	icon_name = icon
+func _init(info: Dictionary = {}, item_zone: String = "", id: String = "") -> void:
+	symbol = int(info.get("symbol", 0))
+	active_symbol = int(info.get("active_symbol", symbol))
 	zone = item_zone
 	tab_id = id
-	name = ("%s_%s" % [item_zone, id]) if id != "" else icon
+	if id != "":
+		name = "%s_%s" % [item_zone, id]
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
@@ -69,7 +73,6 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
+	UiDraw.begin(self)
 	var col := Tokens.ACCENT if active else Tokens.TEXT
-	var tex := Icons.texture(icon_name, Tokens.ICON)
-	if tex != null:
-		draw_texture(tex, ((size - Vector2(Tokens.ICON, Tokens.ICON)) * 0.5).round(), Color(col, 0.3 if faded else 1.0))
+	Sf.draw(self, active_symbol if active else symbol, size * 0.5, Tokens.ICON, Color(col, 0.3 if faded else 1.0))

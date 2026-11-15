@@ -1,11 +1,15 @@
 class_name PwSelector
 extends Control
 
-## CustomSelector.tsx: 80 px cells overlapping by 4 px (stride 76) with a
-## green highlight that slides to the selection in 200 ms. Tap selects the
-## cell under the pointer; a horizontal drag (more than 4 px) slides the
-## highlight with the pointer and snaps to the nearest cell on release. The
-## hint of the option under the highlight shows below and follows the drag.
+## CustomSelector.tsx: 80 px cells overlapping by 4 px (stride 76), each with
+## its outline symbol in white. A green window (the selected cell's fill and
+## border) slides over them and shows every cell's filled symbol in green
+## through it, so a symbol turns green only where the window covers it. A press
+## grabs the window at once and it follows the pointer's x from the first
+## pixel; release snaps it to the nearest cell after more than 4 px of travel,
+## else selects the cell under the release point, and it slides there in
+## 200 ms. The hint below is the committed option's, or while pressed the one
+## under the window.
 
 signal selected(value: Variant)
 
@@ -13,10 +17,13 @@ const CELL := 80.0
 const STRIDE := 76.0
 const DRAG_PX := 4.0
 const ICON_PX := 36
-const INTENT_PX := 8.0
+const LABEL_PX := 24
+const HINT_PX := 16
+const GAP := 8.0
 
 var label := ""
-## [{"value": Variant, "icon": String, "text": String, "hint": String}]
+## [{"value": Variant, "symbol": int, "filled": int, "hint": String}]; a
+## Godot-only option may give "text" instead of symbols.
 var options: Array = []
 var index := 0
 var disabled := false:
@@ -28,12 +35,19 @@ var dragging := false
 var _hl := UiAnim.new(0.0)
 var _pressed := false
 var _start := Vector2.ZERO
-var _start_hl := 0.0
+var _window := Control.new()
 
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	add_to_group("pw_hgrab")
+	_window.name = "Window"
+	_window.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_window.clip_contents = true
+	_window.z_index = Tokens.SF_TEXT_Z + 1
+	_window.size = Vector2(CELL, CELL)
+	_window.draw.connect(_draw_window)
+	add_child(_window, false, Node.INTERNAL_MODE_FRONT)
 
 
 func configure(lbl: String, opts: Array, current: Variant) -> PwSelector:
@@ -41,7 +55,7 @@ func configure(lbl: String, opts: Array, current: Variant) -> PwSelector:
 	options = opts
 	index = maxi(0, index_of(current))
 	_hl.jump(index * STRIDE)
-	custom_minimum_size = Vector2(cells_width(options.size()), _cells_top() + CELL + 30.0)
+	custom_minimum_size = Vector2(cells_width(options.size()), _cells_top() + CELL + (GAP + _line_h(HINT_PX) if _has_hints() else 0.0))
 	queue_redraw()
 	return self
 
@@ -69,12 +83,23 @@ static func nearest_cell(highlight_x: float, n: int) -> int:
 	return clampi(int(roundf(highlight_x / STRIDE)), 0, maxi(0, n - 1))
 
 
+static func _line_h(px: int) -> float:
+	var f := Tokens.inter(400)
+	return f.get_ascent(px) + f.get_descent(px)
+
+
+## The cells are `touch-action: none` in the web: a stroke that starts on them
+## never scrolls the panel.
+func touch_action_none(local_pos: Vector2) -> bool:
+	return Rect2(0, _cells_top(), cells_width(options.size()), CELL).has_point(local_pos)
+
+
 func highlight_x() -> float:
 	return _hl.value
 
 
 func displayed_index() -> int:
-	return nearest_cell(_hl.value, options.size())
+	return nearest_cell(_hl.value, options.size()) if _pressed else index
 
 
 func set_index(i: int, emit: bool = false, animate: bool = true) -> void:
@@ -93,12 +118,19 @@ func set_index(i: int, emit: bool = false, animate: bool = true) -> void:
 
 func select_value(v: Variant, animate: bool = true) -> void:
 	var i := index_of(v)
-	if i >= 0:
+	if i >= 0 and not _pressed and (i != index or (not _hl.running and not is_equal_approx(_hl.value, i * STRIDE))):
 		set_index(i, false, animate)
 
 
 func _cells_top() -> float:
-	return 36.0 if label != "" else 0.0
+	return _line_h(LABEL_PX) + GAP if label != "" else 0.0
+
+
+func _has_hints() -> bool:
+	for o: Dictionary in options:
+		if str(o.get("hint", "")) != "":
+			return true
+	return false
 
 
 func _process(delta: float) -> void:
@@ -112,38 +144,33 @@ func _gui_input(event: InputEvent) -> void:
 	var p := PointerInput.from_event(event)
 	if p.kind == PointerInput.Kind.NONE or disabled or options.is_empty():
 		return
-	var local_x := p.pos.x
 	match p.kind:
 		PointerInput.Kind.DOWN:
+			if p.pos.y < _cells_top() or p.pos.y > _cells_top() + CELL or p.pos.x > cells_width(options.size()):
+				return
 			_pressed = true
 			dragging = false
 			_start = p.pos
-			_start_hl = _hl.value
+			_hl.jump(index * STRIDE)
+			set_process(false)
+			queue_redraw()
 			accept_event()
 		PointerInput.Kind.MOVE:
 			if not _pressed:
 				return
-			var d := p.pos - _start
-			if not dragging:
-				if absf(d.x) > DRAG_PX and absf(d.x) >= absf(d.y):
-					dragging = true
-				elif d.length() >= INTENT_PX:
-					_pressed = false
-					return
-				else:
-					return
-			_hl.jump(clampf(_start_hl + d.x, 0.0, (options.size() - 1) * STRIDE))
+			var dx := p.pos.x - _start.x
+			if absf(dx) > DRAG_PX:
+				dragging = true
+			_hl.jump(clampf(index * STRIDE + dx, 0.0, (options.size() - 1) * STRIDE))
 			queue_redraw()
 			accept_event()
 		PointerInput.Kind.UP:
 			if not _pressed:
 				return
 			_pressed = false
-			if dragging:
-				dragging = false
-				set_index(nearest_cell(_hl.value, options.size()), true)
-			elif local_x >= 0.0 and local_x <= cells_width(options.size()) and p.pos.y >= _cells_top():
-				set_index(cell_at(local_x, options.size()), true)
+			var target := nearest_cell(_hl.value, options.size()) if dragging else cell_at(p.pos.x, options.size())
+			dragging = false
+			set_index(target, true)
 
 
 func _draw() -> void:
@@ -151,33 +178,47 @@ func _draw() -> void:
 	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	if label != "":
-		UiDraw.text(self, Tokens.inter(500), Vector2(0, 24), label, 24, Color(1, 1, 1, a))
+		UiDraw.text(self, Tokens.inter(500), Vector2(0, roundf(Tokens.inter(500).get_ascent(LABEL_PX))), label, LABEL_PX, Color(1, 1, 1, a))
 	var top := _cells_top()
 	for i in options.size():
 		var r := Rect2(i * STRIDE, top, CELL, CELL)
 		UiDraw.rect(ci, r, Color(Tokens.PANEL, a))
 		UiDraw.frame(ci, r, Color(1, 1, 1, a), Tokens.BORDER)
-		_draw_option(options[i], r, Color(1, 1, 1, a))
-	var hl := Rect2(_hl.value, top, CELL, CELL)
-	UiDraw.rect(ci, hl, Color(Tokens.SELECTED_FILL, a))
-	UiDraw.frame(ci, hl, Color(Tokens.ACCENT, a), Tokens.BORDER)
+		_draw_option(options[i], r, Color(1, 1, 1, a), false)
+	_window.position = Vector2(_hl.value, top)
+	_window.queue_redraw()
 	var shown := displayed_index()
 	if shown < options.size():
-		_draw_option(options[shown], hl, Color(Tokens.ACCENT, a))
 		var hint := str(options[shown].get("hint", ""))
-		if hint != "":
-			UiDraw.text(self, Tokens.inter(400), Vector2(0, top + CELL + 24.0), hint, 16, Color(Tokens.ZINC_400, a), HORIZONTAL_ALIGNMENT_LEFT, maxf(size.x, 400.0))
+		var f := Tokens.inter(400)
+		UiDraw.text(self, f, Vector2(0, roundf(top + CELL + GAP + f.get_ascent(HINT_PX))), hint, HINT_PX, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, maxf(size.x, CELL))
 
 
-func _draw_option(opt: Dictionary, r: Rect2, col: Color) -> void:
-	var icon := str(opt.get("icon", ""))
-	if icon != "":
-		var tex := Icons.texture(icon, ICON_PX)
-		if tex != null:
-			draw_texture(tex, (r.get_center() - Vector2(ICON_PX, ICON_PX) * 0.5).round(), col)
+## The green layer: fill, border and every option's filled symbol at its own
+## cell, clipped to the window (the web's clip-path inset).
+func _draw_window() -> void:
+	var a := 0.5 if disabled else 1.0
+	var ci := _window.get_canvas_item()
+	var r := Rect2(Vector2.ZERO, _window.size)
+	UiDraw.rect(ci, r, Color(Tokens.SELECTED_FILL, a))
+	UiDraw.frame(ci, r, Color(Tokens.ACCENT, a), Tokens.BORDER)
+	for i in options.size():
+		_draw_option(options[i], Rect2(Vector2(i * STRIDE, _cells_top()) - _window.position, Vector2(CELL, CELL)), Color(Tokens.ACCENT, a), true)
+
+
+func _draw_option(opt: Dictionary, r: Rect2, col: Color, in_window: bool) -> void:
+	var symbol := int(opt.get("symbol", 0))
+	if symbol > 0:
+		if in_window:
+			Sf.draw_into(_window.get_canvas_item(), int(opt.get("filled", symbol)), r.get_center(), ICON_PX, col)
+		else:
+			Sf.draw(self, symbol, r.get_center(), ICON_PX, col)
 		return
 	var text := str(opt.get("text", ""))
 	var f := Tokens.inter(600)
 	var fs := 24
-	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	UiDraw.text(self, f, Vector2(r.get_center().x - w * 0.5, r.get_center().y + (f.get_ascent(fs) - f.get_descent(fs)) * 0.5).round(), text, fs, col)
+	var pos := Vector2(r.get_center().x - f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, roundf(r.get_center().y + (f.get_ascent(fs) - f.get_descent(fs)) * 0.5))
+	if in_window:
+		f.draw_string(_window.get_canvas_item(), pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	else:
+		UiDraw.text(self, f, pos, text, fs, col)

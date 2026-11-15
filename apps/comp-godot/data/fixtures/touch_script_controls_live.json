@@ -20,7 +20,7 @@
     {"tap": "find:Panel_intakeSpeed"},
     {"wait_ms": 400},
     {"expect": {"intake_panel.speed_status": "Using the robot's compiled constant"}},
-    {"drag": {"from": {"node": "find:Speed", "at": [100, 60]}, "to": {"node": "find:Speed", "at": [160, 60]}, "ms": 250}},
+    {"drag": {"from": {"node": "find:Speed", "at": [100, 90]}, "to": {"node": "find:Speed", "at": [160, 90]}, "ms": 250}},
     {"mark": "dragged"},
     {"wait_for": {"intake_panel.speed_status": "Robot confirmed this speed"}, "timeout_ms": 1000},
     {"expect": {"controls.intake.requested": {"ne": null}, "settings.controls.intake_speed": {"ne": null}}},

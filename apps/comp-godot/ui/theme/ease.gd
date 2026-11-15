@@ -1,14 +1,25 @@
 class_name Easing
 extends RefCounted
 
-## CSS timing functions. css() is cubic-bezier(0.25, 0.1, 0.25, 1), the curve
-## every touchscreen transition in the web dashboard uses.
+## CSS timing functions. css() is `ease`, cubic-bezier(0.25, 0.1, 0.25, 1), the
+## curve of the web dashboard's own transitions; tailwind() is the curve of
+## Tailwind's transition-* utilities; css_ease_out() is CSS `ease-out`.
 
 const CSS := [0.25, 0.1, 0.25, 1.0]
+const TAILWIND := [0.4, 0.0, 0.2, 1.0]
+const CSS_EASE_OUT := [0.0, 0.0, 0.58, 1.0]
 
 
 static func css(t: float) -> float:
 	return cubic_bezier(CSS[0], CSS[1], CSS[2], CSS[3], t)
+
+
+static func tailwind(t: float) -> float:
+	return cubic_bezier(TAILWIND[0], TAILWIND[1], TAILWIND[2], TAILWIND[3], t)
+
+
+static func css_ease_out(t: float) -> float:
+	return cubic_bezier(CSS_EASE_OUT[0], CSS_EASE_OUT[1], CSS_EASE_OUT[2], CSS_EASE_OUT[3], t)
 
 
 static func out_cubic(t: float) -> float:

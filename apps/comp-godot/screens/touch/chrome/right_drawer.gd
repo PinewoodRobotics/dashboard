@@ -24,7 +24,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	for i in TabDefs.PANELS.size():
 		var id: String = TabDefs.PANELS[i]
-		var it := TabIcon.new(TabDefs.PANEL_INFO[id]["icon"], "", id)
+		var it := TabIcon.new(TabDefs.PANEL_INFO[id], "", id)
 		it.name = "Panel_" + id
 		it.position = Vector2(0, ICON_TOP - 24.0 + i * ICON_STRIDE)
 		it.size = Vector2(Tokens.RAIL_W, ICON_STRIDE)
