@@ -451,7 +451,6 @@ func _fit_desc() -> void:
 	detail_desc.visible = detail_desc.text != ""
 	if _detail_left == null or _detail_left.size.y <= 0.0:
 		return
-	detail_desc.custom_minimum_size.x = 0.0
 	var w := minf(_detail_left.size.x - 2.0 * PAD, DESC_MAX_W)
 	detail_desc.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	detail_desc.custom_minimum_size.x = maxf(w, 0.0)

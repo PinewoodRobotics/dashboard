@@ -62,6 +62,9 @@ class ResetAll:
 		look["s"] = 0.0
 		return look
 
+	func text_font() -> Font:
+		return Tokens.inter(400)
+
 
 func _ready() -> void:
 	if telemetry == null:
