@@ -158,7 +158,7 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	UiDraw.begin(self)
 	var ci := get_canvas_item()
-	var font := Tokens.inter(500)
+	var font := Tokens.text_font(500)
 	var ty := track_y()
 	for s: Dictionary in spans:
 		var r := _lane_rect(s["lane"], s["t0"], s["t1"])

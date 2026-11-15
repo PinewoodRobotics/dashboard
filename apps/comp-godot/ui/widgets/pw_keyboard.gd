@@ -241,7 +241,7 @@ func _draw() -> void:
 	UiDraw.rect(ci, Rect2(r.position, Vector2(r.size.x, Tokens.BORDER)), Tokens.ACCENT)
 	if target == null:
 		return
-	var f := Tokens.inter(500)
-	UiDraw.text_tracked(self, Tokens.inter(600), r.position + Vector2(PAD + 4.0, PAD + 16.0), target.label, PwTextInput.LABEL_PX, Tokens.ZINC_400, PwTextInput.LABEL_TRACKING)
+	var f := Tokens.text_font(500)
+	UiDraw.text_tracked(self, Tokens.text_font(600), r.position + Vector2(PAD + 4.0, PAD + 16.0), target.label, PwTextInput.LABEL_PX, Tokens.ZINC_400, PwTextInput.LABEL_TRACKING)
 	var shown := target.text if target.text != "" else target.placeholder
 	UiDraw.text(self, f, r.position + Vector2(PAD + 4.0, PAD + 46.0), shown, 26, Tokens.TEXT if target.text != "" else Tokens.ZINC_600, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - PAD * 2.0)

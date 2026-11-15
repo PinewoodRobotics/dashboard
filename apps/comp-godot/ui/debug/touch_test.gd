@@ -33,7 +33,7 @@ class Canvas:
 	func _draw() -> void:
 		UiDraw.begin(self)
 		var ci := get_canvas_item()
-		var font := Tokens.inter(600)
+		var font := Tokens.text_font(600)
 		var hud := test.window_key == "hud"
 		if hud:
 			if test.presses + test.drags == 0:

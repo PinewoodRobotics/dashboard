@@ -72,6 +72,7 @@ const DOCK_GAP := 12
 const INTER_WEIGHTS := [300, 400, 500, 600, 700]
 const MONO_WEIGHTS := [400, 500]
 const SF_TEXT_Z := 1 + 5 + 2
+const SYNTHETIC_BOLD := 0.574
 
 static var _fonts := {}
 
@@ -95,6 +96,27 @@ static func _font(family: String, weights: Array, weight: int, z_base: int) -> F
 
 static func inter(weight: int = 400) -> FontVariation:
 	return _font("Inter", INTER_WEIGHTS, weight, 1)
+
+
+## The Inter the touchscreen's Chromium draws for a CSS font-weight.
+## globals.css declares Inter as one @font-face (weight 400, local("Inter
+## Regular")), which hides the installed weights: below 600 is Regular, 600 and
+## up is Regular with Skia's synthetic bold (outline grown by 1/24 to 1/32 of
+## the size; SYNTHETIC_BOLD is that at 24 px in FreeType embolden units).
+static func text_font(weight: int = 400, tabular: bool = false) -> FontVariation:
+	var bold := weight >= 600
+	if not bold and not tabular:
+		return inter(400)
+	var key := "text@%d%s" % [600 if bold else 400, "tnum" if tabular else ""]
+	if not _fonts.has(key):
+		var fv := inter(400).duplicate() as FontVariation
+		if bold:
+			fv.variation_embolden = SYNTHETIC_BOLD
+			fv.set_meta(&"text_z", 1 + INTER_WEIGHTS.find(600))
+		if tabular:
+			fv.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("tnum"): 1}
+		_fonts[key] = fv
+	return _fonts[key]
 
 
 static func mono(weight: int = 400) -> FontVariation:

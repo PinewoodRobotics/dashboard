@@ -59,7 +59,7 @@ func configure(opts: Dictionary) -> PwText:
 
 
 func primary_font() -> Font:
-	return font if font != null else Tokens.inter(weight)
+	return font if font != null else Tokens.text_font(weight)
 
 
 func line_px() -> float:

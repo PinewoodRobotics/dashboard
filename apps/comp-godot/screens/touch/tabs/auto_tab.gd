@@ -322,7 +322,7 @@ func _set_popup_body(selected: String) -> void:
 	popup_body.set_meta(&"key", key)
 	popup_body.spans = [
 		{"text": "Robot auto changed too many times in a short window while this dashboard was trying to enforce "},
-		{"text": key, "font": Tokens.inter(600)},
+		{"text": key, "font": Tokens.text_font(600)},
 		{"text": "."},
 	]
 	popup_body.text = "Robot auto changed too many times in a short window while this dashboard was trying to enforce %s." % key

@@ -93,10 +93,10 @@ func text_px() -> int:
 func text_font() -> Font:
 	match variant:
 		Style.OUTLINE, Style.OUTLINE_BLOCK, Style.PRIMARY:
-			return Tokens.inter(600)
+			return Tokens.text_font(600)
 		Style.DARK, Style.DIALOG, Style.DIALOG_PRIMARY:
-			return Tokens.inter(400)
-	return Tokens.inter(500)
+			return Tokens.text_font(400)
+	return Tokens.text_font(500)
 
 
 func _padding() -> Vector2:

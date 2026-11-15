@@ -315,9 +315,10 @@ web's Backdrop Blur toggle) replaces it with black at 90%, as on the web.
 Touchscreen chrome motion follows the web's CSS: keyframe slides restart from
 their first keyframe, transitions retarget. A started slide or transition
 (`UiAnim` with `hold_until_drawn`) shows its from-value until that frame has
-been drawn and only then starts its clock, and a slow frame advances it by at
-most 1/30 s, so building a tab or panel on first open never eats its 200 ms
-slide (the browser starts compositor animations at the first painted frame).
+been drawn and only then starts its clock, and its first step after that
+advances it by at most 1/60 s, so building a tab or panel on first open never
+eats its 200 ms slide (the browser starts compositor animations at the first
+painted frame).
 
 Scrolling is the OS's, as in the browser: the mouse wheel (100 px a notch,
 40 px a macOS line) and trackpad or macOS touch scrolling (pan gestures, with
@@ -334,7 +335,12 @@ drag, two fingers).
 
 The fonts are static Inter (300 to 700) and Roboto Mono (400, 500) weights cut
 from the upstream variable fonts with their overlaps removed, imported as MSDF
-so every size of a weight shares one glyph texture. To rebuild them:
+so every size of a weight shares one glyph texture. The touchscreen draws text
+through `Tokens.text_font(weight)`, which reproduces what the web's Chromium
+renders: `globals.css` declares Inter as a single 400 `@font-face` (local
+"Inter Regular"), so CSS weights below 600 draw Regular and 600 and up draw
+Regular with Skia's synthetic bold (`variation_embolden`). The HUD still uses
+the real weights through `Tokens.inter`. To rebuild the fonts:
 
 ```sh
 apps/comp-godot/tools/fonts/build_fonts.sh /path/to/InterVariable.ttf /path/to/RobotoMono-VariableFont_wght.ttf

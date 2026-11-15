@@ -23,7 +23,7 @@ var _box := PwBox.new()
 func _init() -> void:
 	name = "NtPill"
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_font = Tokens.inter(500)
+	_font = Tokens.text_font(500)
 	_box.bg_color = Color(0, 0, 0, 0.85)
 	_box.border_color = Color(Tokens.ERROR, 0.4)
 	_box.set_border_width_all(1)

@@ -311,7 +311,7 @@ func _ready() -> void:
 	restart_button.pressed.connect(func() -> void: autos.clock.seek(0.0))
 	row.add_child(restart_button)
 	time_label = PwText.new("00.00 / 00.00 s", 16, 500, Tokens.ZINC_300, 24.0)
-	time_label.configure({"wrap": PwText.Wrap.NONE, "ellipsis": true, "font": Tokens.inter_tabular(500)})
+	time_label.configure({"wrap": PwText.Wrap.NONE, "ellipsis": true, "font": Tokens.text_font(500, true)})
 	time_label.name = "Time"
 	time_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	time_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER

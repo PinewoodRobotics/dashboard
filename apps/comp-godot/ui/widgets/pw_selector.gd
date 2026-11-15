@@ -73,7 +73,7 @@ func _hint_lines() -> PackedStringArray:
 	if shown >= options.size():
 		return PackedStringArray()
 	var w := maxf(size.x, cells_width(options.size()))
-	return PwText.wrap_lines(str(options[shown].get("hint", "")), Tokens.inter(400), HINT_PX, w)
+	return PwText.wrap_lines(str(options[shown].get("hint", "")), Tokens.text_font(400), HINT_PX, w)
 
 
 func _notification(what: int) -> void:
@@ -109,7 +109,7 @@ static func _line_h(px: int) -> float:
 
 
 static func _baseline(weight: int, px: int, top: float) -> float:
-	var f := Tokens.inter(weight)
+	var f := Tokens.text_font(weight)
 	return roundf(top + (_line_h(px) - f.get_ascent(px) - f.get_descent(px)) * 0.5 + f.get_ascent(px))
 
 
@@ -198,7 +198,7 @@ func _draw() -> void:
 	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	if label != "":
-		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, LABEL_PX, 0.0)), label, LABEL_PX, Color(1, 1, 1, a))
+		UiDraw.text(self, Tokens.text_font(500), Vector2(0, _baseline(500, LABEL_PX, 0.0)), label, LABEL_PX, Color(1, 1, 1, a))
 	var top := _cells_top()
 	for i in options.size():
 		var r := Rect2(i * STRIDE, top, CELL, CELL)
@@ -209,7 +209,7 @@ func _draw() -> void:
 	_window.queue_redraw()
 	var hint := _hint_lines()
 	for i in hint.size():
-		UiDraw.text(self, Tokens.inter(400), Vector2(0, _baseline(400, HINT_PX, top + CELL + GAP + i * _line_h(HINT_PX))), hint[i], HINT_PX, Color(1, 1, 1, a))
+		UiDraw.text(self, Tokens.text_font(400), Vector2(0, _baseline(400, HINT_PX, top + CELL + GAP + i * _line_h(HINT_PX))), hint[i], HINT_PX, Color(1, 1, 1, a))
 
 
 ## The green layer: fill, border and every option's filled symbol at its own
@@ -233,7 +233,7 @@ func _draw_option(opt: Dictionary, r: Rect2, col: Color, in_window: bool) -> voi
 			Sf.draw(self, symbol, r.get_center(), ICON_PX, col)
 		return
 	var text := str(opt.get("text", ""))
-	var f := Tokens.inter(600)
+	var f := Tokens.text_font(600)
 	var fs := 24
 	var pos := Vector2(r.get_center().x - f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, roundf(r.get_center().y + (f.get_ascent(fs) - f.get_descent(fs)) * 0.5))
 	if in_window:

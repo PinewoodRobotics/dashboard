@@ -144,7 +144,7 @@ func open_keyboard() -> void:
 ## The label's baseline in its 16 px line (text-xs), placed as CSS centers a
 ## line box.
 static func label_baseline() -> float:
-	var f := Tokens.inter(600)
+	var f := Tokens.text_font(600)
 	return roundf((LABEL_LINE + f.get_ascent(LABEL_PX) - f.get_descent(LABEL_PX)) * 0.5)
 
 
@@ -152,11 +152,11 @@ func _draw() -> void:
 	UiDraw.begin(self)
 	var ci := get_canvas_item()
 	if label != "":
-		UiDraw.text_tracked(self, Tokens.inter(600), Vector2(0, label_baseline()), label, LABEL_PX, Tokens.TEXT, LABEL_TRACKING)
+		UiDraw.text_tracked(self, Tokens.text_font(600), Vector2(0, label_baseline()), label, LABEL_PX, Tokens.TEXT, LABEL_TRACKING)
 	var r := field_rect()
 	UiDraw.rect(ci, r, _bg.value())
 	UiDraw.frame(ci, r, _border.value(), Tokens.BORDER)
-	var f := Tokens.inter(300)
+	var f := Tokens.text_font(300)
 	var base := roundf(r.position.y + (r.size.y + f.get_ascent(TEXT_PX) - f.get_descent(TEXT_PX)) * 0.5)
 	var shown := text if text != "" else placeholder
 	var col := Tokens.TEXT if text != "" else Tokens.ZINC_600

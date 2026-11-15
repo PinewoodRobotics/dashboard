@@ -80,7 +80,7 @@ static func _line_h(_weight: int, px: int) -> float:
 
 ## Baseline of `px` text in its line box starting at `top` (glyphs centered).
 static func _baseline(weight: int, px: int, top: float) -> float:
-	var f := Tokens.inter(weight)
+	var f := Tokens.text_font(weight)
 	return roundf(top + (_line_h(weight, px) - f.get_ascent(px) - f.get_descent(px)) * 0.5 + f.get_ascent(px))
 
 
@@ -94,13 +94,13 @@ func _update_min_size() -> void:
 func _value_lines() -> PackedStringArray:
 	if value_label == "":
 		return PackedStringArray()
-	return PwText.wrap_lines(_interpolate(value_label), Tokens.inter(500), VALUE_PX, size.x)
+	return PwText.wrap_lines(_interpolate(value_label), Tokens.text_font(500), VALUE_PX, size.x)
 
 
 func _hint_lines() -> PackedStringArray:
 	if hints.is_empty():
 		return PackedStringArray()
-	return PwText.wrap_lines(_interpolate(hint_for(value, hints)), Tokens.inter(400), HINT_PX, size.x)
+	return PwText.wrap_lines(_interpolate(hint_for(value, hints)), Tokens.text_font(400), HINT_PX, size.x)
 
 
 func _notification(what: int) -> void:
@@ -293,10 +293,10 @@ func _draw() -> void:
 	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	if label != "":
-		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, label_size, 0.0)), label, label_size, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+		UiDraw.text(self, Tokens.text_font(500), Vector2(0, _baseline(500, label_size, 0.0)), label, label_size, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
 	var lines := _value_lines()
 	for i in lines.size():
-		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, VALUE_PX, _value_top() + i * _line_h(500, VALUE_PX))), lines[i], VALUE_PX, Color(1, 1, 1, 0.7 * a))
+		UiDraw.text(self, Tokens.text_font(500), Vector2(0, _baseline(500, VALUE_PX, _value_top() + i * _line_h(500, VALUE_PX))), lines[i], VALUE_PX, Color(1, 1, 1, 0.7 * a))
 	var bar := bar_rect()
 	var inner := bar.grow(-Tokens.BORDER)
 	var fw := inner.size.x * _fill.value
@@ -318,7 +318,7 @@ func _draw() -> void:
 	UiDraw.frame(ci, bar, _faded(_border.value(), a), Tokens.BORDER)
 	var hint := _hint_lines()
 	for i in hint.size():
-		UiDraw.text(self, Tokens.inter(400), Vector2(0, _baseline(400, HINT_PX, bar.end.y + GAP + i * _line_h(400, HINT_PX))), hint[i], HINT_PX, Color(1, 1, 1, a))
+		UiDraw.text(self, Tokens.text_font(400), Vector2(0, _baseline(400, HINT_PX, bar.end.y + GAP + i * _line_h(400, HINT_PX))), hint[i], HINT_PX, Color(1, 1, 1, a))
 
 
 static func _faded(c: Color, a: float) -> Color:

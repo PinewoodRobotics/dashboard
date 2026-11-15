@@ -33,9 +33,8 @@ func _init() -> void:
 	line = _centered(PwText.new("", 18, 600, Tokens.TEXT, 28.0))
 	_box.add_child(line)
 	small = _centered(PwText.new("", 12, 600, Tokens.TEXT, 12.0))
-	var italic := FontVariation.new()
-	italic.base_font = Tokens.inter(700)
-	italic.variation_transform = Transform2D(Vector2(1, 0), Vector2(-0.2, 1), Vector2.ZERO)
+	var italic := Tokens.text_font(700).duplicate() as FontVariation
+	italic.variation_transform = Transform2D(Vector2(1, 0), Vector2(-0.25, 1), Vector2.ZERO)
 	small.spans = [{"text": "The error does "}, {"text": "not", "font": italic},
 		{"text": " mean the auto is broken, you can select it and it'll probably still work?"}]
 	_box.add_child(UiKit.margin(small, 0, 8, 0, 0))

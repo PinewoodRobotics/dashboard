@@ -223,7 +223,7 @@ func test_button_taps_but_not_after_a_drag() -> void:
 
 func test_buttons_take_the_web_sizes() -> void:
 	var save := PwButton.new("Save", PwButton.Style.PRIMARY)
-	var w := Tokens.inter(600).get_string_size("Save", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	var w := Tokens.text_font(600).get_string_size("Save", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	check_eq(save.get_combined_minimum_size(), Vector2(ceilf(w + 64.0), 48), "h-12 px-8 text-sm")
 	var more := PwButton.new("More Howard", PwButton.Style.DARK)
 	check_eq(more.get_combined_minimum_size().y, 42.0, "34 px line + 4 px padding")
@@ -234,9 +234,22 @@ func test_buttons_take_the_web_sizes() -> void:
 		b.free()
 
 
+func test_text_font_is_what_the_webs_single_inter_face_renders() -> void:
+	var regular := Tokens.inter(400)
+	for w in [300, 400, 500]:
+		check(Tokens.text_font(w) == regular, "weight %d draws Regular" % w)
+	var bold := Tokens.text_font(600)
+	check(bold == Tokens.text_font(700), "600 and up share one synthetic bold")
+	check_eq(bold.base_font, regular.base_font)
+	check(is_equal_approx(bold.variation_embolden, Tokens.SYNTHETIC_BOLD))
+	check_eq(UiDraw.text_z(bold), UiDraw.text_z(Tokens.inter(600)))
+	check(Tokens.text_font(500, true).opentype_features.size() == 1, "tabular figures")
+	check(Tokens.text_font(500, true).base_font == regular.base_font)
+
+
 func test_selector_hint_sits_in_a_24px_line_and_wraps() -> void:
 	var sel := _add(PwSelector.new().configure("Mode", MapSettingsPanel.MODE_OPTIONS, "follow")) as PwSelector
-	var f := Tokens.inter(400)
+	var f := Tokens.text_font(400)
 	var top := sel._cells_top() + PwSelector.CELL + PwSelector.GAP
 	check_eq(PwSelector._baseline(400, 16, top), roundf(top + (24.0 - f.get_ascent(16) - f.get_descent(16)) * 0.5 + f.get_ascent(16)))
 	check_eq(sel.custom_minimum_size.y, top + 24.0)

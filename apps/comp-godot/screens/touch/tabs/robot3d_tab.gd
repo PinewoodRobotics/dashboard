@@ -63,7 +63,7 @@ class ResetAll:
 		return look
 
 	func text_font() -> Font:
-		return Tokens.inter(400)
+		return Tokens.text_font(400)
 
 
 func _ready() -> void:
