@@ -235,7 +235,7 @@ func test_settings_header_status_and_reconnect() -> void:
 	tab._update_status()
 	check_eq(tab.status_label.text, "Connected")
 	check(tab.reconnect.visible, "Reconnect shown while connected")
-	check(tab.diag.text.contains("READY"))
+	check_eq(tab.diag.value("state"), "READY")
 	var connects: int = nt.client.diagnostics()["connects"]
 	tab.reconnect.pressed.emit()
 	check(tab.status_label.text.begins_with("Connecting, attempt 1 ("), "header shows the new attempt at once: %s" % tab.status_label.text)

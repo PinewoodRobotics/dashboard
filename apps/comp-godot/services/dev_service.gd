@@ -234,6 +234,10 @@ func save_settings() -> void:
 	Settings.save_now()
 
 
+func reload_autos() -> void:
+	Autos.reload()
+
+
 func stage_autos() -> void:
 	var from := str(args.get("autos_stage", ""))
 	var to := str(args.get("autos_dir", ""))

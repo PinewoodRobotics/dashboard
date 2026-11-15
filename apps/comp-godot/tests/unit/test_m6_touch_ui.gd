@@ -158,7 +158,7 @@ func test_settings_form_save_and_reset() -> void:
 	check(st.save.disabled, "nothing changed")
 	check_eq(st.status_label.text, "Disconnected")
 	check(st.reconnect.visible, "Reconnect shown while disconnected")
-	check_eq(st.timeout.label, "Connect Timeout")
+	check_eq(st.timeout.label, "Reconnect Timeout")
 	st.host.set_text("127.0.0.1", true)
 	check(not st.save.disabled)
 	st.port.set_text("", true)

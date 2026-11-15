@@ -1,23 +1,23 @@
 class_name SettingsTab
 extends Control
 
-## Connection Settings (TouchscreenSettingsPanel.tsx without the Autobahn
-## column). Drafts are validated like useTouchscreenSettingsForm.ts: Save is
-## enabled only when the form is valid and differs from the saved settings,
-## Reset writes the schema defaults, and every save goes to the shared file.
-## The header shows the NetworkTables state with the current attempt, and
-## Reconnect (always shown) drops the connection and opens a new one at once.
+## Connection Settings (TouchscreenSettingsPanel.tsx). Drafts are validated
+## like useTouchscreenSettingsForm.ts: Save is enabled only when the form is
+## valid and differs from the saved settings, Reset writes the schema
+## defaults, and every save goes to the shared file. The header status is the
+## NetworkTables client's (the web shows Autobahn's), with the current attempt
+## while it connects, and Reconnect stays shown in every state: it drops the
+## connection and opens a new one at once. After the web's columns (the
+## Autobahn one is dropped: the port has no Autobahn) come two Godot-only
+## columns: the client's diagnostics and the auto export with Reload Autos.
 
-const TIMEOUT_HINTS := [
-	{"min": 0.0, "text": "Drops a connection attempt that has not connected after this long and retries at once"},
-	{"min": 3.0, "text": "Slower: a robot that boots can take this long to reconnect (2 s recommended)"},
-]
-const COLUMN_W := {"Robot": 380, "Topics": 420, "Connection": 380, "NT Preview": 572}
+const VALUE_LABEL := "{v}s — close stuck connections after this many seconds"
 
 var settings: SettingsService
 var nt: NtService
 var drafts := {}
 var form := {}
+var header: SettingsHeader
 var host: PwTextInput
 var port: PwTextInput
 var table: PwTextInput
@@ -26,11 +26,11 @@ var timeout: PwSlider
 var save: PwButton
 var reset: PwButton
 var reconnect: PwButton
-var status_dot: PwRect
-var status_label: Label
-var save_error: Label
-var preview_values := {}
-var diag: Label
+var status_label: PwText
+var save_error := ""
+var preview: InfoBox
+var diag: InfoBox
+var auto_export: AutoExportBox
 var _diag_t := 0.0
 
 
@@ -42,36 +42,21 @@ func _ready() -> void:
 	add_child(UiKit.full(PwRect.new(Tokens.PANEL)))
 	var root := UiKit.vbox(0)
 
-	var header := UiKit.hbox(16)
-	var title := UiKit.label("Connection Settings", 28, 600)
-	header.add_child(title)
-	status_dot = PwRect.new()
-	status_dot.custom_minimum_size = Vector2(14, 14)
-	status_dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	status_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(status_dot)
-	status_label = UiKit.label("", 20, 500)
-	status_label.name = "Status"
-	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(status_label)
-	save_error = UiKit.label("", 16, 400, Tokens.ERROR_TEXT)
-	header.add_child(save_error)
-	reconnect = PwButton.new("Reconnect", PwButton.Style.OUTLINE)
+	header = SettingsHeader.new("Connection Settings", true)
+	status_label = header.status_label
+	reconnect = header.add_button(PwButton.new("Reconnect", PwButton.Style.OUTLINE))
 	reconnect.name = "Reconnect"
 	reconnect.pressed.connect(func() -> void:
 		if nt != null:
 			nt.reconnect()
 		_update_status())
-	header.add_child(reconnect)
-	reset = PwButton.new("Reset", PwButton.Style.OUTLINE)
+	reset = header.add_button(PwButton.new("Reset", PwButton.Style.OUTLINE))
 	reset.name = "Reset"
 	reset.pressed.connect(_on_reset)
-	header.add_child(reset)
-	save = PwButton.new("Save", PwButton.Style.PRIMARY)
+	save = header.add_button(PwButton.new("Save", PwButton.Style.PRIMARY))
 	save.name = "Save"
 	save.pressed.connect(_on_save)
-	header.add_child(save)
-	root.add_child(UiKit.margin(header, 32, 16, 32, 0))
+	root.add_child(header)
 
 	var scroll := UiKit.hscroll()
 	scroll.name = "SettingsScroll"
@@ -80,56 +65,44 @@ func _ready() -> void:
 	scroll.add_child(cols)
 	root.add_child(scroll)
 
-	var c1 := UiKit.column("Robot", true, 24, 20)
-	host = _field(c1["box"], "Host", "Robot NT Host / IP", ConnectionSettings.DEFAULT_NT["host"], false, "host")
-	port = _field(c1["box"], "Port", "NT Port", str(ConnectionSettings.DEFAULT_NT["port"]), true, "port")
-	_add_column(cols, c1)
+	var c1 := UiKit.column("NetworkTables", true)
+	host = _field(c1["box"], "Host", "Robot NT Host / IP", "10.47.65.2", false, "host")
+	port = _field(c1["box"], "Port", "NT Port", "5810", true, "port")
+	table = _field(c1["box"], "SharedTable", "Shared Table", "Shared/PathPlanner", false, "sharedTable")
+	entry = _field(c1["box"], "RequestBase", "Request Topic Base", "SelectedPath", false, "selectedPathTopic")
+	cols.add_child(c1["panel"])
 
-	var c2 := UiKit.column("Topics", true, 24, 20)
-	table = _field(c2["box"], "SharedTable", "Shared Table", ConnectionSettings.DEFAULT_NT["sharedTable"], false, "sharedTable")
-	entry = _field(c2["box"], "RequestBase", "Request Topic Base", ConnectionSettings.DEFAULT_NT["selectedPathTopic"], false, "selectedPathTopic")
-	_add_column(cols, c2)
-
-	var c3 := UiKit.column("Connection", true, 24, 20)
-	timeout = PwSlider.new().configure({"label": "Connect Timeout", "min_value": float(ConnectionSettings.TIMEOUT_MIN_S),
-		"max_value": float(ConnectionSettings.TIMEOUT_UI_MAX_S), "step": 1.0, "decimals": 0, "value_label": "{v}s",
-		"hints": TIMEOUT_HINTS, "value": float(ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S)})
+	var c2 := UiKit.column("Connection", false)
+	timeout = PwSlider.new().configure({"label": "Reconnect Timeout", "min_value": float(ConnectionSettings.TIMEOUT_MIN_S),
+		"max_value": float(ConnectionSettings.TIMEOUT_UI_MAX_S), "step": 1.0, "decimals": 0, "value_label": VALUE_LABEL,
+		"value": float(ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S)})
 	timeout.name = "Timeout"
 	timeout.value_changed.connect(func(v: float) -> void: _set_draft("reconnectTimeoutSeconds", v))
-	c3["box"].add_child(timeout)
-	diag = UiKit.label("", 15, 400, Tokens.ZINC_400)
-	diag.name = "Diagnostics"
-	diag.add_theme_font_override("font", Tokens.mono())
-	diag.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	c3["box"].add_child(diag)
-	_add_column(cols, c3)
+	c2["box"].add_child(timeout)
+	cols.add_child(c2["panel"])
 
-	var c4 := UiKit.column("NT Preview", false, 24, 14)
-	for key: String in ["host", "request", "state", "robot_constants"]:
-		var caption := {"host": "Host", "request": "Request topic", "state": "State topic", "robot_constants": "Robot constants"}[key] as String
-		var row := UiKit.vbox(2)
-		row.add_child(UiKit.label(caption.to_upper(), 12, 600, Tokens.ZINC_400))
-		var v := UiKit.label("", 16, 400, Tokens.TEXT)
-		v.name = "Preview_" + key
-		v.add_theme_font_override("font", Tokens.mono())
-		v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		row.add_child(v)
-		preview_values[key] = v
-		c4["box"].add_child(row)
-	_add_column(cols, c4)
+	var c3 := UiKit.column("Preview", false)
+	preview = InfoBox.new("NT Preview", [["host", "Host"], ["request", "Request topic"], ["state", "State topic"], ["robot_constants", "Robot constants"]])
+	preview.name = "NtPreview"
+	c3["box"].add_child(preview)
+	cols.add_child(c3["panel"])
+
+	var c4 := UiKit.column("Diagnostics", false)
+	diag = InfoBox.new("NT Client", [["state", "State"], ["server", "Server"], ["rtt", "Round trip"], ["reconnects", "Reconnects"], ["last_close", "Last close"]])
+	diag.name = "Diagnostics"
+	c4["box"].add_child(diag)
+	cols.add_child(c4["panel"])
+
+	var c5 := UiKit.column("Autos", false)
+	auto_export = AutoExportBox.new()
+	c5["box"].add_child(auto_export)
+	cols.add_child(c5["panel"])
 
 	add_child(UiKit.full(root))
 	_load_drafts()
 	if settings != null:
 		settings.changed.connect(_on_settings_changed)
 	_update_status()
-
-
-func _add_column(cols: Control, c: Dictionary) -> void:
-	var panel: Control = c["panel"]
-	var title: Label = (c["box"] as Control).get_child(0)
-	panel.custom_minimum_size.x = COLUMN_W.get(title.text, 420)
-	cols.add_child(panel)
 
 
 func _field(parent: Control, node_name: String, caption: String, hint: String, numeric: bool, key: String) -> PwTextInput:
@@ -169,22 +142,24 @@ func _evaluate() -> void:
 	table.invalid = bad.has("sharedTable")
 	entry.invalid = bad.has("selectedPathTopic")
 	var pv: Dictionary = form["preview"]
-	for key: String in preview_values:
-		(preview_values[key] as Label).text = str(pv[key])
+	for key: String in preview.values:
+		preview.set_value(key, str(pv[key]))
 
 
 func _on_save() -> void:
 	if not form.get("save_enabled", false) or settings == null:
 		return
-	save_error.text = "" if settings.set_connection(form["next"]) else "Could not write the settings file"
+	save_error = "" if settings.set_connection(form["next"]) else "Could not write the settings file"
 	_load_drafts()
+	_update_status()
 
 
 func _on_reset() -> void:
 	if settings == null:
 		return
-	save_error.text = "" if settings.reset_connection() else "Could not write the settings file"
+	save_error = "" if settings.reset_connection() else "Could not write the settings file"
 	_load_drafts()
+	_update_status()
 
 
 func _on_settings_changed(section: String) -> void:
@@ -223,35 +198,32 @@ static func status_text(d: Dictionary) -> String:
 
 func _update_status() -> void:
 	var ok := is_connected_nt()
-	status_dot.color = Tokens.ACCENT if ok else Tokens.ERROR
-	status_label.add_theme_color_override("font_color", Tokens.ACCENT if ok else Tokens.ERROR_TEXT)
 	if nt == null or nt.fixture_mode:
-		status_label.text = "Connected" if ok else "Disconnected"
-		diag.text = "" if nt == null else "State      %s (fixture)" % ("READY" if ok else "IDLE")
+		header.set_status(save_error if save_error != "" else ("Connected" if ok else "Disconnected"), ok and save_error == "")
+		diag.set_value("state", "" if nt == null else ("READY" if ok else "IDLE") + " (fixture)")
 		return
 	var d := nt.diagnostics()
-	status_label.text = status_text(d)
-	var lines := PackedStringArray([
-		"State      %s" % d.get("state", ""),
-		"Server     %s:%d" % [nt.client.host, nt.client.port],
-		"RTT        %s" % ("%.1f ms" % (float(d["rtt_us"]) / 1000.0) if ok and int(d.get("rtt_us", -1)) >= 0 else "--"),
-		"Reconnects %d (manual %d)" % [int(d.get("reconnects", 0)), int(d.get("manual_reconnects", 0))],
-	])
+	header.set_status(save_error if save_error != "" else status_text(d), ok and save_error == "")
+	diag.set_value("state", str(d.get("state", "")))
+	diag.set_value("server", "%s:%d" % [nt.client.host, nt.client.port])
+	diag.set_value("rtt", "%.1f ms" % (float(d["rtt_us"]) / 1000.0) if ok and int(d.get("rtt_us", -1)) >= 0 else "--")
+	diag.set_value("reconnects", "%d (manual %d)" % [int(d.get("reconnects", 0)), int(d.get("manual_reconnects", 0))])
 	var last := str(d.get("last_close", ""))
-	if last != "" and not ok:
-		lines.append("Last close %s" % last.left(40))
-	diag.text = "\n".join(lines)
+	diag.set_value("last_close", last if last != "" else "--")
 
 
 func probe() -> Dictionary:
+	var pv := {}
+	for key: String in preview.values:
+		pv[key] = preview.value(key)
 	return {
 		"drafts": drafts.duplicate(),
 		"save_enabled": not save.disabled,
 		"valid": form.get("valid", false),
 		"changed": form.get("changed", false),
 		"invalid": form.get("invalid_fields", []),
-		"preview": form.get("preview", {}),
+		"preview": pv,
 		"status": status_label.text,
 		"reconnect_visible": reconnect.visible,
-		"error": save_error.text,
+		"error": save_error,
 	}

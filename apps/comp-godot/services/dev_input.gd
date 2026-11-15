@@ -23,7 +23,7 @@ extends RefCounted
 ##   {"wait_for": {same as expect}, "timeout_ms": 3000} polls every frame until all
 ##     hold (elapsed ms goes to the trace) or fails at the timeout
 ##   {"inject": {topic: value}} offline NT values, as a fixture's nt_steps
-##   {"screenshot": "name"}  {"call": "save_settings"}
+##   {"screenshot": "name"}  {"call": "save_settings"}  {"call": "reload_autos"}
 ## A failed expectation is recorded with the step index; the run continues.
 
 var dev: DevService

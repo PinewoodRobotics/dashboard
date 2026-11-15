@@ -515,6 +515,8 @@ func probe() -> Dictionary:
 		out["auto_tab"] = (content as AutoTab).probe()
 	if content is SettingsTab:
 		out["settings_tab"] = (content as SettingsTab).probe()
+	if content is VisualTab:
+		out["visual_tab"] = (content as VisualTab).probe()
 	var intake := drawer.panel("intakeSpeed")
 	if intake is IntakePanel and intake.visible:
 		out["intake_panel"] = (intake as IntakePanel).probe()

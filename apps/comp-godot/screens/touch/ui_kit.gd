@@ -61,7 +61,8 @@ static func full(c: Control) -> Control:
 
 
 ## A 420 px settings column (SettingsColumn.tsx): its own colScroll, the bar
-## inside the 2 px right border, 32 px padding, 24 px title, 28 px gap.
+## inside the 2 px right border, 32 px padding, 24 px title on a 36 px line,
+## 28 px gap.
 static func column(title: String, border_right: bool = true, pad: int = 32, gap: int = 28) -> Dictionary:
 	var panel := PanelContainer.new()
 	var sb := PwBox.new()
@@ -75,7 +76,9 @@ static func column(title: String, border_right: bool = true, pad: int = 32, gap:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var scroll := vscroll()
 	var box := vbox(gap)
-	box.add_child(label(title, 24, 600))
+	var heading := PwText.new(title, 24, 600)
+	heading.name = "Title"
+	box.add_child(heading)
 	scroll.add_child(margin(box, pad, pad, pad, pad))
 	panel.add_child(scroll)
 	return {"panel": panel, "box": box, "scroll": scroll}

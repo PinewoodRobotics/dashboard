@@ -3,13 +3,13 @@
   "touch": {"active_tab": "visual"},
   "input": [
     {"wait_ms": 300},
-    {"expect": {"scrolls.VisualScroll.offset": 0.0, "scrolls.VisualScroll.max": {"ge": 400}}},
-    {"drag": {"from": {"node": "find:RenderScale", "at": [300, 90]}, "to": {"node": "find:RenderScale", "at": [30, 90]}, "ms": 250}},
-    {"expect": {"settings.visual.render_scale": 0.25, "scrolls.VisualScroll.offset": 0.0}},
+    {"expect": {"scrolls.VisualScroll.offset": 0.0, "scrolls.VisualScroll.max": {"ge": 300}}},
+    {"drag": {"from": {"node": "find:RenderScale", "at": [300, 68]}, "to": {"node": "find:RenderScale", "at": [30, 68]}, "ms": 250}},
+    {"expect": {"visual_tab.draft.render_scale": 0.25, "scrolls.VisualScroll.offset": 0.0}},
     {"mark": "v0"},
     {"drag": {"from": "find:ReloadModels", "to": {"node": "find:ReloadModels", "offset": [-1000, 30]}, "ms": 300}},
     {"wait_ms": 100},
-    {"expect": {"scrolls.VisualScroll.offset": {"ge": 400}, "models.generation": {"same_as": "v0"}, "state.active_tab": "visual"}},
+    {"expect": {"scrolls.VisualScroll.offset": {"ge": 300}, "models.generation": {"same_as": "v0"}, "state.active_tab": "visual"}},
     {"screenshot": "visual_scrolled"},
     {"tap": "find:TouchTest"},
     {"wait_ms": 100},
@@ -18,10 +18,10 @@
     {"wait_ms": 200},
     {"tap": "LeftRail/rail_settings"},
     {"wait_ms": 400},
-    {"expect": {"state.active_tab": "settings", "scrolls.SettingsScroll.offset": 0.0, "scrolls.SettingsScroll.max": 0.0}},
+    {"expect": {"state.active_tab": "settings", "scrolls.SettingsScroll.offset": 0.0, "scrolls.SettingsScroll.max": {"ge": 300}}},
     {"drag": {"from": [1500, 250], "to": [600, 270], "ms": 300}},
     {"wait_ms": 100},
-    {"expect": {"scrolls.SettingsScroll.offset": 0.0, "state.active_tab": "settings"}},
+    {"expect": {"scrolls.SettingsScroll.offset": {"ge": 300}, "state.active_tab": "settings"}},
     {"screenshot": "settings"}
   ]
 }
