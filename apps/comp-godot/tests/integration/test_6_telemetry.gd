@@ -72,7 +72,7 @@ func test_pose_joints_and_alliance_follow_the_fake_robot() -> void:
 	check(model.transform.origin.x > 0.0, "on the blue half")
 	var turret: Node3D = model.rig.nodes["TurretRControl"]
 	check(turret.transform.basis.is_equal_approx(model.rig.rest["TurretRControl"].basis * Basis(Vector3.UP, telemetry.joint_values["turret"])), "turret node follows")
-	check_eq(model.rig.bumper_material.get_shader_parameter("tint"), RobotRig.RED, "bumpers red")
+	check_eq(model.rig.bumper_material.get_shader_parameter("tint"), CadMaterials.vec4(RobotRig.RED.srgb_to_linear()), "bumpers red")
 
 	pubs["pose"].set_value(PackedFloat64Array([2.5, 4.03, PI / 2.0]))
 	pubs["turret"].set_value(0.75)
@@ -80,7 +80,7 @@ func test_pose_joints_and_alliance_follow_the_fake_robot() -> void:
 	el = await wait_until(_settled(Vector3(2.5, 4.03, PI / 2.0), PI / 2.0), 5.0)
 	check(el >= 0.0, "a 0.5 m move and a turret change are followed (smoothed, not snapped)")
 	check_eq(telemetry.alliance_red, false, "alliance blue")
-	check_eq(model.rig.bumper_material.get_shader_parameter("tint"), RobotRig.BLUE, "bumpers blue")
+	check_eq(model.rig.bumper_material.get_shader_parameter("tint"), CadMaterials.vec4(RobotRig.BLUE.srgb_to_linear()), "bumpers blue")
 	check(FieldFrame.forward(telemetry.smoothed_pose().z).distance_to(Vector3(0, 0, 1)) < 1e-3, "heading +90 deg faces world +Z")
 
 

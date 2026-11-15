@@ -77,6 +77,7 @@ func _ready() -> void:
 	view = RobotOrbitView.new()
 	view.name = "Robot3DView"
 	view.use_robot_viewer()
+	view.light_rig = CadLighting.ROBOT_3D
 	_viewport_box.add_child(UiKit.full(view))
 	_viewport_box.add_child(PwCornerMask.new(RADIUS, Color.BLACK))
 

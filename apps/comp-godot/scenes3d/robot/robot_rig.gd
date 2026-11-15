@@ -71,4 +71,4 @@ func set_alliance(is_red: Variant) -> void:
 		bumper_material.set_shader_parameter("use_tint", 0.0)
 	else:
 		bumper_material.set_shader_parameter("use_tint", 1.0)
-		bumper_material.set_shader_parameter("tint", RED if is_red else BLUE)
+		bumper_material.set_shader_parameter("tint", CadMaterials.vec4((RED if is_red else BLUE).srgb_to_linear()))

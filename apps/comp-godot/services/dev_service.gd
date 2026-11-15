@@ -470,7 +470,8 @@ func _benchmark() -> Dictionary:
 		screens.append("%dx%d" % [sz.x, sz.y])
 	return {
 		"unix": Time.get_unix_time_from_system(), "when": Time.get_datetime_string_from_system(false, true),
-		"renderer": RenderingServer.get_current_rendering_driver_name(), "adapter": RenderingServer.get_video_adapter_name(),
+		"renderer": RenderingServer.get_current_rendering_driver_name(), "method": RenderingServer.get_current_rendering_method(),
+		"adapter": RenderingServer.get_video_adapter_name(),
 		"vendor": RenderingServer.get_video_adapter_vendor(), "api": RenderingServer.get_video_adapter_api_version(),
 		"screens": screens, "windows": windows.keys(), "msaa": int(Settings.effective_visual()["msaa"]),
 		"frames_per_pass": frames, "uncapped": rows, "recommended_scale": best,
@@ -496,7 +497,7 @@ func _benchmark_pass(s: float, frames: int) -> Dictionary:
 static func benchmark_text(b: Dictionary) -> String:
 	var lines := PackedStringArray([
 		"PWRUP Comp Dashboard benchmark, %s" % b["when"],
-		"Renderer   %s (%s)" % [b["renderer"], b["api"]],
+		"Renderer   %s, %s (%s)" % [b["renderer"], b.get("method", ""), b["api"]],
 		"Adapter    %s, %s" % [b["adapter"], b["vendor"]],
 		"Displays   %s" % ", ".join(PackedStringArray(b["screens"])),
 		"Scene      auto preview playing on a loop with the HUD mirroring it, %s window(s), MSAA %s" % [b["windows"].size(), "off" if b["msaa"] == 0 else "%dx" % b["msaa"]],
@@ -605,7 +606,9 @@ func _sample_perf(frames: int) -> Dictionary:
 		"per_view": per_view,
 		"max_fps_setting": Engine.max_fps,
 		"renderer": RenderingServer.get_current_rendering_driver_name(),
+		"method": RenderingServer.get_current_rendering_method(),
 		"adapter": RenderingServer.get_video_adapter_name(),
+		"video_memory": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED),
 	}
 
 

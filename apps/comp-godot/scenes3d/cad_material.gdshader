@@ -1,8 +1,9 @@
 shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_opaque;
+render_mode cull_disabled, depth_draw_opaque, diffuse_lambert, specular_schlick_ggx;
 
-#include "res://scenes3d/cad_lighting.gdshaderinc"
+#include "res://scenes3d/cad_surface.gdshaderinc"
 
 void fragment() {
-	ALBEDO = cad_shade(cad_world_normal(NORMAL, INV_VIEW_MATRIX), cad_world_normal(VIEW, INV_VIEW_MATRIX));
+	cad_surface(ALBEDO, METALLIC, ROUGHNESS, SPECULAR);
+	RADIANCE = vec4(vec3(0.0), 1.0 - metallic);
 }

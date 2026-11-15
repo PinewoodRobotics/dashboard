@@ -18,6 +18,8 @@ var models: ModelsService
 var settings_service: SettingsService
 ## Views that show the field set this before _ready.
 var with_field := false
+## The web viewer whose lights this view uses (CadLighting), set before _ready.
+var light_rig: Dictionary = CadLighting.MINIMAP
 var field: Node3D
 var _field_generation := 0
 ## Dev/fixture camera: {position: Vector3, target: Vector3, up: Vector3}; empty = view's own camera.
@@ -44,6 +46,7 @@ func _ready() -> void:
 	viewport.positional_shadow_atlas_size = 0
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(viewport)
+	CadLighting.install(viewport, light_rig)
 	camera = Camera3D.new()
 	camera.fov = 50.0
 	viewport.add_child(camera)

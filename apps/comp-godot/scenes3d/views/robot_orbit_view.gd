@@ -13,6 +13,7 @@ var input := OrbitInput.new(cam)
 
 func _init() -> void:
 	super()
+	light_rig = CadLighting.DRIVER
 	add_to_group("pw_grab")
 
 

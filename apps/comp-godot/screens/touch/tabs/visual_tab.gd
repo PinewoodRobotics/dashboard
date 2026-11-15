@@ -278,7 +278,7 @@ func _update_diag() -> void:
 		tiling.text = "\n".join(parts) if not kiosk.last_plan.is_empty() else "Not tiled yet: windows stay where they opened"
 	var rs := RenderingServer
 	var eff := settings.effective_visual()
-	renderer.set_value("driver", rs.get_current_rendering_driver_name())
+	renderer.set_value("driver", "%s, %s" % [rs.get_current_rendering_driver_name(), rs.get_current_rendering_method()])
 	renderer.set_value("adapter", rs.get_video_adapter_name())
 	renderer.set_value("fps", "%d fps (cap %d)" % [Engine.get_frames_per_second(), Engine.max_fps])
 	renderer.set_value("draws", "%d, %d primitives" % [rs.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),

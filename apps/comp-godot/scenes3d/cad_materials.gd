@@ -41,9 +41,15 @@ static func create(source: Material, dim: float = 1.0, matte: bool = false) -> S
 	m.shader = BLEND_SHADER if is_blend(source) else OPAQUE_SHADER
 	var p := params(source, matte)
 	for k: String in p:
-		m.set_shader_parameter(k, p[k])
+		m.set_shader_parameter(k, vec4(p[k]) if p[k] is Color else p[k])
 	m.set_shader_parameter("dim", dim)
 	return m
+
+
+## Shader colors go in as Vector4: the Forward+ renderer converts a Color set on
+## any vec4 uniform from sRGB to linear, the Compatibility renderer does not.
+static func vec4(c: Color) -> Vector4:
+	return Vector4(c.r, c.g, c.b, c.a)
 
 
 static func shared(source: Material, dimmed: bool, matte: bool = false) -> ShaderMaterial:
