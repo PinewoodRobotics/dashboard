@@ -9,7 +9,8 @@ extends Container
 ## press on the track pages toward the pointer.
 ## Scrolling comes from the OS: the mouse wheel, and trackpad or touch
 ## scrolling with the OS's own momentum (pan gestures), at Chromium's pixel
-## rates. An event goes to the innermost scroller that can still move along the
+## rates (a wheel notch and a track page animate as Chromium's do on Windows
+## and Linux, SmoothScroll). An event goes to the innermost scroller that can still move along the
 ## gesture's main axis, otherwise on to its parents. A mouse drag on the
 ## content never scrolls, as in a desktop browser.
 ## Touchscreens that report only touches (Windows, Linux) get Chromium's touch
@@ -50,6 +51,7 @@ var scroll_horizontal: int:
 			scroll_offset = v
 var dragging := false
 var fling := TouchFling.new()
+var smooth := SmoothScroll.new()
 var _touch_pressed := false
 var _touch_start := Vector2.ZERO
 var _touch_start_scroll := 0.0
@@ -143,17 +145,33 @@ func reveal(ctl: Control) -> void:
 
 
 ## Scrolls by an OS delta (NativeScroll units) when its main axis is ours and
-## there is room in that direction. Returns whether it scrolled.
-func scroll_by_native(delta: Vector2) -> bool:
+## there is room in that direction, animated for a discrete wheel notch.
+## Returns whether it scrolled.
+func scroll_by_native(delta: Vector2, notch: bool = false) -> bool:
 	var along := delta.y if vertical else delta.x
 	var across := delta.x if vertical else delta.y
 	if along == 0.0 or absf(along) < absf(across):
 		return false
+	if notch and SmoothScroll.enabled:
+		return _smooth_by(along, -1.0)
+	smooth.active = false
 	var before := scroll_offset
 	scroll_offset += along
 	if scroll_offset == before:
 		return false
 	fling.active = false
+	return true
+
+
+## seconds < 0 times the jump as a wheel notch.
+func _smooth_by(px: float, seconds: float) -> bool:
+	var base := smooth.target if smooth.active else scroll_offset
+	var to := clampf(base + px, 0.0, max_scroll())
+	if to == base:
+		return smooth.active
+	fling.active = false
+	smooth.start(scroll_offset, to, SmoothScroll.wheel_seconds(to - scroll_offset) if seconds < 0.0 else seconds)
+	set_process(true)
 	return true
 
 
@@ -171,7 +189,7 @@ func _scroll_input(event: InputEvent) -> bool:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if NativeScroll.is_wheel(mb):
-			if mb.pressed and scroll_by_native(NativeScroll.wheel_delta(mb, self)):
+			if mb.pressed and scroll_by_native(NativeScroll.wheel_delta(mb, self), true):
 				accept_event()
 				return true
 			return false
@@ -209,6 +227,7 @@ func _on_bar(local: Vector2) -> bool:
 
 func _press_bar(local: Vector2) -> void:
 	fling.active = false
+	smooth.active = false
 	var at := local.y if vertical else local.x
 	var thumb_at := thumb_start()
 	if at >= thumb_at and at <= thumb_at + bar_length():
@@ -228,7 +247,11 @@ func _page_once() -> void:
 	var toward := 1.0 if _page_at > thumb_at + bar_length() else (-1.0 if _page_at < thumb_at else 0.0)
 	if toward != _page_dir:
 		return
-	scroll_offset += _page_dir * maxf(1.0, view_length() * PAGE_FRACTION)
+	var page := _page_dir * maxf(1.0, view_length() * PAGE_FRACTION)
+	if SmoothScroll.enabled:
+		_smooth_by(page, SmoothScroll.page_seconds())
+	else:
+		scroll_offset += page
 
 
 func _process(delta: float) -> void:
@@ -237,12 +260,14 @@ func _process(delta: float) -> void:
 		if _page_wait <= 0.0:
 			_page_wait += PAGE_REPEAT_S
 			_page_once()
+	if smooth.active:
+		scroll_offset = smooth.step(delta)
 	if fling.active:
 		var before := scroll_offset
 		scroll_offset += fling.step(delta)
 		if scroll_offset == before and (scroll_offset <= 0.0 or scroll_offset >= max_scroll()):
 			fling.active = false
-	if _page_dir == 0.0 and not fling.active:
+	if _page_dir == 0.0 and not fling.active and not smooth.active:
 		set_process(false)
 
 
@@ -251,6 +276,7 @@ func cancel_touch() -> void:
 	_touch_pressed = false
 	dragging = false
 	fling.active = false
+	smooth.active = false
 
 
 func _input(event: InputEvent) -> void:
@@ -262,6 +288,7 @@ func _input(event: InputEvent) -> void:
 	match p.kind:
 		PointerInput.Kind.DOWN:
 			fling.active = false
+			smooth.active = false
 			dragging = false
 			var local := get_global_transform().affine_inverse() * p.pos
 			_touch_pressed = max_scroll() > 0.0 and not _on_bar(local) and _owns_press(p.pos)

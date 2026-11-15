@@ -5,9 +5,15 @@ extends TestCase
 ## Chromium's fling where the OS sends only touches.
 
 var nodes: Array[Node] = []
+var _smooth_was := SmoothScroll.enabled
+
+
+func before_each() -> void:
+	SmoothScroll.enabled = false
 
 
 func after_each() -> void:
+	SmoothScroll.enabled = _smooth_was
 	for n in nodes:
 		if is_instance_valid(n):
 			n.queue_free()
@@ -79,6 +85,43 @@ func test_wheel_and_pan_scroll_and_hand_on_at_the_end() -> void:
 	await tree.process_frame
 	check(not h._scroll_input(_pan(Vector2(0, 50))), "a vertical gesture passes a horizontal strip")
 	check(h._scroll_input(_pan(Vector2(50, 0))))
+
+
+func test_wheel_notch_and_track_page_animate_like_chromium() -> void:
+	SmoothScroll.enabled = true
+	check_near(SmoothScroll.wheel_seconds(100.0), 0.2, 1e-9, "12 frames up to 120 px")
+	check_near(SmoothScroll.wheel_seconds(300.0), 0.15, 1e-9)
+	check_near(SmoothScroll.wheel_seconds(1000.0), 0.1, 1e-9, "6 frames from 480 px")
+	var sc := _scroller()
+	await tree.process_frame
+	check(sc.scroll_by_native(Vector2(0, 100), true))
+	check_eq(sc.scroll_offset, 0.0, "a notch starts where it is")
+	sc._process(0.1)
+	check_near(sc.scroll_offset, 50.0, 1e-3, "ease-in-out: halfway at half time")
+	check(sc.scroll_by_native(Vector2(0, 100), true), "a second notch retargets")
+	var v := sc.smooth.velocity()
+	check(v > 400.0, "keeping its speed")
+	sc._process(1.0 / 60.0)
+	check_near(sc.scroll_offset, 50.0 + v / 60.0, 2.0)
+	for i in 30:
+		sc._process(1.0 / 60.0)
+	check_eq(sc.scroll_offset, 200.0)
+	check(not sc.smooth.active)
+	check(sc.scroll_by_native(Vector2(0, -300), true))
+	check_eq(sc.smooth.target, 0.0, "clamped to the top")
+	for i in 30:
+		sc._process(1.0 / 60.0)
+	check_eq(sc.scroll_offset, 0.0)
+	check(not sc.scroll_by_native(Vector2(0, -100), true), "at the top the notch goes on to the parent")
+	sc._gui_input(_btn(Vector2(418, 390), true))
+	check_near(sc.smooth.target, 400.0 * PwScroll.PAGE_FRACTION, 1e-3, "a track press pages")
+	sc._gui_input(_btn(Vector2(418, 390), false))
+	for i in 9:
+		sc._process(1.0 / 60.0)
+	check_near(sc.scroll_offset, 400.0 * PwScroll.PAGE_FRACTION, 1e-3, "over 9 frames")
+	check(sc.scroll_by_native(Vector2(0, 100), true))
+	sc._scroll_input(_pan(Vector2(0, 10) / NativeScroll.dip_to_design(sc)))
+	check(not sc.smooth.active, "precise scrolling stops the animation")
 
 
 func test_mouse_drag_never_scrolls() -> void:

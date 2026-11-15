@@ -117,17 +117,106 @@ func test_robot_viewer_tuning() -> void:
 	check_eq([rv.rotate_speed, rv.zoom_speed, rv.min_dist, rv.max_dist, rv.enable_pan], [1.0, 1.0, 0.2, 6.0, true])
 	var theta0 := rv.theta
 	rv.rotate(-100.0, 0.0, 499.0)
-	_settle(rv, 2.0)
+	_drain(rv)
 	check_near(rv.theta - theta0, TAU * 100.0 / 499.0, 1e-4, "0.0126 rad per px at 499 px")
 	var right := rv.view_basis().x
 	var t0 := rv.target
 	rv.pan(100.0, 0.0, 499.0)
-	_settle(rv, 2.0)
+	_drain(rv)
 	var expect := -right * 2.0 * 100.0 * rv.dist * tan(deg_to_rad(25.0)) / 499.0
 	check((rv.target - t0).distance_to(expect) < 1e-3, "drag right moves the target left by the screen-space amount")
 	rv.rotate(0.0, -100000.0, 499.0)
-	_settle(rv, 1.0)
+	_drain(rv)
 	check(rv.phi > 3.1, "no polar limit but the pole")
+
+
+func _drain(c: OrbitCamera) -> void:
+	for i in 400:
+		c.rotate(0.0, 0.0, 499.0)
+
+
+func test_robot_viewer_stops_dead_on_release() -> void:
+	var rv := OrbitCamera.robot_viewer()
+	var theta0 := rv.theta
+	rv.begin_interaction()
+	for i in 10:
+		rv.rotate(-10.0, 0.0, 499.0)
+	rv.end_interaction()
+	var total := TAU * 100.0 / 499.0
+	var moved := rv.theta - theta0
+	check_near(moved / total, 1.0 - (1.0 - pow(0.92, 10)) / 0.08 * 0.92 / 10.0, 1e-6, "a 10-move flick delivers about 35%")
+	check(moved / total > 0.3 and moved / total < 0.4)
+	for i in 120:
+		rv.step(1.0 / 60.0)
+	check_eq(rv.theta - theta0, moved, "no per-frame update: no glide")
+	check(rv.is_gliding(), "the rest waits in the pool")
+	rv.wheel(-1.0)
+	check_near(rv.theta - theta0, moved + (total - moved) * 0.08, 1e-9, "the next input event applies 8% of it")
+
+
+func test_two_finger_move_is_one_update() -> void:
+	var rv := OrbitCamera.robot_viewer()
+	var t0 := rv.target
+	var d0 := rv.dist
+	var right := rv.view_basis().x
+	rv.pinch_pan(1.25, 100.0, 0.0, 499.0)
+	check_near(rv.dist, d0 / 1.25, 1e-9, "the pinch applies at once")
+	var full := -right * 2.0 * 100.0 * d0 * tan(deg_to_rad(25.0)) / 499.0
+	check((rv.target - t0).distance_to(full * 0.08) < 1e-6, "8% of the pan, not 8% plus 8% of the rest")
+	cam.pinch_pan(1.25, 100.0, 0.0, 515.0)
+	check_eq(cam.target, Vector3(0, 0.25, 0), "the driver view never pans")
+
+
+func test_tapping_the_selected_preset_does_nothing() -> void:
+	cam.rotate(200.0, 0.0, 515.0)
+	_settle(cam, 0.5)
+	cam.select_preset(0)
+	cam.step(1.0 / 60.0)
+	check(not cam.is_tweening(), "same stateIndex: the web's effect does not fire")
+	_settle(cam, 0.6)
+	check(cam.is_tweening(), "the idle return brings it back")
+
+
+func test_idle_returns_to_the_last_completed_tween() -> void:
+	var home := cam.position()
+	cam.select_preset(2)
+	cam.step(0.2)
+	cam.begin_interaction()
+	check(not cam.is_tweening())
+	cam.rotate(50.0, 0.0, 515.0)
+	cam.end_interaction()
+	check_eq(cam.preset, 2, "the bar keeps the tapped preset")
+	_settle(cam, 1.1)
+	check(cam.is_tweening())
+	_settle(cam, 0.7)
+	check(not cam.is_tweening())
+	check(cam.position().distance_to(home) < 1e-3, "back to Overview, where the last tween ended")
+	cam.select_preset(1)
+	_settle(cam, 0.5)
+	cam.rotate(50.0, 0.0, 515.0)
+	_settle(cam, 2.0)
+	var intake := OrbitCamera.new(cam.presets)
+	intake.select_preset(1, false)
+	check(cam.position().distance_to(intake.position()) < 1e-3, "a finished preset tween is the new idle target")
+
+
+func test_covered_view_holds_still_and_resumes() -> void:
+	var home := cam.position()
+	cam.rotate(200.0, 0.0, 515.0)
+	var theta := cam.theta
+	for i in 120:
+		cam.step_hidden(1.0 / 60.0)
+	check_eq(cam.theta, theta, "frameloop never: no glide")
+	check(not cam.is_tweening())
+	cam.step(1.0 / 60.0)
+	check(cam.is_tweening(), "the idle wait ran on the wall clock, the return starts on the first visible frame")
+	_settle(cam, 0.7)
+	check(cam.position().distance_to(home) < 0.05, "home, plus what is left of the held glide")
+	cam.select_preset(2)
+	cam.step_hidden(1.0)
+	check(cam.is_tweening())
+	cam.step(1.0 / 60.0)
+	check(not cam.is_tweening(), "a tween that ran out while covered snaps to its end")
 
 
 func test_idle_return_after_1s_over_600ms() -> void:

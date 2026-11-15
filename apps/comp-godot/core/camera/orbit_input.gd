@@ -134,9 +134,7 @@ func _touch_move(index: int, pos: Vector2, h: float) -> void:
 			var pts: Array = _touches.values()
 			var spread := (pts[0] as Vector2).distance_to(pts[1])
 			var mid := ((pts[0] as Vector2) + (pts[1] as Vector2)) * 0.5
-			if _spread > 0.0 and spread > 0.0:
-				cam.pinch(spread / _spread)
+			var ratio := spread / _spread if _spread > 0.0 and spread > 0.0 else 1.0
+			cam.pinch_pan(ratio, mid.x - _mid.x, mid.y - _mid.y, h)
 			_spread = spread
-			if cam.enable_pan:
-				cam.pan(mid.x - _mid.x, mid.y - _mid.y, h)
 			_mid = mid

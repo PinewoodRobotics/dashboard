@@ -4,14 +4,20 @@ extends RefCounted
 ## three.js OrbitControls (r187) as the web tunes it, plus the driver view's
 ## presets (DriverRobotViewer.tsx). Rotation and pan go into a pool that every
 ## update() applies DAMPING of and then shrinks by (1 - DAMPING), so a drag
-## glides on after release; zoom applies at once. Like OrbitControls, update()
-## runs once per input event and once per frame (frame steps are scaled to
-## 60 fps). Rotation is 2 pi * rotate_speed per view height of drag on both
+## glides on while updates run; zoom applies at once. Like OrbitControls, update()
+## runs once per input event and, where the web's useFrame calls
+## controls.update() (the driver view), once per frame scaled to 60 fps.
+## RobotViewer.tsx never updates per frame (frame_updates false), so its drags
+## stop dead on release and the rest of the pool goes out with the next input
+## event. Rotation is 2 pi * rotate_speed per view height of drag on both
 ## axes; the wheel scales the distance by 0.95^(zoom_speed * |deltaY| / 100),
 ## a pinch by (spread ratio)^zoom_speed, a pan moves the target in screen space
 ## by 2 * px * dist * tan(fov / 2) / view height.
 ## Presets are reached by a 400 ms easeOutCubic tween on the shortest arc, and
-## 1000 ms after the last input a 600 ms tween returns to the selected preset.
+## 1000 ms after the last input a 600 ms tween returns to the end of the last
+## completed tween (idleTargetRef). While the view is covered (frameloop
+## "never") nothing moves, but the wall clock of the tween and the idle wait
+## runs on, so both resolve on the first visible frame.
 ## Tweens run on unclamped poses and the update clamps polar angle and
 ## distance every frame, as controls.update() does after the web's tween.
 
@@ -24,7 +30,7 @@ const IDLE_RETURN_S := 0.6
 const DRIVER := {"rotate_speed": 0.5, "zoom_speed": 0.8, "pan_speed": 1.0, "enable_pan": false,
 	"min_polar": 0.1, "max_polar": PI / 2.0 - 0.05, "min_dist": 0.5, "max_dist": 4.0}
 const ROBOT_VIEWER := {"rotate_speed": 1.0, "zoom_speed": 1.0, "pan_speed": 1.0, "enable_pan": true,
-	"min_polar": 0.0, "max_polar": PI, "min_dist": 0.2, "max_dist": 6.0}
+	"min_polar": 0.0, "max_polar": PI, "min_dist": 0.2, "max_dist": 6.0, "frame_updates": false}
 
 var rotate_speed := 0.5
 var zoom_speed := 0.8
@@ -43,6 +49,7 @@ var phi := 1.0
 var dist := 2.0
 var fov := 50.0
 var idle_return := true
+var frame_updates := true
 
 var _pool_theta := 0.0
 var _pool_phi := 0.0
@@ -56,6 +63,7 @@ var _tweening := false
 var _idle_s := 0.0
 var _user_moved := false
 var _interacting := false
+var _home := {}
 
 
 static func load_presets(path: String) -> Array:
@@ -99,6 +107,7 @@ func _init(preset_list: Array = []) -> void:
 	presets = preset_list
 	if not presets.is_empty():
 		_set_from(presets[0])
+		_home = presets[0]
 		update(0.0)
 
 
@@ -124,7 +133,7 @@ func is_gliding() -> bool:
 
 
 func select_preset(index: int, animate: bool = true) -> void:
-	if index < 0 or index >= presets.size():
+	if index < 0 or index >= presets.size() or (animate and index == preset):
 		return
 	preset = index
 	_user_moved = false
@@ -146,6 +155,7 @@ func jump_to(pose: Dictionary) -> void:
 	_user_moved = false
 	_idle_s = 0.0
 	_set_from(pose)
+	_home = pose
 	update(0.0)
 
 
@@ -177,13 +187,17 @@ func rotate(dx_px: float, dy_px: float, view_h: float) -> void:
 func pan(dx_px: float, dy_px: float, view_h: float) -> void:
 	if not enable_pan:
 		return
+	_add_pan(dx_px, dy_px, view_h)
+	_moved()
+	update(DAMPING)
+
+
+func _add_pan(dx_px: float, dy_px: float, view_h: float) -> void:
 	var h := maxf(view_h, 1.0)
 	var target_dist := dist * tan(deg_to_rad(fov) * 0.5)
 	var basis := view_basis()
 	_pool_pan += -basis.x * (2.0 * dx_px * pan_speed * target_dist / h)
 	_pool_pan += basis.y * (2.0 * dy_px * pan_speed * target_dist / h)
-	_moved()
-	update(DAMPING)
 
 
 ## A wheel event (WheelEvent.deltaY px, negative zooms in): OrbitControls
@@ -214,6 +228,17 @@ func pinch(spread_ratio: float) -> void:
 	update(DAMPING)
 
 
+## A two-finger touch move: the pinch and the midpoint pan share one update,
+## as in OrbitControls' handleTouchMoveDollyPan.
+func pinch_pan(spread_ratio: float, dx_px: float, dy_px: float, view_h: float) -> void:
+	if spread_ratio > 0.0 and is_finite(spread_ratio):
+		_scale /= pow(spread_ratio, zoom_speed)
+	if enable_pan:
+		_add_pan(dx_px, dy_px, view_h)
+	_moved()
+	update(DAMPING)
+
+
 ## Camera axes (right, up, back) for the current pose, as Object3D.lookAt builds them.
 func view_basis() -> Basis:
 	var back := Vector3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta))
@@ -240,6 +265,8 @@ func update(k: float) -> void:
 
 
 func step(dt: float) -> void:
+	if not frame_updates:
+		return
 	var k := 1.0 - pow(1.0 - DAMPING, dt * 60.0)
 	if _tweening:
 		_tween_t += dt
@@ -252,14 +279,26 @@ func step(dt: float) -> void:
 		if _tween_t >= _tween_s:
 			_tweening = false
 			_set_from(_tween_to)
+			_home = _tween_to
+			_idle_s = 0.0
 		update(k)
 		return
-	if not _interacting and _user_moved and idle_return and preset < presets.size():
+	if not _interacting and _user_moved and idle_return and not _home.is_empty():
 		_idle_s += dt
 		if _idle_s > IDLE_DELAY_S:
 			_user_moved = false
-			_start_tween(presets[preset], IDLE_RETURN_S)
+			_start_tween(_home, IDLE_RETURN_S)
 	update(k)
+
+
+## A frame while the view is covered: the camera holds still, the clocks run.
+func step_hidden(dt: float) -> void:
+	if not frame_updates:
+		return
+	if _tweening:
+		_tween_t += dt
+	elif not _interacting and _user_moved and idle_return:
+		_idle_s += dt
 
 
 ## A tween stopped part way leaves the camera off the preset.

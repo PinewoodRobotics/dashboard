@@ -334,17 +334,25 @@ the tab down at once, as on the web. The Auto tab's 3D preview and scrub bar
 (Godot-only, in place of the web's GIF) veto swipes so they keep their drags.
 
 Scrolling is the OS's, as in the browser: the mouse wheel (100 px a notch,
-40 px a macOS line) and trackpad or macOS touch scrolling (pan gestures, with
+animated with Chromium's ease-in-out on Windows and Linux, as are scrollbar
+track pages; 40 px a macOS line, not animated) and trackpad or macOS touch scrolling (pan gestures, with
 the OS's momentum) scroll the innermost scroller that can still move along the
 gesture, and a mouse drag on content never scrolls; the 5 px bar is reserved
 beside the content and its thumb drags. Touchscreens that report only touches
 (Windows, Linux) get Chromium's touch scrolling instead (`PwScroll` drags past
 the tap slop, then `TouchFling` replays Chromium's fling curve).
 The 3D views orbit like the web's three.js OrbitControls with the web's tuning
-(`OrbitCamera`, `OrbitInput`): a damped rotation pool (0.08 per update, so a
-drag glides on), wheel and trackpad scroll zoom, pinch zoom, middle-drag dolly;
-the driver view has no pan, the Robot 3D tab pans (right drag, ctrl/shift +
-drag, two fingers).
+(`OrbitCamera`, `OrbitInput`): a damped rotation pool (0.08 per update),
+wheel and trackpad scroll zoom, pinch zoom, middle-drag dolly; the driver view
+has no pan, the Robot 3D tab pans (right drag, ctrl/shift + drag, two
+fingers). The driver view updates every frame, so a drag glides on after
+release, and freezes while a tab covers it (the web's `frameloop="never"`).
+The Robot 3D tab, like `RobotViewer.tsx`, updates only on input events: a
+drag stops dead on release and the rest of the pool goes out with the next
+drag or wheel step.
+Deviation: the Robot 3D joints column, should it overflow, shows the port's
+5 px accent bar where the web shows the platform's stock Chromium scrollbar
+(it does not overflow at 1920x515).
 
 The fonts are static Inter (300 to 700) and Roboto Mono (400, 500) weights cut
 from the upstream variable fonts with their overlaps removed, imported as MSDF

@@ -43,7 +43,10 @@ func select_preset(index: int) -> void:
 
 func _process(delta: float) -> void:
 	super(delta)
-	cam.step(delta)
+	if is_rendering():
+		cam.step(delta)
+	else:
+		cam.step_hidden(delta)
 	if not apply_camera_override():
 		_place_camera()
 
