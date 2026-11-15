@@ -42,6 +42,34 @@ log to `logs/godot.log` in the same folder.
 
 F3 toggles the NetworkTables overlay (client state, RTT, every cached topic).
 
+### Renderer
+
+The 3D views render with Forward+: Direct3D 12 on Windows (Vulkan if Direct3D
+12 does not start), Metal on macOS. When neither RenderingDevice driver
+starts, Godot drops to the Compatibility renderer by itself
+(`rendering/rendering_device/fallback_to_opengl3`). Visual > Diagnostics shows
+the driver and method in use (`d3d12, forward_plus`).
+
+The lighting is the web app's: each view has the light rig of its web
+counterpart (`scenes3d/cad_lighting.gd`: the minimap rig on the HUD minimap
+and the auto preview, `DriverRobotViewer.tsx` on the driver view,
+`RobotViewer.tsx` on the Robot 3D tab), with three.js intensities converted to
+Godot energy, the hemisphere light as sky ambient and Environment ACES set to
+match three's ACES Filmic tone mapping. A calibration scene on the M1 Pro
+landed within 3/255 of the values three.js computes for the same rigs. Every
+surface is shaded per pixel from its glTF base color, metallic and roughness;
+the field stays matte. There are no shadows or ambient occlusion: the web
+views have none, a shadow pass cost 9 ms a frame with the full models, and
+SSAO needs the depth prepass (see Frame rate).
+
+Compatibility stays available as an emergency switch, for a GPU driver that
+crashes or draws nothing under both Direct3D 12 and Vulkan:
+`--rendering-method gl_compatibility` (on Windows add `--rendering-driver
+opengl3_angle`, OpenGL ES on Direct3D 11; Windows on ARM has no native
+OpenGL). It draws the same scene, somewhat darker, at about the same frame
+rate. The Windows launcher falls back to it on its own (see the
+install steps).
+
 ### Robot connection
 
 The dashboard is READY within about 1 s of the robot's NT server answering
@@ -102,7 +130,7 @@ link died without closing:
 Engine flags go before `--`, dashboard flags after it:
 
 ```sh
-PWRUP-Comp.exe --rendering-driver opengl3_angle -- --kiosk --vsync=hud --render-scale=0.75
+PWRUP-Comp.exe --rendering-driver vulkan -- --kiosk --vsync=hud --render-scale=0.75
 ```
 
 | Flag | Meaning |
@@ -111,7 +139,7 @@ PWRUP-Comp.exe --rendering-driver opengl3_angle -- --kiosk --vsync=hud --render-
 | `--windowed` | Never tile at start. Without either flag the windows are tiled once at start, like the Electron app, unless a fixture or test run is active. |
 | `--screen=both\|hud\|touch` | `both` (default): one process, two windows. `hud` and `touch` run one screen per process, the fallback if two windows misbehave on the driver station. Only the `touch` process publishes robot requests (auto, intake, aim trim). |
 | `--hud-screen=N`, `--touch-screen=N` | Screen index for this run (0-based), beats the settings. |
-| `--vsync=hud\|both\|off` | Which windows wait for vertical sync. Default `hud`: two vsynced GL windows on different displays can halve the frame rate. |
+| `--vsync=hud\|both\|off` | Which windows wait for vertical sync. Default `hud`: two vsynced windows on different displays can halve the frame rate. |
 | `--render-scale=X` | 3D render scale for this run (0.25 to 1.0), not saved. The Visual tab sets the saved value. |
 | `--max-fps=N` | Frame cap for this run (`0` = uncapped). The Visual tab sets the saved 30 or 60. |
 | `--nt-host=H`, `--nt-port=P` | Robot address for this run, not saved. |
@@ -119,13 +147,30 @@ PWRUP-Comp.exe --rendering-driver opengl3_angle -- --kiosk --vsync=hud --render-
 | `--touch-test` | Open the touch test on both windows at start (also Visual > Diagnostics > Touch Test). |
 | `--auto-quality=on\|off` | Force the automatic quality fallback on or off for this run (Visual > Auto Quality sets the saved value). |
 | `--benchmark[=DIR]` | Run the driver-station benchmark and quit; see the checklist. |
-| `--rendering-driver opengl3_angle` | Engine flag: render through ANGLE (Direct3D 11) instead of the native OpenGL driver. First thing to try on a Windows laptop with a broken or slow OpenGL driver. |
+| `--rendering-driver vulkan` | Engine flag (Windows): Vulkan instead of Direct3D 12. First thing to try when the dashboard crashes or draws black 3D views. `--rendering-driver d3d12` forces Direct3D 12. |
+| `--rendering-method gl_compatibility` | Engine flag: the Compatibility renderer, the emergency fallback (see Renderer). On Windows pair it with `--rendering-driver opengl3_angle`. |
 
 Test-only flags (`--fixture`, `--live`, `--screenshot`, `--perf-frames`,
 `--run-s`, `--nt-trace`, `--autos-dir`, `--simulate-gpu-ms`, ...) are documented
 at the top of `services/dev_service.gd` and `services/perf_governor.gd`.
 
 ### Frame rate and auto quality
+
+The 3D views are bound by vertex work: the full CAD models are 13.0M (robot)
+and 4.0M (field) triangles, and the HUD minimap and the auto preview each draw
+both, 34M triangles a frame. Forward+'s depth prepass would draw them all a
+second time, so it is off (`rendering/driver/depth_prepass/enable`); on an M1
+Pro it cut the frame rate from 80 to 48 fps.
+
+Measured on an M1 Pro (macOS, both windows at their design size, the auto
+preview playing with the HUD mirroring it, uncapped, vsync off, 600 frames):
+
+| Renderer | fps | p50 | p95 | Draw calls | Primitives | Video memory |
+|---|---|---|---|---|---|---|
+| Compatibility (OpenGL over Metal, previous build) | 78 | 12.8 ms | 13.1 ms | 330 | 34.0M | 537 MB |
+| Forward+ (Metal) | 79 | 12.6 ms | 13.7 ms | 330 | 34.0M | 685 MB |
+| Forward+ with the depth prepass | 48 | 20.7 ms | 21.5 ms | 330 | 34.0M | 684 MB |
+| Forward+ with a key light shadow (no prepass) | 46 | 21.7 ms | 23.4 ms | 622 | 68.0M | 719 MB |
 
 With Visual > Auto Quality on (the default), the dashboard watches the frame
 rate while a 3D view renders. When 3 s average below 92% of the frame cap, it
@@ -150,21 +195,35 @@ screen both stay windowed. The touchscreen Visual tab has a Displays section
 overrides are saved and beat the size match. Ctrl+Shift+F (Cmd+Shift+F on
 macOS) re-tiles from either window.
 
-## Driver station install (Windows x64)
+## Driver station install (Windows)
 
-1. Download the build of the latest `main` from
-   <https://github.com/PinewoodRobotics/dashboard/releases/latest/download/PWRUP-Comp-windows-x64.zip>
-   (CI publishes it on every merge that touches `apps/comp-godot`), or export
-   it yourself (below), and unzip it. `PWRUP-Comp.exe`, `PWRUP-Comp.pck` and the
-   `.bat` launchers must stay in one folder.
+1. Download the build of the latest `main` for the laptop's CPU (CI publishes
+   both on every merge that touches `apps/comp-godot`), or export it yourself
+   (below), and unzip it:
+   - ARM64, for Snapdragon laptops such as the team's ASUS Zenbook A16
+     (Snapdragon X2 Elite):
+     <https://github.com/PinewoodRobotics/dashboard/releases/latest/download/PWRUP-Comp-windows-arm64.zip>
+   - x64, for Intel and AMD laptops:
+     <https://github.com/PinewoodRobotics/dashboard/releases/latest/download/PWRUP-Comp-windows-x64.zip>
+
+   On Windows on ARM the x64 build would run under emulation, so use the
+   ARM64 one there (Settings > System > About > System type says which).
+   `PWRUP-Comp.exe`, `PWRUP-Comp.pck` and the `.bat` launchers must stay in one
+   folder. A macOS (Apple silicon) build is on the same release:
+   <https://github.com/PinewoodRobotics/dashboard/releases/latest/download/PWRUP-Comp-macos-arm64.zip>
+   (ad-hoc signed, not notarized: clear the download quarantine once with
+   `xattr -dr com.apple.quarantine "PWRUP Comp Dashboard.app"`).
 2. Copy the folder anywhere (not necessarily writable: logs and settings go to
    `%APPDATA%\PWRUP\CompDashboard`).
 3. Start `PWRUP-Comp.bat`. It runs the dashboard with `--kiosk` and restarts it
    2 s after any crash (non-zero exit). Closing a window quits for real. After
-   3 crashes within 30 s of starting, it switches the rest of the session to
-   ANGLE. Arguments are passed through (`PWRUP-Comp.bat --nt-host=10.47.65.2`);
-   `set PWRUP_ENGINE_ARGS=--rendering-driver opengl3_angle` forces ANGLE from
-   the start. The launcher log is `%APPDATA%\PWRUP\CompDashboard\launcher.log`.
+   3 crashes within 30 s of starting, it switches the rest of the session from
+   Direct3D 12 to Vulkan, and after 3 more to the Compatibility renderer.
+   Arguments are passed through (`PWRUP-Comp.bat --nt-host=10.47.65.2`);
+   `set PWRUP_ENGINE_ARGS=--rendering-driver vulkan` starts on Vulkan (or
+   `--rendering-method gl_compatibility --rendering-driver opengl3_angle` on
+   Compatibility). The launcher log is
+   `%APPDATA%\PWRUP\CompDashboard\launcher.log`.
    `PWRUP-Comp-TwoProcess.bat` starts the HUD and the touchscreen as two
    processes instead (plan B below), each with the same restart loop.
 4. Run the checklist below once per laptop.
@@ -200,15 +259,15 @@ Electron dashboard stays the primary dashboard and this one is the trial.
 - [ ] Renderer and frame rate: close the dashboard and run
       `PWRUP-Comp-Benchmark.bat`. It runs the built-in benchmark (both windows
       on their displays, the longest auto previewing on a loop with the HUD
-      mirroring it) with the native OpenGL driver and with ANGLE, about 40 s
-      each, and opens `benchmark_native.txt` and `benchmark_angle.txt` from
+      mirroring it) with Direct3D 12 and with Vulkan, about 40 s each, and
+      opens `benchmark_d3d12.txt` and `benchmark_vulkan.txt` from
       `%APPDATA%\PWRUP\CompDashboard`: frame rate, p95 frame time and
-      primitives per render scale, the result at the
-      60 fps cap, and a recommendation. Use
-      the faster renderer (for ANGLE, `set PWRUP_ENGINE_ARGS=--rendering-driver
-      opengl3_angle` before the launcher, or edit it) and set Visual > Render
-      Scale to the recommendation. If no scale holds 60 fps, set the frame cap
-      to 30. If the app crashes at start or shows black 3D views, use ANGLE.
+      primitives per render scale, the result at the 60 fps cap, and a
+      recommendation. Direct3D 12 is the default; if Vulkan is clearly faster,
+      `set PWRUP_ENGINE_ARGS=--rendering-driver vulkan` before the launcher (or
+      edit it). Set Visual > Render Scale to the recommendation. If no scale
+      holds 60 fps, set the frame cap to 30. If the app crashes at start or
+      shows black 3D views, try Vulkan, then Compatibility (see Renderer).
 - [ ] Vsync across both displays: with the Auto tab preview playing, Visual >
       Diagnostics shows FPS at the cap (60) and "Auto qual" at full quality. If
       it drops to 30 or stutters, try `--vsync=off`; `--vsync=both` only if
@@ -235,7 +294,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_perf.sh` | frame time, draw calls and primitives over a whole 8x fake match with both windows and the preview playing (reported, not budgeted); render scale 0.5 halves the 3D resolution; the auto quality fallback under a simulated fill-bound GPU; the driver-station benchmark end to end | 3 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
 | `run_chaos.sh` | 10 random fake-robot restarts: READY within 6 s, auto and intake restored | 2 min |
-| `run_export.sh` | Windows and macOS exports, pck contents, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
+| `run_export.sh` | Windows ARM64, Windows x64 and macOS arm64 exports, PE machine types, pck contents, the macOS ad-hoc signature, startup time of the shipped build (first frame within 1 s), HUD and touch suites from the exported macOS binary | 3 min |
 | `run_soak.sh [--minutes=N]` | 10 minutes of looping 8x matches: clean log, memory, orphans | 10 min |
 | `run_sim_e2e.sh` | the real robot code in the WPILib sim (scratch copy of FIR, never the repo, plus the DeployHash snippet): live HUD, auto and intake round trips from the UI, the deploy hash against the export | 4 min |
 | `run_all.sh [--quick] [--no-sim]` | all of the above in order with a summary | 30 min |
@@ -285,18 +344,17 @@ the manifest's source hashes no longer match the raw files. Commit the
 `.import` files and the manifest. The rig and camera metadata are in
 `data/rig/`.
 
-The CAD shader (`scenes3d/cad_material.gdshader`) shades each surface per pixel
-from its own glTF material under a fixed light rig (sky/ground hemisphere and
-three directional lights, the web minimap's), with specular highlights from
-the roughness and hemisphere reflections for metals (the views have no
-Environment, sky or scene lights, so the shader does the lighting itself and
-writes sRGB, as the Compatibility renderer does not encode its output).
+The CAD shader (`scenes3d/cad_material.gdshader`) hands each surface's own glTF
+base color, metallic and roughness to Godot's lighting (Lambert diffuse, GGX
+specular) under the view's light rig (see Renderer).
 
 ## UI drawing and fonts
 
-The GL Compatibility renderer spends one draw call per polygon and one per run
-of rects that share a texture, so the UI never uses `StyleBoxFlat`,
-`ColorRect` or `draw_circle`. `ui/theme/ui_draw.gd` cuts every shape and
+The UI was built for the GL Compatibility renderer, which spends one draw call
+per polygon and one per run of rects that share a texture, so it never uses
+`StyleBoxFlat`, `ColorRect` or `draw_circle`. Forward+ batches it the same way
+(5 draw calls on the HUD and 11 on the touchscreen in the benchmark scene, as
+before). `ui/theme/ui_draw.gd` cuts every shape and
 lucide icon from one atlas (`PwBox` is the stylebox, `PwRect` the color rect),
 and puts text on a z slot per font above the shapes; stacked layers (overlays,
 dock, keyboard) step z by `UiDraw.LAYER_Z`. Custom `_draw()` code calls
@@ -394,30 +452,37 @@ WPILib sim, whose drivetrain does not move) contain a real autonomous run.
 
 ## Windows export
 
-Install the export templates once (about 1.3 GB download; only the Windows and
-macOS files are needed):
+Install the export templates once. `tools/export/fetch_templates.py` downloads
+only the ones the presets use (Windows arm64 and x86_64, macOS, about 530 MB)
+out of the 1.3 GB archive and adds the arm64 slices to `macos.zip`, whose
+binaries are universal only (the macOS preset exports arm64 alone):
 
 ```sh
-curl -LO https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
-unzip Godot_v4.7.2-stable_export_templates.tpz 'templates/version.txt' 'templates/macos.zip' \
-  'templates/windows_*_x86_64*' 'templates/icudt_godot.dat' -d tpl
-mkdir -p ~/Library/Application\ Support/Godot/export_templates/4.7.2.stable
-cp tpl/templates/* ~/Library/Application\ Support/Godot/export_templates/4.7.2.stable/
+python3 apps/comp-godot/tools/export/fetch_templates.py 4.7.2 ~/Library/Application\ Support/Godot/export_templates/4.7.2.stable
 ```
 
 (Linux: `~/.local/share/godot/export_templates/4.7.2.stable`, Windows:
-`%APPDATA%\Godot\export_templates\4.7.2.stable`, or the editor's Manage
-Export Templates dialog.) Then:
+`%APPDATA%\Godot\export_templates\4.7.2.stable`. Templates installed with the
+editor's Manage Export Templates dialog lack the arm64 macOS binaries; run the
+script over them.) Then:
 
 ```sh
-apps/comp-godot/tools/test/run_export.sh   # exports, checks the pck, runs the fixture suites from the macOS build
-# or just the export (from the repo root; the export path is relative to the project):
-mkdir -p apps/comp-godot/build/windows && godot --headless --path apps/comp-godot --export-release "Windows Desktop" build/windows/PWRUP-Comp.exe
-cp apps/comp-godot/tools/windows/PWRUP-Comp.bat apps/comp-godot/build/windows/
+apps/comp-godot/tools/test/run_export.sh   # exports, checks the builds, runs the fixture suites from the macOS build
+# or just one export (from the repo root; the export path is relative to the project):
+mkdir -p apps/comp-godot/build/windows-arm64 && godot --headless --path apps/comp-godot --export-release "Windows ARM64" build/windows-arm64/PWRUP-Comp.exe
+cp apps/comp-godot/tools/windows/*.bat apps/comp-godot/build/windows-arm64/
 ```
 
-`export_presets.cfg` has the `Windows Desktop` (x86_64, separate pck,
-unsigned) and `macOS` (universal, ad-hoc signed) presets. Both include `*.json`
+`export_presets.cfg` has the `Windows ARM64` and `Windows x64` presets
+(separate pck, unsigned; `build/windows-arm64` and `build/windows-x64`) and
+`macOS` (arm64 only, ad-hoc signed by Godot's built-in signer, which also works
+on the Linux CI runner; export to `build/macos/PWRUP-Comp.app` or `.zip`).
+`tools/export/check_export.py` checks an exe's PE machine type and its pck,
+`tools/export/check_macos.py` a macOS zip's arch and ad-hoc signature without
+macOS tools. CI (`.github/workflows/comp-godot-windows.yml`) exports all three
+on every qualifying push to `main` and publishes `PWRUP-Comp-windows-arm64.zip`,
+`PWRUP-Comp-windows-x64.zip` and `PWRUP-Comp-macos-arm64.zip` on the rolling
+`comp-godot-latest` release. Both include `*.json`
 so the raw data (`data/**`, `ui/icons/lucide.json`, the model manifest) ships
 in the pck, and exclude `tests/`, `tools/` and scratch folders. The Windows
 exe is not code-signed, so SmartScreen may ask once on a new laptop.
