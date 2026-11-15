@@ -114,6 +114,12 @@ func test_surfaces_keep_their_cad_materials() -> void:
 		check(CadMaterials.is_blend(glass), "it stays blended")
 		check(absf(glass.albedo_color.a - 0.45) < 1e-3, "with its alpha")
 		check(absf(glass.roughness - 0.1825) < 1e-3, "and its roughness")
+	var field: Node3D = (load(ModelsService.PATHS["field"]) as PackedScene).instantiate()
+	var carpet := (field.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh.surface_get_material(0) as BaseMaterial3D
+	check_eq(carpet.metallic, 1.0, "the field export marks its materials metallic")
+	var p := CadMaterials.params(carpet, true)
+	check_eq([p["metallic"], p["roughness"]], [0.0, 1.0], "the field is shaded matte")
+	field.free()
 
 
 func test_joint_transform_conventions() -> void:

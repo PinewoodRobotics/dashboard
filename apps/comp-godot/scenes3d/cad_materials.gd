@@ -19,38 +19,45 @@ static func is_blend(source: Material) -> bool:
 
 
 ## Godot's glTF importer stores baseColorFactor sRGB-encoded in albedo_color;
-## the shader wants it linear again.
-static func params(source: Material) -> Dictionary:
-	if not source is BaseMaterial3D:
-		return {"albedo": Color(1, 1, 1, 1), "metallic": 1.0, "roughness": 1.0}
-	var m := source as BaseMaterial3D
-	var linear := m.albedo_color.srgb_to_linear()
-	linear.a = m.albedo_color.a
-	return {"albedo": linear, "metallic": m.metallic, "roughness": m.roughness}
+## the shader wants it linear again. matte drops metallic and roughness: the
+## field export marks every opaque material metallic 1, roughness 0.21 (an
+## exporter default, carpet included), which renders the floor as a mirror with
+## a sun highlight, so the field is shaded matte like the web minimap does.
+static func params(source: Material, matte: bool = false) -> Dictionary:
+	var p := {"albedo": Color(1, 1, 1, 1), "metallic": 1.0, "roughness": 1.0}
+	if source is BaseMaterial3D:
+		var m := source as BaseMaterial3D
+		var linear := m.albedo_color.srgb_to_linear()
+		linear.a = m.albedo_color.a
+		p = {"albedo": linear, "metallic": m.metallic, "roughness": m.roughness}
+	if matte:
+		p["metallic"] = 0.0
+		p["roughness"] = 1.0
+	return p
 
 
-static func create(source: Material, dim: float = 1.0) -> ShaderMaterial:
+static func create(source: Material, dim: float = 1.0, matte: bool = false) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = BLEND_SHADER if is_blend(source) else OPAQUE_SHADER
-	var p := params(source)
+	var p := params(source, matte)
 	for k: String in p:
 		m.set_shader_parameter(k, p[k])
 	m.set_shader_parameter("dim", dim)
 	return m
 
 
-static func shared(source: Material, dimmed: bool) -> ShaderMaterial:
-	var p := params(source)
+static func shared(source: Material, dimmed: bool, matte: bool = false) -> ShaderMaterial:
+	var p := params(source, matte)
 	var key := [p["albedo"], p["metallic"], p["roughness"], is_blend(source), dimmed]
 	if not _shared.has(key):
-		_shared[key] = create(source, DIM if dimmed else 1.0)
+		_shared[key] = create(source, DIM if dimmed else 1.0, matte)
 	return _shared[key]
 
 
-static func apply(root: Node, skip: Array = [], dimmed: bool = false) -> void:
+static func apply(root: Node, skip: Array = [], dimmed: bool = false, matte: bool = false) -> void:
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		if skip.has(mi) or mi.mesh == null:
 			continue
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		for i in mi.mesh.get_surface_count():
-			mi.set_surface_override_material(i, shared(mi.mesh.surface_get_material(i), dimmed))
+			mi.set_surface_override_material(i, shared(mi.mesh.surface_get_material(i), dimmed, matte))

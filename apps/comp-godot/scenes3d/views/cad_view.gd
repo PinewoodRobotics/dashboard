@@ -71,7 +71,7 @@ func _attach_field(scene: PackedScene) -> void:
 	if models != null:
 		_field_generation = int(models.generation.get("field", 0))
 	field = scene.instantiate() as Node3D
-	CadMaterials.apply(field)
+	CadMaterials.apply(field, [], false, true)
 	viewport.add_child(field)
 
 
