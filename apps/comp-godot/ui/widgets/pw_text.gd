@@ -85,6 +85,22 @@ func line_count() -> int:
 	return _lines
 
 
+## CSS max-content: the widest line with no wrapping.
+func max_content_width() -> float:
+	return ceilf(_natural_width())
+
+
+## Lays the block out `w` px wide at its own height and returns that height.
+## Reading the minimum size before the width is set measures the wrap at the
+## old width (one glyph per line at width 0).
+func fit_width(w: float) -> float:
+	size = Vector2(w, size.y)
+	var h := 0.0 if text == "" and spans.is_empty() else maxi(line_count(), 1) * line_px()
+	update_minimum_size()
+	size = Vector2(w, h)
+	return h
+
+
 func _wraps() -> bool:
 	return wrap != Wrap.NONE and not ellipsis
 

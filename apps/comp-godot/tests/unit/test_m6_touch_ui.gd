@@ -243,6 +243,55 @@ func test_failed_library_shows_a_retry_row_that_reloads() -> void:
 	autos.queue_free()
 
 
+func test_status_row_text_is_centered_in_its_row() -> void:
+	var autos := AutosService.new()
+	tree.root.add_child(autos)
+	autos.library = AutoLibrary.load_best([dir.path_join("no-export")])
+	var t := AutoTab.new()
+	t.controls = controls
+	t.autos = autos
+	t.size = host.size
+	host.add_child(t)
+	t.set_process(false)
+	await tree.process_frame
+	var row := t.status_row
+	check_eq(row.size.y, AutoStatusRow.HEIGHT)
+	check_eq(row.text.size, Vector2(row.size.x - 20, 27.0), "one 18 px line on its 27 px line box")
+	check_eq(row.text.position, Vector2(10, (AutoStatusRow.HEIGHT - 27.0) * 0.5))
+	autos.queue_free()
+
+
+func test_preview_loading_text_is_one_centered_line() -> void:
+	var t := _auto_tab()
+	await tree.process_frame
+	var p := t.preview
+	check(p.size.y > 0.0 and p.size.y < host.size.y)
+	check_eq(p.loading.size, Vector2(p.size.x, 51.0), "one 34 px line across the preview")
+	check_eq(p.loading.position.y, (p.size.y - 51.0) * 0.5)
+	p.size = Vector2(p.size.x - 100.0, p.size.y)
+	check_eq(p.loading.size, Vector2(p.size.x, 51.0), "refit after a resize")
+
+
+func test_failed_preview_caption_box_fits_its_lines() -> void:
+	var e := HowardError.new()
+	e.size = Vector2(552, 483)
+	host.add_child(e)
+	e.roll()
+	await tree.process_frame
+	await tree.process_frame
+	var widest := 0.0
+	for t: PwText in [e.heading, e.line, e.small]:
+		widest = maxf(widest, t.max_content_width())
+	check_eq(e._box.size.x, minf(widest, 552.0 - 24.0), "as wide as its longest line allows")
+	check_eq(e.heading.size.y, 42.0, "the 28 px heading on one line")
+	var h := 0.0
+	for c: Control in e._box.get_children():
+		h += c.size.y
+	check_eq(e._box.size.y, h, "the box is as tall as its lines")
+	check_eq(e._box.position.y, roundf((483.0 - h) * 0.5), "centered")
+	check(e._box.size.y < 483.0)
+
+
 func _copy_export(to: String, exported_at: String, extra: String = "") -> void:
 	DirAccess.make_dir_recursive_absolute(to)
 	var src := ProjectSettings.globalize_path(AutoLibrary.BUILTIN_DIR)

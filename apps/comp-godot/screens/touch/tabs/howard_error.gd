@@ -64,12 +64,8 @@ func roll() -> void:
 func _layout() -> void:
 	var widest := 0.0
 	for t: PwText in [heading, line, small]:
-		var saved := t.wrap
-		t.wrap = PwText.Wrap.NONE
-		widest = maxf(widest, t.get_combined_minimum_size().x)
-		t.wrap = saved
-		t.update_minimum_size()
-	_width = minf(ceilf(widest), size.x - 2.0 * PAD.x)
+		widest = maxf(widest, t.max_content_width())
+	_width = minf(widest, size.x - 2.0 * PAD.x)
 	_place_box()
 
 

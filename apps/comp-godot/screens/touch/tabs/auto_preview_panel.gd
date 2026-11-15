@@ -369,9 +369,8 @@ func set_expanded_icon(on: bool) -> void:
 
 
 func _on_resized() -> void:
-	var lh := loading.get_combined_minimum_size().y
+	var lh := loading.fit_width(size.x)
 	loading.position = Vector2(0, (size.y - lh) * 0.5)
-	loading.size = Vector2(size.x, lh)
 	var wide := size.x >= SPEEDS_MIN_W
 	for b in speed_buttons:
 		b.visible = wide

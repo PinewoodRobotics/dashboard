@@ -20,9 +20,8 @@ func _init(message: String, color: Color) -> void:
 
 
 func _place() -> void:
-	var h := text.get_combined_minimum_size().y
+	var h := text.fit_width(size.x - 20)
 	text.position = Vector2(10, (size.y - h) * 0.5)
-	text.size = Vector2(size.x - 20, h)
 
 
 func _draw() -> void:
