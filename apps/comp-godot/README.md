@@ -50,8 +50,8 @@ link died without closing:
 
 - After a lost connection or a failed attempt it retries after 0.1 s, 0.25 s,
   then every 0.5 s. A refused connect is one SYN and one RST on the robot LAN.
-- Reconnect Timeout (Settings tab; `reconnectTimeoutSeconds` in the shared file,
-  1 to 60 s, default 2): an attempt that has not connected after this long is
+- Reconnect Timeout (Settings tab slider 2 to 30 s as on the web;
+  `reconnectTimeoutSeconds` in the shared file accepts 1 to 60 s, default 2): an attempt that has not connected after this long is
   dropped and a new one starts at once. While a robot boots its SYNs go
   unanswered and the OS retransmits them further and further apart (1.9 s
   apart on macOS after the first few; Windows doubles from 1 s), so a fresh
@@ -100,6 +100,38 @@ link died without closing:
   It orbits like the driver view (below) and also pans: two fingers, a right
   drag or ctrl/shift + drag; the crosshair button or switching Path/Field
   returns to the framed view.
+
+### Touchscreen deviations from the web
+
+The touchscreen copies `apps/comp` one to one except for these:
+
+- The Record tab and camera recording are dropped.
+- Auto tab: a realtime 3D preview replaces the GIF, with all its controls
+  (scrub bar, transport, chips, camera toggle, expand) inside the preview box.
+  Autos the robot lists that the export lacks get robot-only cards, and
+  unconfirmed autos get their own detail copy. A long description is clamped
+  to the lines that fit above Select (the web lets it push Select out of the
+  clipped column, so it could not be tapped).
+- Settings tab: the Autobahn column is dropped. Reconnect is always shown
+  (web: only while disconnected) and the header status shows the attempt
+  number and timing while not connected (web: only Connected/Disconnected).
+  Diagnostics and Autos columns (export summary, Reload Autos) follow the
+  web's columns.
+- Visual tab: Log Depth is dropped. Assets has Reload Models with its own
+  copy in place of Clear Cache & Hard Refresh. Performance (MSAA, Frame Cap,
+  Auto Quality), Displays (HUD and touchscreen display, Re-tile) and
+  Diagnostics (Touch Test, renderer readout) columns follow the web's columns,
+  through the same draft and Save. MSAA, Frame Cap and the display selectors
+  use text cells (Inter 600 24 px) in the web selector's 80 px cells, which
+  the web selector does not have.
+- The in-app keyboard (`PwKeyboard`) stands in for the OS keyboard.
+- Custom touch handling remains only for sliders, the selector, swipe
+  dismissal, orbit and pinch, tap-versus-drag on buttons and cards, and touch
+  scrolling on platforms that send only raw touches (Windows, Linux).
+- Monospace text is Roboto Mono instead of the platform mono stack.
+- The Robot 3D joints column, should it overflow, shows the 5 px accent bar
+  instead of Chromium's stock scrollbar.
+- A tab sliding out draws its 3D view once and holds that frame.
 
 ### Launch flags
 

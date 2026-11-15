@@ -73,7 +73,7 @@ func _ready() -> void:
 	cols.add_child(c1["panel"])
 
 	var c2 := UiKit.column("Connection", false)
-	timeout = PwSlider.new().configure({"label": "Reconnect Timeout", "min_value": float(ConnectionSettings.TIMEOUT_MIN_S),
+	timeout = PwSlider.new().configure({"label": "Reconnect Timeout", "min_value": float(ConnectionSettings.TIMEOUT_UI_MIN_S),
 		"max_value": float(ConnectionSettings.TIMEOUT_UI_MAX_S), "step": 1.0, "decimals": 0, "value_label": VALUE_LABEL,
 		"value": float(ConnectionSettings.DEFAULT_RECONNECT_TIMEOUT_S)})
 	timeout.name = "Timeout"

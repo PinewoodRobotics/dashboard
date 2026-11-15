@@ -12,6 +12,10 @@ extends Control
 enum Wrap { NONE, WORD, ANYWHERE }
 
 const NORMAL := -1.0
+## Chromium's `normal` line height is Inter's hhea ascender + |descender| over
+## its 2048 em; Godot measures the same file taller (44.25 vs 43.57
+## at 36 px), so the font's own metrics would push following content down.
+const INTER_NORMAL_EM := (1984.0 + 494.0) / 2048.0
 
 var text := "":
 	set(v):
@@ -64,8 +68,9 @@ func primary_font() -> Font:
 
 func line_px() -> float:
 	if line_height == NORMAL:
-		var f := primary_font()
-		return f.get_ascent(px) + f.get_descent(px)
+		if font == null:
+			return px * INTER_NORMAL_EM
+		return font.get_ascent(px) + font.get_descent(px)
 	return line_height if line_height > 0.0 else px * 1.5
 
 
