@@ -1,35 +1,38 @@
 class_name IntakePanel
-extends Control
+extends DrawerPanel
 
 ## Intake Speed panel (IntakeSpeedPanel.tsx + AimTrimSection.tsx): the intake
-## override slider with its status line and Reset, then the aim trim (reversed
-## slider, +-10 deg in 0.25 steps), Center, and the ten shooter readouts.
+## override slider with its status line and Reset, then the aim trim section
+## under a 2 px rule (reversed slider, +-10 deg in 0.25 steps, Center and the
+## ten shooter readouts).
 
 const SPEED_LABEL := "{v} — duty cycle sent to the intake motor"
+const STATUS_PX := 14
+const STATUS_LINE := 20.0
 
 var controls: ControlsService
-var scroll: PwScroll
 var speed: PwSlider
-var speed_status: Label
+var speed_status: PwText
 var reset: PwButton
 var trim: PwSlider
-var trim_status: Label
+var trim_status: PwText
 var center: PwButton
-var readout_values: Array[Label] = []
-var readout_labels: Array[Label] = []
+var readout_values: Array[PwText] = []
+var readout_labels: Array[PwText] = []
+
+
+func _init() -> void:
+	super("Intake Speed")
+	scroll.name = "IntakeScroll"
+
+
+static func status_text() -> PwText:
+	return PwText.new("", STATUS_PX, 400, Tokens.ZINC_400, STATUS_LINE)
 
 
 func _ready() -> void:
 	if controls == null:
 		controls = get_node_or_null("/root/Controls") as ControlsService
-	var col := UiKit.vbox(20)
-	col.add_child(UiKit.label("Intake Speed", 36, 500))
-	scroll = UiKit.vscroll()
-	scroll.name = "IntakeScroll"
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var body := UiKit.vbox(16)
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
 	speed = PwSlider.new().configure({"label": "Speed", "min_value": 0.0, "max_value": 1.0, "step": 0.01, "decimals": 2,
 		"value_label": SPEED_LABEL, "value": IntakeSpeed.FALLBACK_SPEED})
 	speed.name = "Speed"
@@ -37,7 +40,7 @@ func _ready() -> void:
 		if controls != null:
 			controls.intake.set_speed(v))
 	body.add_child(speed)
-	speed_status = UiKit.wrapped("", 16, Tokens.ZINC_400)
+	speed_status = status_text()
 	speed_status.name = "SpeedStatus"
 	body.add_child(speed_status)
 	reset = PwButton.new("Reset", PwButton.Style.OUTLINE_BLOCK)
@@ -46,37 +49,49 @@ func _ready() -> void:
 		if controls != null:
 			controls.intake.reset())
 	body.add_child(reset)
+	body.add_child(_aim_trim_section())
+	refresh()
 
-	var sep := PwRect.new()
-	sep.color = Tokens.OUTLINE
-	sep.custom_minimum_size = Vector2(0, 2)
-	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	body.add_child(sep)
 
+func _aim_trim_section() -> Control:
+	var section := PanelContainer.new()
+	section.name = "AimTrimSection"
+	section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := PwBox.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = Tokens.OUTLINE
+	sb.border_width_top = 2
+	sb.content_margin_top = 2 + 20
+	section.add_theme_stylebox_override("panel", sb)
+	var col := UiKit.vbox(16)
+
+	var slider_box := UiKit.vbox(4)
 	trim = PwSlider.new().configure({"label": "Aim Trim", "min_value": -AimTrim.LIMIT_DEG, "max_value": AimTrim.LIMIT_DEG,
 		"step": AimTrim.STEP_DEG, "reversed": true, "format_value": AimTrim.format, "value_label": "{v}", "value": 0.0})
 	trim.name = "AimTrim"
 	trim.value_changed.connect(func(v: float) -> void:
 		if controls != null:
 			controls.trim.set_trim(v))
-	body.add_child(trim)
-	var captions := UiKit.hbox(4)
-	captions.add_child(PwIcon.new("chevron-left", 16, Tokens.ZINC_400))
-	var left := UiKit.label("Aim left", 14, 400, Tokens.ZINC_400)
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	captions.add_child(left)
-	captions.add_child(UiKit.label("Aim right", 14, 400, Tokens.ZINC_400))
-	captions.add_child(PwIcon.new("chevron-right", 16, Tokens.ZINC_400))
-	body.add_child(captions)
-	trim_status = UiKit.wrapped("", 16, Tokens.ZINC_400)
+	slider_box.add_child(trim)
+	var captions := UiKit.hbox(0)
+	captions.add_child(_caption("Aim left", "chevron-left", true))
+	var gap := Control.new()
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	captions.add_child(gap)
+	captions.add_child(_caption("Aim right", "chevron-right", false))
+	slider_box.add_child(captions)
+	col.add_child(slider_box)
+
+	trim_status = status_text()
 	trim_status.name = "TrimStatus"
-	body.add_child(trim_status)
+	col.add_child(trim_status)
 	center = PwButton.new("Center (0°)", PwButton.Style.OUTLINE_BLOCK)
 	center.name = "Center"
 	center.pressed.connect(func() -> void:
 		if controls != null:
 			controls.trim.center())
-	body.add_child(center)
+	col.add_child(center)
 
 	var grid := GridContainer.new()
 	grid.name = "Readouts"
@@ -86,13 +101,23 @@ func _ready() -> void:
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for row: Array in ShooterReadouts.ROWS:
 		grid.add_child(_readout_cell(str(row[0])))
-	body.add_child(grid)
+	col.add_child(grid)
+	section.add_child(col)
+	return section
 
-	scroll.add_child(UiKit.margin(body, 0, 0, 10, 0))
-	(scroll.get_child(0) as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(scroll)
-	add_child(UiKit.full(col))
-	refresh()
+
+static func _caption(text: String, icon: String, icon_first: bool) -> Control:
+	var row := UiKit.hbox(4)
+	var icon_ctl := PwIcon.new(icon, 16, Tokens.ZINC_400)
+	icon_ctl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var label := PwText.new(text, STATUS_PX, 400, Tokens.ZINC_400, STATUS_LINE)
+	label.wrap = PwText.Wrap.NONE
+	if icon_first:
+		row.add_child(icon_ctl)
+	row.add_child(label)
+	if not icon_first:
+		row.add_child(icon_ctl)
+	return row
 
 
 func _readout_cell(caption: String) -> Control:
@@ -102,16 +127,18 @@ func _readout_cell(caption: String) -> Control:
 	sb.border_color = Tokens.HAIRLINE
 	sb.border_width_bottom = 1
 	sb.content_margin_top = 2
-	sb.content_margin_bottom = 2
+	sb.content_margin_bottom = 2 + 1
 	cell.add_theme_stylebox_override("panel", sb)
 	cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var row := UiKit.hbox(8)
-	var l := UiKit.label(caption, 14, 400, Tokens.ZINC_400)
+	var l := PwText.new(caption, STATUS_PX, 400, Tokens.ZINC_400, STATUS_LINE)
+	l.wrap = PwText.Wrap.NONE
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(l)
-	var v := UiKit.label(ShooterReadouts.MISSING, 14, 400, Tokens.TEXT)
-	v.add_theme_font_override("font", Tokens.mono())
+	var v := PwText.new(ShooterReadouts.MISSING, STATUS_PX, 400, Tokens.TEXT, STATUS_LINE)
+	v.wrap = PwText.Wrap.NONE
+	v.font = Tokens.mono()
 	v.name = "Value_" + caption.replace(" ", "")
 	row.add_child(v)
 	cell.add_child(row)

@@ -75,13 +75,40 @@ func configure(opts: Dictionary) -> PwSlider:
 	return self
 
 
-static func _line_h(weight: int, px: int) -> float:
+## Every text line of CustomSlider has the page's 1.5 line height
+## (leading-normal on the label and value, inherited by the hint).
+static func _line_h(_weight: int, px: int) -> float:
+	return px * 1.5
+
+
+## Baseline of `px` text in its line box starting at `top` (glyphs centered).
+static func _baseline(weight: int, px: int, top: float) -> float:
 	var f := Tokens.inter(weight)
-	return f.get_ascent(px) + f.get_descent(px)
+	return roundf(top + (_line_h(weight, px) - f.get_ascent(px) - f.get_descent(px)) * 0.5 + f.get_ascent(px))
 
 
 func _update_min_size() -> void:
-	custom_minimum_size.y = _bar_top() + bar_height + (GAP + _line_h(400, HINT_PX) if not hints.is_empty() else 0.0)
+	var hint_n := _hint_lines().size()
+	var h := _bar_top() + bar_height + (GAP + hint_n * _line_h(400, HINT_PX) if hint_n > 0 else 0.0)
+	if not is_equal_approx(custom_minimum_size.y, h):
+		custom_minimum_size.y = h
+
+
+func _value_lines() -> PackedStringArray:
+	if value_label == "" or value_beside:
+		return PackedStringArray()
+	return PwText.wrap_lines(_interpolate(value_label), Tokens.inter(500), VALUE_PX, size.x)
+
+
+func _hint_lines() -> PackedStringArray:
+	if hints.is_empty():
+		return PackedStringArray()
+	return PwText.wrap_lines(_interpolate(hint_for(value, hints)), Tokens.inter(400), HINT_PX, size.x)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_update_min_size()
 
 
 func _value_top() -> float:
@@ -89,7 +116,8 @@ func _value_top() -> float:
 
 
 func _bar_top() -> float:
-	return _value_top() + (_line_h(500, VALUE_PX) + GAP if value_label != "" and not value_beside else 0.0)
+	var n := _value_lines().size()
+	return _value_top() + (n * _line_h(500, VALUE_PX) + GAP if n > 0 else 0.0)
 
 
 func bar_rect() -> Rect2:
@@ -166,6 +194,7 @@ func set_value(v: float, emit: bool = false) -> void:
 	else:
 		_fill.retarget(fraction(), Tokens.MOTION_SLIDER_FILL_S, Easing.css_ease_out)
 	_sync_dots(true)
+	_update_min_size()
 	_kick()
 	if emit:
 		value_changed.emit(value)
@@ -267,14 +296,13 @@ func _draw() -> void:
 	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	if label != "":
-		var f := Tokens.inter(500)
-		UiDraw.text(self, f, Vector2(0, roundf(f.get_ascent(label_size))), label, label_size, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, label_size, 0.0)), label, label_size, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
 	if value_label != "" and value_beside:
-		var f := Tokens.inter(500)
-		UiDraw.text(self, f, Vector2(0, roundf(f.get_ascent(label_size))), _interpolate(value_label), label_size, Color(1, 1, 1, 0.6 * a), HORIZONTAL_ALIGNMENT_RIGHT, size.x)
-	elif value_label != "":
-		var f := Tokens.inter(500)
-		UiDraw.text(self, f, Vector2(0, roundf(_value_top() + f.get_ascent(VALUE_PX))), _interpolate(value_label), VALUE_PX, Color(1, 1, 1, 0.7 * a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, label_size, 0.0)), _interpolate(value_label), label_size, Color(1, 1, 1, 0.6 * a), HORIZONTAL_ALIGNMENT_RIGHT, size.x)
+	else:
+		var lines := _value_lines()
+		for i in lines.size():
+			UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, VALUE_PX, _value_top() + i * _line_h(500, VALUE_PX))), lines[i], VALUE_PX, Color(1, 1, 1, 0.7 * a))
 	var bar := bar_rect()
 	UiDraw.rect(ci, bar, _faded(_track_bg.value(), a))
 	var inner := bar.grow(-Tokens.BORDER)
@@ -291,9 +319,9 @@ func _draw() -> void:
 		var col := _faded((d["color"] as ColorAnim).value(), a * (d["alpha"] as UiAnim).value)
 		UiDraw.circle(ci, Vector2(x, inner.get_center().y), DOT * 0.5, col)
 	UiDraw.frame(ci, bar, _faded(_border.value(), a), Tokens.BORDER)
-	if not hints.is_empty():
-		var f := Tokens.inter(400)
-		UiDraw.text(self, f, Vector2(0, roundf(bar.end.y + GAP + f.get_ascent(HINT_PX))), _interpolate(hint_for(value, hints)), HINT_PX, Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, size.x)
+	var hint := _hint_lines()
+	for i in hint.size():
+		UiDraw.text(self, Tokens.inter(400), Vector2(0, _baseline(400, HINT_PX, bar.end.y + GAP + i * _line_h(400, HINT_PX))), hint[i], HINT_PX, Color(1, 1, 1, a))
 
 
 static func _faded(c: Color, a: float) -> Color:

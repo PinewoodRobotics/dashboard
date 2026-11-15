@@ -13,7 +13,7 @@ const RESET_SENTINEL := -1.0
 const FALLBACK_SPEED := 0.15
 const CONFIRM_EPS := 0.005
 
-const STATUS_DISCONNECTED := "Robot not connected - value is sent when it reconnects"
+const STATUS_DISCONNECTED := "Robot not connected — value is sent when it reconnects"
 const STATUS_CONSTANT := "Using the robot's compiled constant"
 const STATUS_CONFIRMED := "Robot confirmed this speed"
 const STATUS_WAITING := "Waiting for the robot to confirm"

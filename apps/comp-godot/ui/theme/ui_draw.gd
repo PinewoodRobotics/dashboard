@@ -298,3 +298,23 @@ static func text_tracked(owner: CanvasItem, font: Font, pos: Vector2, s: String,
 static func layer_label(l: Label) -> void:
 	if is_instance_valid(l) and l.is_inside_tree():
 		l.z_index = text_z(l.get_theme_font(&"font"))
+
+
+static func _corner_mask_cell(r: int) -> Rect2i:
+	return _raster("cornermask%d" % r, r, r, func(p: Vector2) -> float:
+		return 1.0 - _cov(p.distance_to(Vector2(r, r)) - r))
+
+
+## Paints `color` outside a `radius` rounding at the four corners of r: over a
+## flat background of that color it rounds whatever was drawn inside r (the
+## web's rounded overflow-hidden boxes around images and 3D views).
+static func corner_mask(ci: RID, r: Rect2, radius: float, color: Color) -> void:
+	var c := _fit_radius(r, radius)
+	if c <= 0 or color.a <= 0.0:
+		return
+	var src := Rect2(_corner_mask_cell(c))
+	var s := Vector2(c, c)
+	RenderingServer.canvas_item_add_texture_rect_region(ci, Rect2(r.position, s), _rid(), src, color)
+	RenderingServer.canvas_item_add_texture_rect_region(ci, Rect2(Vector2(r.end.x, r.position.y), Vector2(-c, c)), _rid(), src, color)
+	RenderingServer.canvas_item_add_texture_rect_region(ci, Rect2(Vector2(r.position.x, r.end.y), Vector2(c, -c)), _rid(), src, color)
+	RenderingServer.canvas_item_add_texture_rect_region(ci, Rect2(r.end, -s), _rid(), src, color)

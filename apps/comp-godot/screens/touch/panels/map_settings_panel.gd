@@ -1,5 +1,5 @@
 class_name MapSettingsPanel
-extends Control
+extends DrawerPanel
 
 ## MapSettingsPanel.tsx: writes Settings.map immediately; the HUD minimap
 ## reads the same dictionary every frame, so it follows with no restart.
@@ -25,19 +25,16 @@ var mode: PwSelector
 var angle: PwSlider
 var zoom: PwSlider
 var reset: PwButton
-var scroll: PwScroll
+
+
+func _init() -> void:
+	super("Map Settings")
+	scroll.name = "MapScroll"
 
 
 func _ready() -> void:
 	if settings == null:
 		settings = get_node_or_null("/root/Settings") as SettingsService
-	var col := UiKit.vbox(20)
-	col.add_child(UiKit.label("Map Settings", 36, 500))
-	scroll = UiKit.vscroll()
-	scroll.name = "MapScroll"
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var body := UiKit.vbox(20)
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var m := settings.map()
 	mode = PwSelector.new().configure("Mode", MODE_OPTIONS, m["mode"])
 	mode.name = "Mode"
@@ -55,10 +52,6 @@ func _ready() -> void:
 	reset.name = "Reset"
 	reset.pressed.connect(func() -> void: settings.reset("map"))
 	body.add_child(reset)
-	scroll.add_child(UiKit.margin(body, 0, 0, 10, 0))
-	(scroll.get_child(0) as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(scroll)
-	add_child(UiKit.full(col))
 	settings.changed.connect(_on_changed)
 
 

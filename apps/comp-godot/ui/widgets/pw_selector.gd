@@ -84,8 +84,12 @@ static func nearest_cell(highlight_x: float, n: int) -> int:
 
 
 static func _line_h(px: int) -> float:
-	var f := Tokens.inter(400)
-	return f.get_ascent(px) + f.get_descent(px)
+	return px * 1.5
+
+
+static func _baseline(weight: int, px: int, top: float) -> float:
+	var f := Tokens.inter(weight)
+	return roundf(top + (_line_h(px) - f.get_ascent(px) - f.get_descent(px)) * 0.5 + f.get_ascent(px))
 
 
 ## The cells are `touch-action: none` in the web: a stroke that starts on them
@@ -178,7 +182,7 @@ func _draw() -> void:
 	var ci := get_canvas_item()
 	var a := 0.5 if disabled else 1.0
 	if label != "":
-		UiDraw.text(self, Tokens.inter(500), Vector2(0, roundf(Tokens.inter(500).get_ascent(LABEL_PX))), label, LABEL_PX, Color(1, 1, 1, a))
+		UiDraw.text(self, Tokens.inter(500), Vector2(0, _baseline(500, LABEL_PX, 0.0)), label, LABEL_PX, Color(1, 1, 1, a))
 	var top := _cells_top()
 	for i in options.size():
 		var r := Rect2(i * STRIDE, top, CELL, CELL)

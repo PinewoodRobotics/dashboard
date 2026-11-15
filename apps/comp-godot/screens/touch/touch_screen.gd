@@ -523,7 +523,7 @@ func probe() -> Dictionary:
 		var rows := {}
 		for key: String in (content as Robot3DTab).rows:
 			var r: Dictionary = (content as Robot3DTab).rows[key]
-			rows[key] = {"disabled": (r["slider"] as PwSlider).disabled, "value": (r["slider"] as PwSlider).value, "source": (r["source"] as Label).text}
+			rows[key] = {"disabled": (r["slider"] as PwRange).disabled, "value": float((r["value"] as PwText).text), "source": (r["source"] as PwText).text}
 		var v := (content as Robot3DTab).view
 		var t := v.cam.target
 		rows["camera"] = {"theta": v.cam.theta, "phi": v.cam.phi, "dist": v.cam.dist, "target": [t.x, t.y, t.z]}

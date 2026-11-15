@@ -61,7 +61,7 @@ func test_reset_publishes_sentinel_and_clears() -> void:
 
 func test_status_texts_and_slider_value() -> void:
 	var c := IntakeSpeed.new(link, T)
-	check_eq(c.status(), "Robot not connected - value is sent when it reconnects")
+	check_eq(c.status(), "Robot not connected — value is sent when it reconnects")
 	check_eq(c.slider_value(), 0.15, "fallback before anything is known")
 	link.up = true
 	link.values[T["state"]] = 0.5
@@ -77,7 +77,7 @@ func test_status_texts_and_slider_value() -> void:
 	check_eq(c.robot_speed(), null, "non-finite State is unusable")
 	check_eq(c.slider_value(), 0.42)
 	link.up = false
-	check_eq(c.status(), "Robot not connected - value is sent when it reconnects")
+	check_eq(c.status(), "Robot not connected — value is sent when it reconnects")
 
 
 func test_settings_normalize_controls() -> void:

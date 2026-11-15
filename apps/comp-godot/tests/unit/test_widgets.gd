@@ -80,7 +80,7 @@ func test_slider_tap_changes_nothing_and_drag_is_relative() -> void:
 func test_slider_press_is_green_at_once_and_follows_from_the_first_pixel() -> void:
 	var s := _add(PwSlider.new().configure({"label": "Angle", "min_value": 0.0, "max_value": 1.0, "value": 0.5})) as PwSlider
 	var top := s.bar_rect().position.y
-	check_near(top, 29.0 + 8.0, 0.5, "label line (Inter 24 normal) plus 8 px gap above the track")
+	check_near(top, 36.0 + 8.0, 0.5, "label line (24 px, leading-normal 1.5) plus 8 px gap above the track")
 	s._gui_input(_btn(Vector2(200, 10), true, true))
 	check(not s.dragging, "the label is not part of the track")
 	check(not s.touch_action_none(Vector2(200, 10)) and s.touch_action_none(Vector2(200, top + 24)), "only the track blocks touch scrolling")
@@ -136,7 +136,7 @@ func test_selector_math_and_input() -> void:
 
 func test_selector_window_follows_from_the_first_pixel_and_commits_the_hint() -> void:
 	var sel := _add(PwSelector.new().configure("Mode", MapSettingsPanel.MODE_OPTIONS, "follow")) as PwSelector
-	check_near(sel._cells_top(), 37.0, 0.5, "label line 29 px plus 8 px gap")
+	check_near(sel._cells_top(), 44.0, 0.5, "label line 36 px plus 8 px gap")
 	sel._gui_input(_btn(Vector2(100, 70), true, true))
 	sel._gui_input(_mv(Vector2(98, 70), true))
 	check_eq(sel.highlight_x(), 74.0, "2 px of travel moves the window 2 px")
