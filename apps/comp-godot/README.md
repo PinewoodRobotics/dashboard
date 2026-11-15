@@ -94,8 +94,9 @@ link died without closing:
   pose ("Start pose off by 1.37 m / 135°", green within 0.15 m and 8°). The HUD
   shows the same chip under the auto name before the match.
 - The preview's expand button (top right) hides the list and the detail pane.
-  Drag orbits, pinch or the mouse wheel zooms, two fingers (or a right drag)
-  pan; the crosshair button or switching Path/Field returns to the framed view.
+  It orbits like the driver view (below) and also pans: two fingers, a right
+  drag or ctrl/shift + drag; the crosshair button or switching Path/Field
+  returns to the framed view.
 
 ### Launch flags
 
@@ -230,7 +231,7 @@ All scripts live in `tools/test/` and clean up the processes they start.
 | `run_integration.sh` | NT4 client, telemetry, HUD and controls against `tools/sim/fake_robot.py` (real ntcore); time to READY through `tools/sim/net_proxy.py` for refused connects, dropped SYNs, a hung upgrade, a silently dead link and a fake-robot restart (within 1.5 s; the hung upgrade within the connect timeout), and Reconnect from every client state | 4 min |
 | `run_screenshots.sh` | 3D views, joints, mesh sharing, startup timing (windowed) | 1 min |
 | `run_hud_screenshots.sh` | every HUD state at 1920x1080 with pixel probes and geometry checks | 1 min |
-| `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, drag scrolling of the panels and tabs (touch and mouse, strokes starting on sliders and buttons), restart persistence, the touch test | 2 min |
+| `run_touch_screenshots.sh` | every touchscreen tab, panel and widget, scripted touch input, scrolling of the panels and tabs (touch drags including strokes starting on sliders and buttons, wheel and trackpad events, mouse drags that must not scroll), orbit glide and zoom, restart persistence, the touch test | 2 min |
 | `run_preview_checks.sh` | auto preview real-time playback, scrubbing, HUD mirroring, expand and touch orbit, start pose chips, robot-only autos, a user-folder export, a broken one, the export age and robot hash warnings, the log comparison selftest | 3 min |
 | `run_perf.sh` | frame time, draw calls and primitives over a whole 8x fake match with both windows and the preview playing (reported, not budgeted); render scale 0.5 halves the 3D resolution; the auto quality fallback under a simulated fill-bound GPU; the driver-station benchmark end to end | 3 min |
 | `run_two_process.sh` | `--screen=hud` and `--screen=touch` as two processes, only touch publishes | 20 s |
@@ -314,6 +315,19 @@ their first keyframe, transitions retarget. A started slide or transition
 been drawn and only then starts its clock, and a slow frame advances it by at
 most 1/30 s, so building a tab or panel on first open never eats its 200 ms
 slide (the browser starts compositor animations at the first painted frame).
+
+Scrolling is the OS's, as in the browser: the mouse wheel (100 px a notch,
+40 px a macOS line) and trackpad or macOS touch scrolling (pan gestures, with
+the OS's momentum) scroll the innermost scroller that can still move along the
+gesture, and a mouse drag on content never scrolls; the 5 px bar is reserved
+beside the content and its thumb drags. Touchscreens that report only touches
+(Windows, Linux) get Chromium's touch scrolling instead (`PwScroll` drags past
+the tap slop, then `TouchFling` replays Chromium's fling curve).
+The 3D views orbit like the web's three.js OrbitControls with the web's tuning
+(`OrbitCamera`, `OrbitInput`): a damped rotation pool (0.08 per update, so a
+drag glides on), wheel and trackpad scroll zoom, pinch zoom, middle-drag dolly;
+the driver view has no pan, the Robot 3D tab pans (right drag, ctrl/shift +
+drag, two fingers).
 
 The fonts are static Inter (300 to 700) and Roboto Mono (400, 500) weights cut
 from the upstream variable fonts with their overlaps removed, imported as MSDF
