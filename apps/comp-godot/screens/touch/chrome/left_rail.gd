@@ -5,7 +5,7 @@ extends Control
 ## buttons 48 px apart from 30 px padding, the driver-base button and the
 ## user's tabs from the top, the dock toggle at the bottom. Pinned tabs never
 ## shrink: past five they run under the dock toggle and out of the rail, as on
-## the web.
+## the web. Its owner sets the height; the dock toggle sits at the bottom.
 
 signal home_tapped
 signal dock_tapped
@@ -20,13 +20,19 @@ var dnd: TouchDnd
 var home: TabIcon
 var dock_toggle: TabIcon
 var items: Array[TabIcon] = []
+var height := 0.0:
+	set(v):
+		height = v
+		size = Vector2(Tokens.RAIL_W, v)
+		if is_node_ready():
+			layout()
 
 
 func _ready() -> void:
 	name = "LeftRail"
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	clip_contents = true
-	size = Vector2(Tokens.RAIL_W, Tokens.TOUCH_DESIGN.y)
+	size = Vector2(Tokens.RAIL_W, height)
 	home = TabIcon.new(TabDefs.HOME_INFO)
 	home.name = "Home"
 	home.tapped.connect(func() -> void: home_tapped.emit())

@@ -44,6 +44,7 @@ func _init() -> void:
 	cam.configure(ORBIT)
 	cam.idle_return = false
 	add_to_group("pw_grab")
+	add_to_group("pw_swipe_veto")
 
 
 func _setup() -> void:

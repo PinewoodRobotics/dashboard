@@ -33,6 +33,7 @@ var _pressed := false
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	add_to_group("pw_grab")
+	add_to_group("pw_swipe_veto")
 	custom_minimum_size = Vector2(0, 92)
 
 

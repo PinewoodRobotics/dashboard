@@ -6,10 +6,18 @@ extends RefCounted
 ## swipe direction, otherwise it is rejected for the rest of the touch. While
 ## tracking, delta follows the main axis clamped to [0, dimension]. Release
 ## commits at 35% of the dimension or 0.5 px/ms over the last 5 tracked moves.
+##
+## A slider or selector under the press stops some moves from reaching the
+## swipe, as their touchmove stopPropagation does on the web. A selector
+## (CustomSelector.tsx) lets only its first decided move through, and only if
+## it is vertical, so a swipe down started on it moves one step and snaps
+## back. A slider (CustomSlider.tsx) stops every move once one has gone more
+## sideways than vertical.
 
 enum Dir { DOWN, RIGHT }
 enum State { IDLE, PENDING, TRACKING, REJECTED }
 enum Outcome { NONE, COMMIT, SNAP_BACK }
+enum Widget { NONE, SLIDER, SELECTOR }
 
 const INTENT_PX := 8.0
 const COMMIT_FRACTION := 0.35
@@ -22,6 +30,9 @@ var state := State.IDLE
 var delta := 0.0
 var _start := Vector2.ZERO
 var _samples: Array = []
+var _widget := Widget.NONE
+var _widget_decided := false
+var _widget_horizontal := false
 
 
 func _init(direction: Dir = Dir.DOWN, dim: float = 515.0) -> void:
@@ -29,26 +40,45 @@ func _init(direction: Dir = Dir.DOWN, dim: float = 515.0) -> void:
 	dimension = dim
 
 
-## ctx: {"scroll_not_at_top": bool, "on_horizontal_widget": bool, "on_grab_widget": bool}
+## ctx: {"scroll_not_at_top": bool, "widget": Widget, "vetoed": bool}
 func begin(pos: Vector2, t_ms: float, ctx: Dictionary = {}) -> void:
 	_start = pos
 	delta = 0.0
 	_samples = []
+	_widget = ctx.get("widget", Widget.NONE)
+	_widget_decided = false
+	_widget_horizontal = false
 	state = State.REJECTED if blocks(dir, ctx) else State.PENDING
 
 
 static func blocks(direction: Dir, ctx: Dictionary) -> bool:
-	if ctx.get("on_grab_widget", false):
+	if ctx.get("vetoed", false):
 		return true
-	if direction == Dir.DOWN:
-		return ctx.get("scroll_not_at_top", false)
-	return ctx.get("on_horizontal_widget", false)
+	return direction == Dir.DOWN and ctx.get("scroll_not_at_top", false)
+
+
+func _widget_stops(d: Vector2) -> bool:
+	match _widget:
+		Widget.SELECTOR:
+			if _widget_decided:
+				return true
+			if absf(d.x) < INTENT_PX and absf(d.y) < INTENT_PX:
+				return false
+			_widget_decided = true
+			return absf(d.x) > absf(d.y)
+		Widget.SLIDER:
+			if not _widget_horizontal and (absf(d.x) >= INTENT_PX or absf(d.y) >= INTENT_PX):
+				_widget_horizontal = absf(d.x) > absf(d.y)
+			return _widget_horizontal
+	return false
 
 
 func move(pos: Vector2, t_ms: float) -> State:
 	if state == State.IDLE or state == State.REJECTED:
 		return state
 	var d := pos - _start
+	if _widget_stops(d):
+		return state
 	var main := d.y if dir == Dir.DOWN else d.x
 	var cross := d.x if dir == Dir.DOWN else d.y
 	if state == State.PENDING:

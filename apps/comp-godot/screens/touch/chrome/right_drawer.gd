@@ -10,7 +10,8 @@ extends Control
 ## 4 px backdrop blur under black at 50% (black at 90% with blur off), over a
 ## tab it is opaque black. Width and the 4 px inset accent edge are CSS
 ## transitions (200 ms ease) keyed to the open panel. A swipe translates the
-## whole panel; a committed swipe closes it with no transition.
+## whole panel; a committed swipe closes it with no transition. Its owner
+## sets the height.
 
 signal panel_tapped(id: String)
 signal swipe_committed
@@ -29,6 +30,12 @@ var body: Control
 var panels := {}
 var factory: Callable
 var right_edge := Tokens.TOUCH_DESIGN.x
+var height := 0.0:
+	set(v):
+		height = v
+		if is_node_ready():
+			_size_body()
+			_place()
 var over_driver := true:
 	set(v):
 		if v != over_driver:
@@ -67,12 +74,18 @@ func _ready() -> void:
 	body.name = "Body"
 	body.clip_contents = true
 	body.position = Vector2(Tokens.DRAWER_PAD + Tokens.DRAWER_ICON_COL + Tokens.DRAWER_GAP, Tokens.DRAWER_PAD)
-	body.size = Vector2(Tokens.DRAWER_W - body.position.x - Tokens.DRAWER_PAD, Tokens.TOUCH_DESIGN.y - 2 * Tokens.DRAWER_PAD)
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(body)
+	_size_body()
 	_sync_background()
 	refresh()
 	_place()
+
+
+func _size_body() -> void:
+	body.size = Vector2(Tokens.DRAWER_W - body.position.x - Tokens.DRAWER_PAD, maxf(height - 2 * Tokens.DRAWER_PAD, 0.0))
+	for id: String in panels:
+		(panels[id] as Control).size = body.size
 
 
 ## Follows the open panel: animated, or at once after a committed swipe.
@@ -133,7 +146,7 @@ func step(dt: float) -> void:
 func _place() -> void:
 	var w := width.value
 	position = Vector2(right_edge - w + swipe_dx.value, 0)
-	size = Vector2(w, Tokens.TOUCH_DESIGN.y)
+	size = Vector2(w, height)
 	if _blur != null:
 		_blur.size = size
 

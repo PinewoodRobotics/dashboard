@@ -97,6 +97,7 @@ func toggle_panel(id: String) -> void:
 func close_panel_immediate() -> void:
 	if open_panel == "":
 		return
+	_begin_dock_close()
 	open_panel = ""
 	skip_panel_anim = true
 	changed.emit()

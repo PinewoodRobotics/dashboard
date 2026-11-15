@@ -7,12 +7,11 @@ extends Control
 ## NT Disconnected pill, on-screen keyboard. TouchLayoutState holds the state;
 ## the chrome components animate themselves from it, this node places them,
 ## slides the app layers, routes swipe gestures and keeps at most one touch 3D
-## view rendering (the HUD minimap is the other).
+## view rendering (the HUD minimap is the other). A tab sliding out is a fresh
+## instance, as the web remounts it (key=exit-X): its 3D views draw one frame.
 
 const H := 515.0
 const PILL_BOTTOM := 24.0
-## A frame longer than this advances the chrome's motion by only this much.
-const MAX_STEP_S := 1.0 / 30.0
 
 var state := TouchLayoutState.new()
 var settings: SettingsService
@@ -27,7 +26,7 @@ var ghost: DragGhost
 var keyboard: PwKeyboard
 var pill: NtPill
 var dnd: TouchDnd
-## Tab id -> {"node": Control, "y": UiAnim}; includes tabs sliding out.
+## Tab id -> {"node": Control, "y": UiAnim, "exit": bool}; includes tabs sliding out.
 var overlays := {}
 ## Extra overlay ids only Dev fixtures open (widget gallery).
 var dev_tabs := {}
@@ -84,6 +83,7 @@ func _ready() -> void:
 	add_child(dnd)
 
 	rail = LeftRail.new()
+	rail.height = H
 	rail.z_index = UiDraw.LAYER_Z
 	rail.state = state
 	rail.dnd = dnd
@@ -92,6 +92,7 @@ func _ready() -> void:
 	add_child(rail)
 
 	drawer = RightDrawer.new()
+	drawer.height = H
 	drawer.z_index = UiDraw.LAYER_Z
 	drawer.state = state
 	drawer.factory = _make_panel
@@ -194,17 +195,21 @@ func _on_lists_changed() -> void:
 func _on_state_changed() -> void:
 	if state.active_tab != _shown_active:
 		var skip_exit := state.take_skip_exit_anim()
+		for id: String in overlays.keys():
+			if overlays[id]["exit"]:
+				_free_overlay(id, false)
 		if _shown_active != "" and overlays.has(_shown_active):
-			if skip_exit:
-				_free_overlay(_shown_active)
-			else:
-				(overlays[_shown_active]["y"] as UiAnim).play(0.0, H, Tokens.MOTION_OVERLAY_S)
+			_free_overlay(_shown_active, false)
+			if not skip_exit:
+				var leaving := _create_overlay(_shown_active, 0.0)
+				leaving["exit"] = true
+				for v: CadView in _views(leaving):
+					v.viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+				(leaving["y"] as UiAnim).play(0.0, layer_height(), Tokens.MOTION_OVERLAY_S)
 		if state.active_tab != "":
-			var entry: Dictionary = overlays.get(state.active_tab, {})
-			if entry.is_empty():
-				entry = _create_overlay(state.active_tab)
+			var entry := _create_overlay(state.active_tab, layer_height())
 			overlay_layer.move_child(entry["node"], -1)
-			(entry["y"] as UiAnim).play(H, 0.0, Tokens.MOTION_OVERLAY_S)
+			(entry["y"] as UiAnim).play(layer_height(), 0.0, Tokens.MOTION_OVERLAY_S)
 			_place_overlay(entry)
 		_entry_done = false
 		_overlay_commit = false
@@ -234,7 +239,7 @@ func _on_state_changed() -> void:
 	_layout()
 
 
-func _create_overlay(id: String) -> Dictionary:
+func _create_overlay(id: String, y: float) -> Dictionary:
 	var holder := Control.new()
 	holder.name = "Overlay_" + id
 	holder.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -247,19 +252,21 @@ func _create_overlay(id: String) -> Dictionary:
 	content.name = "Content"
 	holder.add_child(UiKit.full(content))
 	overlay_layer.add_child(holder)
-	var entry := {"node": holder, "y": UiAnim.new(H, true)}
+	var entry := {"node": holder, "y": UiAnim.new(y, true), "exit": false}
 	overlays[id] = entry
 	_place_overlay(entry)
 	return entry
 
 
-func _free_overlay(id: String) -> void:
+func _free_overlay(id: String, clear_prev: bool = true) -> void:
 	var entry: Dictionary = overlays.get(id, {})
 	if entry.is_empty():
 		return
 	overlays.erase(id)
-	(entry["node"] as Control).queue_free()
-	if state.prev_tab == id:
+	var node: Control = entry["node"]
+	overlay_layer.remove_child(node)
+	node.queue_free()
+	if clear_prev and state.prev_tab == id:
 		state.clear_prev_tab()
 
 
@@ -278,11 +285,16 @@ func overlay_rect() -> Rect2:
 	return Rect2(Tokens.RAIL_W, 0, Tokens.TOUCH_DESIGN.x - Tokens.RAIL_W - drawer.occupied_width(), H)
 
 
+## App layers slide by their own height (translateY(100%)).
+func layer_height() -> float:
+	return overlay_rect().size.y
+
+
 func _place_overlay(entry: Dictionary) -> void:
 	var r := overlay_rect()
 	var node: Control = entry["node"]
 	node.position = Vector2(r.position.x, (entry["y"] as UiAnim).value)
-	node.size = Vector2(r.size.x, H)
+	node.size = r.size
 	# The rail and drawer share the overlays' z, so their shapes batch with
 	# the overlay's; overlay text sits above them and must not spill under
 	# the open drawer.
@@ -295,7 +307,7 @@ func entry_done() -> bool:
 
 
 func _process(delta: float) -> void:
-	step(minf(delta, MAX_STEP_S))
+	step(delta)
 
 
 func step(dt: float) -> void:
@@ -311,7 +323,7 @@ func step(dt: float) -> void:
 				state.dismiss_overlay_immediate()
 			elif finished and y.value <= 0.0:
 				_entry_done = true
-		elif not y.running and y.value >= H:
+		elif not y.running and y.value >= layer_height():
 			_free_overlay(id)
 	dock.step(dt)
 	rail.step(dt)
@@ -344,12 +356,15 @@ func _update_rendering() -> void:
 	driver.visible = swiping_overlay or not entry_done()
 	driver.set_rendering(driver_visible)
 	for id: String in overlays:
-		var content := tab_content(id)
-		if content == null:
+		if overlays[id]["exit"]:
 			continue
 		var on := id == state.active_tab and not swiping_overlay
-		for v: CadView in content.find_children("*", "CadView", true, false):
+		for v: CadView in _views(overlays[id]):
 			v.set_rendering(on)
+
+
+func _views(entry: Dictionary) -> Array[Node]:
+	return (entry["node"] as Node).find_children("*", "CadView", true, false)
 
 
 func _on_catcher_input(event: InputEvent) -> void:
@@ -362,8 +377,10 @@ func _on_catcher_input(event: InputEvent) -> void:
 
 ## Touch only, like the web's touch listeners: swipe down on the active app
 ## layer dismisses it, swipe right on the open drawer closes it. Events are
-## observed, not consumed; sliders and selectors keep horizontal drags (they
-## stop propagation on the web) and 3D views keep theirs.
+## observed, not consumed. Sliders and selectors hide some moves from the swipe
+## as their stopPropagation does on the web; the Auto preview, its scrub bar
+## and the keyboard veto it (pw_swipe_veto). The Robot 3D view does not: on the
+## web a vertical drag there both orbits and dismisses.
 func _input(event: InputEvent) -> void:
 	var p := PointerInput.from_event(event)
 	if p.kind == PointerInput.Kind.NONE:
@@ -407,25 +424,27 @@ func _begin_swipe(pos: Vector2, t: float) -> void:
 	if rail.get_global_rect().has_point(pos) or catcher.visible:
 		return
 	if entry_done() and overlay_rect().has_point(pos):
-		_swipe = SwipeRecognizer.new(SwipeRecognizer.Dir.DOWN, H)
+		_swipe = SwipeRecognizer.new(SwipeRecognizer.Dir.DOWN, layer_height())
 		_swipe.begin(pos, t, gesture_context(overlay_node(state.active_tab), pos))
 		_swipe_target = "overlay"
 
 
-## What lies under the press inside `root`: horizontal-drag widgets, grab
-## widgets (3D views, keyboard) and scroll containers scrolled away from the top.
+## What lies under the press inside `root`: a slider or selector, a widget
+## that vetoes swipes, and scroll containers scrolled away from the top.
 static func gesture_context(root: Node, pos: Vector2) -> Dictionary:
-	var ctx := {"scroll_not_at_top": false, "on_horizontal_widget": false, "on_grab_widget": false}
+	var ctx := {"scroll_not_at_top": false, "widget": SwipeRecognizer.Widget.NONE, "vetoed": false}
 	if root == null:
 		return ctx
 	for c: Node in root.find_children("*", "Control", true, false):
 		var ctl := c as Control
 		if not ctl.is_visible_in_tree() or not ctl.get_global_rect().has_point(pos):
 			continue
-		if ctl.is_in_group("pw_hgrab"):
-			ctx["on_horizontal_widget"] = true
-		if ctl.is_in_group("pw_grab"):
-			ctx["on_grab_widget"] = true
+		if ctl is PwSelector:
+			ctx["widget"] = SwipeRecognizer.Widget.SELECTOR
+		elif ctl.is_in_group("pw_hgrab") and ctx["widget"] == SwipeRecognizer.Widget.NONE:
+			ctx["widget"] = SwipeRecognizer.Widget.SLIDER
+		if ctl.is_in_group("pw_swipe_veto"):
+			ctx["vetoed"] = true
 		if ctl.is_in_group("pw_scroll") and float(ctl.get("scroll_offset")) > 0.0:
 			ctx["scroll_not_at_top"] = true
 	return ctx
@@ -448,7 +467,7 @@ func _finish_swipe(outcome: SwipeRecognizer.Outcome) -> void:
 	var commit := outcome == SwipeRecognizer.Outcome.COMMIT
 	if target == "overlay" and overlays.has(state.active_tab):
 		_overlay_commit = commit
-		(overlays[state.active_tab]["y"] as UiAnim).start(H if commit else 0.0, Tokens.MOTION_OVERLAY_S)
+		(overlays[state.active_tab]["y"] as UiAnim).start(layer_height() if commit else 0.0, Tokens.MOTION_OVERLAY_S)
 	elif target == "drawer":
 		drawer.end_swipe(commit)
 

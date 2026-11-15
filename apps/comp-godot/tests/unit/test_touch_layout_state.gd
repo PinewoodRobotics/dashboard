@@ -93,6 +93,12 @@ func test_tab_and_panel_actions_close_the_dock() -> void:
 	s.toggle_dock()
 	s.dismiss_overlay()
 	check(s.dock_closing, "dismiss closes the dock")
+	s.finish_dock_close()
+	s.toggle_panel("intakeSpeed")
+	s.toggle_dock()
+	check(s.panel_is_open() and s.dock_open and not s.dock_closing)
+	s.close_panel_immediate()
+	check(s.dock_closing, "a drawer swipe-commit closes the dock")
 
 
 func test_rail_drag_only_in_edit_mode() -> void:

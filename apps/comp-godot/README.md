@@ -318,7 +318,19 @@ their first keyframe, transitions retarget. A started slide or transition
 been drawn and only then starts its clock, and its first step after that
 advances it by at most 1/60 s, so building a tab or panel on first open never
 eats its 200 ms slide (the browser starts compositor animations at the first
-painted frame).
+painted frame). After that the motion runs on the wall clock, so a long frame
+advances it by its full length, as in the browser.
+
+A tab sliding out is a fresh instance, as the web remounts it (`exit-<id>`),
+so it shows its first-open state (scroll at the top, default camera, the first
+Howard picture). Its 3D views draw one frame and hold it rather than rendering
+for the whole 200 ms (deviation, so only one touch 3D view renders at a time).
+Swipes see touch moves as the web's listeners do: a slider stops every move
+once the drag has gone sideways and a selector lets only its first decided move
+through, and only if it is vertical, so a swipe down started on a selector moves
+one step and snaps back. A vertical drag on the Robot 3D view orbits and pulls
+the tab down at once, as on the web. The Auto tab's 3D preview and scrub bar
+(Godot-only, in place of the web's GIF) veto swipes so they keep their drags.
 
 Scrolling is the OS's, as in the browser: the mouse wheel (100 px a notch,
 40 px a macOS line) and trackpad or macOS touch scrolling (pan gestures, with

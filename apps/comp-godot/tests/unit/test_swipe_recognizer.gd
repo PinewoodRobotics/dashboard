@@ -65,9 +65,32 @@ func test_untracked_release_does_nothing() -> void:
 func test_blocking_contexts() -> void:
 	check(SwipeRecognizer.blocks(SwipeRecognizer.Dir.DOWN, {"scroll_not_at_top": true}), "scroll container not at top blocks swipe down")
 	check(not SwipeRecognizer.blocks(SwipeRecognizer.Dir.RIGHT, {"scroll_not_at_top": true}))
-	check(SwipeRecognizer.blocks(SwipeRecognizer.Dir.RIGHT, {"on_horizontal_widget": true}), "sliders and selectors win horizontal drags")
-	check(not SwipeRecognizer.blocks(SwipeRecognizer.Dir.DOWN, {"on_horizontal_widget": true}), "a vertical drag on a slider still dismisses")
-	check(SwipeRecognizer.blocks(SwipeRecognizer.Dir.DOWN, {"on_grab_widget": true}))
+	check(SwipeRecognizer.blocks(SwipeRecognizer.Dir.DOWN, {"vetoed": true}))
+	check(SwipeRecognizer.blocks(SwipeRecognizer.Dir.RIGHT, {"vetoed": true}))
 	var r := _swipe(SwipeRecognizer.Dir.DOWN, 515, [[Vector2(0, 0), 0.0], [Vector2(0, 300), 10.0]], {"scroll_not_at_top": true})
 	check_eq(r.state, SwipeRecognizer.State.REJECTED)
 	check_eq(r.end(), SwipeRecognizer.Outcome.NONE)
+
+
+func test_sliders_and_selectors_win_horizontal_drags() -> void:
+	for w: SwipeRecognizer.Widget in [SwipeRecognizer.Widget.SLIDER, SwipeRecognizer.Widget.SELECTOR]:
+		var r := _swipe(SwipeRecognizer.Dir.RIGHT, 456, [[Vector2(0, 0), 0.0], [Vector2(20, 2), 10.0], [Vector2(300, 2), 20.0]], {"widget": w})
+		check_eq(r.state, SwipeRecognizer.State.PENDING, "the swipe never sees the drag")
+		check_eq(r.end(), SwipeRecognizer.Outcome.NONE)
+
+
+func test_a_slider_freezes_a_swipe_down_once_the_drag_turns_sideways() -> void:
+	var ctx := {"widget": SwipeRecognizer.Widget.SLIDER}
+	var r := _swipe(SwipeRecognizer.Dir.DOWN, 515, [[Vector2(0, 0), 0.0], [Vector2(0, 20), 10.0], [Vector2(0, 300), 20.0]], ctx)
+	check_eq(r.delta, 300.0, "a vertical drag on a slider dismisses")
+	r.move(Vector2(400, 320), 30.0)
+	check_eq(r.delta, 300.0)
+	r.move(Vector2(0, 400), 40.0)
+	check_eq(r.delta, 300.0, "stopped for the rest of the touch")
+
+
+func test_a_selector_lets_one_vertical_move_through() -> void:
+	var r := _swipe(SwipeRecognizer.Dir.DOWN, 515, [[Vector2(0, 0), 0.0], [Vector2(0, 12), 10.0], [Vector2(0, 300), 20.0], [Vector2(0, 450), 30.0]], {"widget": SwipeRecognizer.Widget.SELECTOR})
+	check(r.is_tracking())
+	check_eq(r.delta, 12.0, "frozen after its first step")
+	check_eq(r.end(), SwipeRecognizer.Outcome.SNAP_BACK)
