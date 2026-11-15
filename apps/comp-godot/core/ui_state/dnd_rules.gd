@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Drop rules of the rail/dock editor (useTouchscreenDnd.ts handleDragEnd).
 ## The dock is the master list (order only); the rail is a user subset.
-## A target is {"zone": "rail"|"dock"|"", "id": item under the pointer or ""}.
+## A target is {"zone": "rail"|"dock"|"", "id": the item dragged over or ""}.
 
 
 static func apply_drop(rail: Array, dock: Array, src_zone: String, src_id: String, target: Dictionary) -> Dictionary:
@@ -52,12 +52,3 @@ static func closest(ids: Array, centers: Array, point: Vector2) -> String:
 			best = ids[i]
 	return best
 
-
-## Rail target in a vertical list: the closest item, or "" (append) when the
-## point is below the last item's center, so dropping under the list appends.
-static func rail_target(ids: Array, centers: Array, point: Vector2) -> String:
-	if ids.is_empty():
-		return ""
-	if point.y > (centers[centers.size() - 1] as Vector2).y:
-		return ""
-	return closest(ids, centers, point)

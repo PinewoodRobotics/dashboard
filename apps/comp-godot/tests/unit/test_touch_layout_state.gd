@@ -78,7 +78,7 @@ func test_dock_open_close() -> void:
 	s.toggle_dock()
 	s.toggle_dock()
 	s.toggle_dock()
-	check(s.dock_open and not s.dock_closing, "reopening while closing cancels the close")
+	check(s.dock_open and s.dock_closing, "the toggle is ignored while the dock closes")
 
 
 func test_tab_and_panel_actions_close_the_dock() -> void:
@@ -102,7 +102,9 @@ func test_rail_drag_only_in_edit_mode() -> void:
 	check(s.can_drag("rail"))
 	check(s.can_drag("dock"))
 	s.toggle_dock()
-	check(not s.can_drag("rail"), "not while the dock slides away")
+	check(s.can_drag("rail"), "still while the dock slides away")
+	s.finish_dock_close()
+	check(not s.can_drag("rail"))
 
 
 func test_set_lists_sanitizes() -> void:

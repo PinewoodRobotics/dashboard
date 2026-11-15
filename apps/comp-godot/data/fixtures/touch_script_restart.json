@@ -12,7 +12,7 @@
     {"drag": {"from": "Dock/dock_robot3d", "to": "Dock/dock_visual", "ms": 200}},
     {"expect": {"state.dock": ["robot3d", "visual", "auto", "settings", "effects", "howard"]}},
     {"drag": {"from": "Dock/dock_effects", "to": [960, 200], "ms": 200}},
-    {"expect": {"state.rail": ["settings", "auto"], "state.dock": ["robot3d", "visual", "auto", "settings", "effects", "howard"]}},
+    {"expect": {"state.rail": ["settings", "auto"], "state.dock": ["robot3d", "visual", "auto", "settings", "howard", "effects"]}},
     {"tap": "LeftRail/DockToggle"},
     {"wait_ms": 200},
     {"expect": {"state.dock_open": false}},

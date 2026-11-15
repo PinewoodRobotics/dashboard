@@ -1,28 +1,71 @@
 class_name DragGhost
 extends Control
 
-## The dragged tab: its bare white outline symbol, 48 px, at 80% opacity on
-## the pointer (TouchscreenDragGhost.tsx).
+## The dnd-kit DragOverlay (TouchscreenDragGhost.tsx): the dragged tab's bare
+## white outline symbol at 80% opacity, centered in a box the size of the
+## dragged element that keeps the grab offset from the pointer. On drop it
+## glides onto the source element's final slot (250 ms ease); with no slot
+## left (the item left the rail) it vanishes at once.
+
+signal landed
+
+const DROP_S := 0.25
 
 var symbol := 0
+var _t := UiAnim.new(0.0)
+var _from := Vector2.ZERO
+var _to := Vector2.ZERO
 
 
 func _init() -> void:
 	name = "DragGhost"
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	size = Vector2(Tokens.ICON, Tokens.ICON)
 	visible = false
 
 
-func show_at(sym: int, canvas_pos: Vector2) -> void:
+func show_rect(sym: int, r: Rect2) -> void:
 	symbol = sym
+	_t.jump(0.0)
+	size = r.size
+	position = r.position
 	visible = true
-	move_to(canvas_pos)
 	queue_redraw()
 
 
-func move_to(canvas_pos: Vector2) -> void:
-	position = canvas_pos - size * 0.5
+func move_to(top_left: Vector2) -> void:
+	if not dropping():
+		position = top_left
+
+
+func drop_to(top_left: Vector2) -> void:
+	_from = position
+	_to = top_left
+	_t.play(0.0, 1.0, DROP_S)
+	if not _t.running:
+		_land()
+
+
+func dropping() -> bool:
+	return visible and _t.running
+
+
+func hide_now() -> void:
+	_t.jump(0.0)
+	visible = false
+
+
+func step(dt: float) -> void:
+	if not _t.running:
+		return
+	var done := _t.step(dt)
+	position = _from.lerp(_to, _t.value)
+	if done:
+		_land()
+
+
+func _land() -> void:
+	visible = false
+	landed.emit()
 
 
 func _draw() -> void:

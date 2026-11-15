@@ -49,11 +49,7 @@ func test_drop_on_nothing_is_a_no_op() -> void:
 
 func test_targets_from_positions() -> void:
 	var ids := ["auto", "settings", "visual"]
-	var centers := [Vector2(42, 140), Vector2(42, 215), Vector2(42, 290)]
-	check_eq(DndRules.rail_target(ids, centers, Vector2(40, 150)), "auto")
-	check_eq(DndRules.rail_target(ids, centers, Vector2(40, 200)), "settings")
-	check_eq(DndRules.rail_target(ids, centers, Vector2(40, 330)), "", "below the last item appends")
-	check_eq(DndRules.rail_target([], [], Vector2(40, 100)), "")
+	check_eq(DndRules.closest([], [], Vector2(40, 100)), "")
 	check_eq(DndRules.closest(ids, [Vector2(0, 0), Vector2(100, 0), Vector2(200, 0)], Vector2(130, 30)), "settings")
 
 

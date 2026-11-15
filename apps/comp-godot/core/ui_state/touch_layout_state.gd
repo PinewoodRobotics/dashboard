@@ -36,11 +36,10 @@ func panel_is_open() -> bool:
 	return open_panel != ""
 
 
-## Dock items are draggable whenever shown; rail items only in edit mode (dock open).
+## Rail and dock items are draggable while the dock is mounted (edit mode,
+## closing included).
 func can_drag(zone: String) -> bool:
-	if zone == "rail":
-		return dock_open and not dock_closing
-	return zone == "dock" and dock_open
+	return (zone == "rail" or zone == "dock") and dock_open
 
 
 func switch_tab(id: String) -> void:
@@ -103,12 +102,14 @@ func close_panel_immediate() -> void:
 	changed.emit()
 
 
+## Opens a closed dock, starts closing an open one, ignored while it closes.
 func toggle_dock() -> void:
 	if dock_open and not dock_closing:
 		dock_closing = true
-	else:
+	elif not dock_open:
 		dock_open = true
-		dock_closing = false
+	else:
+		return
 	changed.emit()
 
 

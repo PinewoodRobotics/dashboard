@@ -112,6 +112,8 @@ func _ready() -> void:
 	if autos == null:
 		autos = get_node_or_null("/root/Autos") as AutosService
 
+	add_child(UiKit.full(PwRect.new(Tokens.PANEL)))
+
 	_list_pane = Control.new()
 	_list_pane.name = "ListPane"
 	_list_pane.mouse_filter = Control.MOUSE_FILTER_IGNORE

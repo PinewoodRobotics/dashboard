@@ -1,11 +1,11 @@
 class_name SwipeRecognizer
 extends RefCounted
 
-## Dismiss swipes (useSwipeGesture.ts). After 8 px of travel the gesture is
-## decided once: it tracks only if the main axis dominates and moves in the
+## Dismiss swipes (useSwipeGesture.ts). Once either axis has moved 8 px the
+## gesture is decided once: it tracks only if the main axis dominates and moves in the
 ## swipe direction, otherwise it is rejected for the rest of the touch. While
 ## tracking, delta follows the main axis clamped to [0, dimension]. Release
-## commits at 35% of the dimension or 0.5 px/ms over the last 5 samples.
+## commits at 35% of the dimension or 0.5 px/ms over the last 5 tracked moves.
 
 enum Dir { DOWN, RIGHT }
 enum State { IDLE, PENDING, TRACKING, REJECTED }
@@ -33,7 +33,7 @@ func _init(direction: Dir = Dir.DOWN, dim: float = 515.0) -> void:
 func begin(pos: Vector2, t_ms: float, ctx: Dictionary = {}) -> void:
 	_start = pos
 	delta = 0.0
-	_samples = [[t_ms, 0.0]]
+	_samples = []
 	state = State.REJECTED if blocks(dir, ctx) else State.PENDING
 
 
@@ -52,7 +52,7 @@ func move(pos: Vector2, t_ms: float) -> State:
 	var main := d.y if dir == Dir.DOWN else d.x
 	var cross := d.x if dir == Dir.DOWN else d.y
 	if state == State.PENDING:
-		if d.length() < INTENT_PX:
+		if absf(d.x) < INTENT_PX and absf(d.y) < INTENT_PX:
 			return state
 		if absf(cross) > absf(main) or main < 0.0:
 			state = State.REJECTED

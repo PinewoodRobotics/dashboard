@@ -1,24 +1,56 @@
 class_name DockDrawer
 extends Control
 
-## Bottom-center dock (DockDrawer.tsx): the full ordered tab list, 860 px wide,
-## 4 px accent border on the left, right and top, black at 90%. Slides up in
-## 100 ms; the owner moves it.
+## Bottom dock (DockDrawer.tsx): the full ordered tab list in an 860 px panel,
+## square, 4 px accent border on the left, right and top, 8 px backdrop blur
+## under black at 50% (black at 90% with blur off). Each item is its symbol's
+## span, advance wide and 48 px tall, left-aligned 12 px apart from 10 px
+## padding, wrapping like flex-wrap. Opening and closing are 100 ms keyframe
+## slides from below its `bottom_center` anchor that always start from their
+## own first keyframe.
+
+signal close_finished
+
+const BLUR_PX := 8.0
+const SLIDE_S := 0.1
 
 var state: TouchLayoutState
 var dnd: TouchDnd
 var items: Array[TabIcon] = []
+var backdrop_blur := true:
+	set(v):
+		backdrop_blur = v
+		if _blur != null:
+			_blur.visible = v
+		queue_redraw()
+var bottom_center := Vector2(Tokens.TOUCH_DESIGN.x * 0.5, Tokens.TOUCH_DESIGN.y)
+var t := UiAnim.new(0.0, true)
+var _closing := false
+var _blur: BackdropBlur
 
 
 func _ready() -> void:
 	name = "Dock"
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	size = Vector2(Tokens.DOCK_W, panel_height())
+	clip_contents = true
+	_blur = BackdropBlur.new(BLUR_PX)
+	_blur.z_index = -1
+	_blur.visible = backdrop_blur
+	add_child(_blur)
+	size = Vector2(Tokens.DOCK_W, panel_height(1))
 	rebuild()
 
 
-static func panel_height() -> float:
-	return Tokens.BORDER + Tokens.DOCK_PAD * 2.0 + Tokens.DOCK_CELL
+static func panel_height(rows: int) -> float:
+	return Tokens.BORDER + Tokens.DOCK_PAD * 2.0 + rows * Tokens.ICON + (rows - 1) * Tokens.DOCK_GAP
+
+
+func content_origin() -> Vector2:
+	return Vector2(Tokens.BORDER + Tokens.DOCK_PAD, Tokens.BORDER + Tokens.DOCK_PAD)
+
+
+func content_width() -> float:
+	return Tokens.DOCK_W - 2.0 * (Tokens.BORDER + Tokens.DOCK_PAD)
 
 
 func rebuild() -> void:
@@ -26,24 +58,76 @@ func rebuild() -> void:
 		remove_child(it)
 		it.queue_free()
 	items.clear()
-	var per_row := int((Tokens.DOCK_W - 2 * (Tokens.BORDER + Tokens.DOCK_PAD) + Tokens.DOCK_GAP) / (Tokens.DOCK_CELL + Tokens.DOCK_GAP))
-	for i in state.dock.size():
-		var id: String = state.dock[i]
+	for id: String in state.dock:
 		var it := TabIcon.new(TabDefs.TAB_INFO[id], "dock", id)
 		it.dnd = dnd
-		it.size = Vector2(Tokens.DOCK_CELL, Tokens.DOCK_CELL)
-		it.position = Vector2(Tokens.BORDER + Tokens.DOCK_PAD + (i % per_row) * (Tokens.DOCK_CELL + Tokens.DOCK_GAP),
-			Tokens.BORDER + Tokens.DOCK_PAD + (i / per_row) * (Tokens.DOCK_CELL + Tokens.DOCK_GAP))
 		add_child(it)
 		items.append(it)
-	var rows := maxi(1, ceili(float(items.size()) / per_row))
-	size.y = Tokens.BORDER + Tokens.DOCK_PAD * 2.0 + rows * Tokens.DOCK_CELL + (rows - 1) * Tokens.DOCK_GAP
 	refresh()
+
+
+## Flex-wrap slots for the items' current widths, in item order.
+func slots() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var o := content_origin()
+	var x := 0.0
+	var row := 0
+	for it in items:
+		var w := it.span_width()
+		if x > 0.0 and x + w > content_width():
+			x = 0.0
+			row += 1
+		out.append(Rect2(o + Vector2(x, row * (Tokens.ICON + Tokens.DOCK_GAP)), Vector2(w, Tokens.ICON)))
+		x += w + Tokens.DOCK_GAP
+	return out
 
 
 func refresh() -> void:
 	for it in items:
 		it.active = it.tab_id == state.active_tab
+	var s := slots()
+	for i in items.size():
+		items[i].place(s[i])
+	var rows := 1
+	if not s.is_empty():
+		rows = int(roundf((s[s.size() - 1].position.y - content_origin().y) / (Tokens.ICON + Tokens.DOCK_GAP))) + 1
+	size = Vector2(Tokens.DOCK_W, panel_height(rows))
+	_blur.size = size
+	_place()
+	queue_redraw()
+
+
+func open() -> void:
+	_closing = false
+	visible = true
+	t.play(0.0, 1.0, SLIDE_S)
+	_place()
+
+
+func close() -> void:
+	if _closing:
+		return
+	_closing = true
+	t.play(1.0, 0.0, SLIDE_S)
+	_place()
+
+
+func is_closing() -> bool:
+	return _closing
+
+
+func step(dt: float) -> void:
+	for it in items:
+		it.step(dt)
+	if t.step(dt) and _closing:
+		_closing = false
+		visible = false
+		close_finished.emit()
+	_place()
+
+
+func _place() -> void:
+	position = Vector2(bottom_center.x - size.x * 0.5, bottom_center.y - size.y * t.value)
 
 
 func ids() -> Array:
@@ -51,7 +135,7 @@ func ids() -> Array:
 
 
 func centers() -> Array:
-	return items.map(func(it: TabIcon) -> Vector2: return it.canvas_center())
+	return items.map(func(it: TabIcon) -> Vector2: return it.slot_center())
 
 
 func item(id: String) -> TabIcon:
@@ -61,9 +145,30 @@ func item(id: String) -> TabIcon:
 	return null
 
 
+## rectSortingStrategy: while `active_id` is dragged over `over_id`, item i
+## takes the rect of index i in the reordered list, translated and scaled
+## from its own.
+func preview_order(active_id: String, over_id: String) -> void:
+	var order := ids()
+	var from := order.find(active_id)
+	var to := order.find(over_id)
+	var s := slots()
+	for i in items.size():
+		if from < 0 or to < 0:
+			items[i].shift_to(Vector2.ZERO)
+			continue
+		var moved := s.duplicate()
+		var r: Rect2 = moved[to]
+		moved.remove_at(to)
+		moved.insert(from, r)
+		var target: Rect2 = moved[i]
+		items[i].shift_to(target.position - s[i].position, target.size / s[i].size)
+
+
 func _draw() -> void:
-	UiDraw.rect(get_canvas_item(), Rect2(Vector2.ZERO, size), Tokens.SCRIM)
+	var ci := get_canvas_item()
+	UiDraw.rect(ci, Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.5) if backdrop_blur else Tokens.SCRIM)
 	var b := float(Tokens.BORDER)
-	UiDraw.rect(get_canvas_item(), Rect2(0, 0, size.x, b), Tokens.ACCENT)
-	UiDraw.rect(get_canvas_item(), Rect2(0, 0, b, size.y), Tokens.ACCENT)
-	UiDraw.rect(get_canvas_item(), Rect2(size.x - b, 0, b, size.y), Tokens.ACCENT)
+	UiDraw.rect(ci, Rect2(0, 0, size.x, b), Tokens.ACCENT)
+	UiDraw.rect(ci, Rect2(0, b, b, size.y - b), Tokens.ACCENT)
+	UiDraw.rect(ci, Rect2(size.x - b, b, b, size.y - b), Tokens.ACCENT)

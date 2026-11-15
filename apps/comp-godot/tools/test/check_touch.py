@@ -48,29 +48,35 @@ for name, r in reports.items():
     want_drawer = [1380, 0, 540, 515] if expanded else [1836, 0, 84, 515]
     if not near(t["drawer"]["rect"], want_drawer):
         errors.append(f"{name}: drawer rect {t['drawer']['rect']}, want {want_drawer}")
-    if t["drawer"]["edge_px"] != (4 if expanded else 0):
-        errors.append(f"{name}: drawer accent edge {t['drawer']['edge_px']}")
+    if t["drawer"]["edge_px"] != 4 or t["drawer"]["edge_alpha"] != (1 if expanded else 0):
+        errors.append(f"{name}: drawer accent edge {t['drawer']['edge_px']} px at alpha {t['drawer']['edge_alpha']}")
     want_overlay = [84, 0, 1920 - 84 - want_drawer[2], 515]
     if not near(t["overlay"]["rect"], want_overlay):
         errors.append(f"{name}: overlay rect {t['overlay']['rect']}, want {want_overlay}")
     if t["dock"]["visible"]:
         d = t["dock"]["rect"]
-        if not (near([d[2]], [860]) and near([d[0] + d[2] / 2], [960]) and near([d[1] + d[3]], [515])):
+        if not near(d, [530, 443, 860, 72]):
             errors.append(f"{name}: dock rect {d}")
     if t["rail"]["icon_px"] != 48:
         errors.append(f"{name}: rail icons {t['rail']['icon_px']} px")
+    icons = t["rail"]["icons"]
+    want_tops = [30] + [105 + 75 * i for i in range(len(icons) - 2)] + [458]
+    if [i["rect"][1] for i in icons] != want_tops or any(i["rect"][2:] != [44, 27] for i in icons):
+        errors.append(f"{name}: rail buttons {[i['rect'] for i in icons]}")
+    if t["pill"]["visible"] and not near([t["pill"]["rect"][0] + t["pill"]["rect"][2] / 2, t["pill"]["rect"][1] + t["pill"]["rect"][3]], [960, 491]):
+        errors.append(f"{name}: NT pill {t['pill']['rect']}")
     rendering_touch = sum(1 for v in t["views"] if v["rendering"])
     if rendering_touch > 1:
         errors.append(f"{name}: {rendering_touch} touch views rendering")
 
 layout = json.loads((settings_dir / "layout.json").read_text())["layout"]
-if layout != {"rail": ["settings", "auto"], "dock": ["robot3d", "visual", "auto", "settings", "effects", "howard"]}:
+if layout != {"rail": ["settings", "auto"], "dock": ["robot3d", "visual", "auto", "settings", "howard", "effects"]}:
     errors.append(f"layout.json after the restart run: {layout}")
 m = json.loads((settings_dir / "map.json").read_text())["map"]
 if m["mode"] != "driver" or m["zoom"] < 0.9:
     errors.append(f"map.json: {m}")
 v = json.loads((settings_dir / "visual.json").read_text())["visual"]
-if v != {"render_scale": 0.75, "msaa": 4, "fps_cap": 30, "auto_quality": True}:
+if v != {"render_scale": 0.75, "msaa": 4, "fps_cap": 30, "auto_quality": True, "backdrop_blur": True}:
     errors.append(f"visual.json: {v}")
 c = json.loads((settings_dir / "controls.json").read_text())["controls"]
 if c != {"selected_auto": "Move Forward And Shoot Left", "intake_speed": None}:

@@ -2,13 +2,17 @@ class_name TouchScreen
 extends Control
 
 ## Touchscreen window at the 1920x515 design size (TouchscreenDashboard.tsx).
-## Back to front: driver view, overlay tabs (slide up and down in 200 ms),
-## dock click-catcher, left rail, right drawer (84/540 px, 200 ms), dock
-## (100 ms), drag ghost, NT Disconnected pill, on-screen keyboard. TouchLayoutState holds the state;
-## this node animates from it, routes swipe gestures and keeps at most one
-## touch 3D view rendering (the HUD minimap is the other).
+## Back to front: driver view, app layers (black; 200 ms keyframe slides up
+## and down), dock click-catcher, left rail, right drawer, dock, drag ghost,
+## NT Disconnected pill, on-screen keyboard. TouchLayoutState holds the state;
+## the chrome components animate themselves from it, this node places them,
+## slides the app layers, routes swipe gestures and keeps at most one touch 3D
+## view rendering (the HUD minimap is the other).
 
 const H := 515.0
+const PILL_BOTTOM := 24.0
+## A frame longer than this advances the chrome's motion by only this much.
+const MAX_STEP_S := 1.0 / 30.0
 
 var state := TouchLayoutState.new()
 var settings: SettingsService
@@ -25,22 +29,23 @@ var pill: NtPill
 var dnd: TouchDnd
 ## Tab id -> {"node": Control, "y": UiAnim}; includes tabs sliding out.
 var overlays := {}
-var drawer_w := UiAnim.new(Tokens.RAIL_W)
-var dock_t := UiAnim.new(0.0)
 ## Extra overlay ids only Dev fixtures open (widget gallery).
 var dev_tabs := {}
 
 var _swipe: SwipeRecognizer
 var _swipe_target := ""
 var _overlay_commit := false
-var _drawer_commit := false
+var _entry_done := false
 var _shown_active := ""
-var _shown_dock := false
+var _shown_panel_open := false
+var _dock_phase := ""
 
 
 func _ready() -> void:
 	if settings == null:
 		settings = get_node_or_null("/root/Settings") as SettingsService
+	if DisplayServer.get_name() != "headless":
+		UiAnim.enable_frame_holds()
 	theme = ThemeBuilder.build()
 	name = "TouchScreen"
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -91,14 +96,15 @@ func _ready() -> void:
 	drawer.state = state
 	drawer.factory = _make_panel
 	drawer.panel_tapped.connect(state.toggle_panel)
+	drawer.swipe_committed.connect(state.close_panel_immediate)
 	add_child(drawer)
-	drawer.set_width(Tokens.RAIL_W)
 
 	dock = DockDrawer.new()
 	dock.state = state
 	dock.dnd = dnd
 	dock.visible = false
 	dock.z_index = 3 * UiDraw.LAYER_Z
+	dock.close_finished.connect(state.finish_dock_close)
 	add_child(dock)
 
 	ghost = DragGhost.new()
@@ -110,18 +116,31 @@ func _ready() -> void:
 	dnd.tab_tapped.connect(state.switch_tab)
 
 	pill = NtPill.new()
-	pill.z_index = 4 * UiDraw.LAYER_Z
+	pill.z_index = 5 * UiDraw.LAYER_Z
 	add_child(pill)
 
 	keyboard = PwKeyboard.new()
 	keyboard.name = "Keyboard"
-	keyboard.z_index = 5 * UiDraw.LAYER_Z
+	keyboard.z_index = 6 * UiDraw.LAYER_Z
 	add_child(keyboard)
 
+	if settings != null:
+		settings.changed.connect(func(section: String) -> void:
+			if section == "visual":
+				_apply_visual())
+	_apply_visual()
 	state.changed.connect(_on_state_changed)
 	state.lists_changed.connect(_on_lists_changed)
 	_on_state_changed()
 	_layout()
+
+
+func _apply_visual() -> void:
+	var blur := true
+	if settings != null:
+		blur = bool(settings.visual().get("backdrop_blur", true))
+	drawer.backdrop_blur = blur
+	dock.backdrop_blur = blur
 
 
 func _make_panel(id: String) -> Control:
@@ -176,37 +195,43 @@ func _on_state_changed() -> void:
 	if state.active_tab != _shown_active:
 		var skip_exit := state.take_skip_exit_anim()
 		if _shown_active != "" and overlays.has(_shown_active):
-			var leaving: Dictionary = overlays[_shown_active]
 			if skip_exit:
 				_free_overlay(_shown_active)
 			else:
-				(leaving["y"] as UiAnim).start(H, Tokens.MOTION_OVERLAY_S)
+				(overlays[_shown_active]["y"] as UiAnim).play(0.0, H, Tokens.MOTION_OVERLAY_S)
 		if state.active_tab != "":
 			var entry: Dictionary = overlays.get(state.active_tab, {})
 			if entry.is_empty():
 				entry = _create_overlay(state.active_tab)
-			(entry["y"] as UiAnim).start(0.0, Tokens.MOTION_OVERLAY_S)
+			overlay_layer.move_child(entry["node"], -1)
+			(entry["y"] as UiAnim).play(H, 0.0, Tokens.MOTION_OVERLAY_S)
+			_place_overlay(entry)
+		_entry_done = false
+		_overlay_commit = false
 		_shown_active = state.active_tab
 
-	var target_w := float(Tokens.DRAWER_W if state.panel_is_open() else Tokens.RAIL_W)
-	if state.take_skip_panel_anim():
-		drawer_w.jump(target_w)
-	elif not is_equal_approx(drawer_w.to, target_w) and not _drawer_commit:
-		drawer_w.start(target_w, Tokens.MOTION_OVERLAY_S)
+	var skip_panel := state.take_skip_panel_anim()
+	if state.panel_is_open() != _shown_panel_open or skip_panel:
+		_shown_panel_open = state.panel_is_open()
+		drawer.set_open(_shown_panel_open, skip_panel)
+	drawer.over_driver = state.is_driver_base()
 
-	var dock_visible := state.dock_open and not state.dock_closing
-	if dock_visible != _shown_dock:
-		_shown_dock = dock_visible
-		dock_t.start(1.0 if dock_visible else 0.0, Tokens.MOTION_DOCK_S)
-	if state.dock_open:
-		dock.visible = true
-	catcher.visible = dock_visible
+	if state.dock_open and not state.dock_closing and _dock_phase != "open":
+		_dock_phase = "open"
+		dock.open()
+	elif state.dock_closing and _dock_phase == "open":
+		_dock_phase = "closing"
+		dock.close()
+	elif not state.dock_open:
+		_dock_phase = ""
+	catcher.visible = state.dock_open and not state.dock_closing
 	if not state.dock_open:
 		dnd.cancel()
 
 	rail.refresh()
 	dock.refresh()
 	drawer.refresh()
+	_layout()
 
 
 func _create_overlay(id: String) -> Dictionary:
@@ -214,7 +239,7 @@ func _create_overlay(id: String) -> Dictionary:
 	holder.name = "Overlay_" + id
 	holder.mouse_filter = Control.MOUSE_FILTER_STOP
 	var bg := PwRect.new()
-	bg.color = Tokens.PANEL
+	bg.color = Color.BLACK
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.z_index = -2
 	holder.add_child(UiKit.full(bg))
@@ -222,7 +247,7 @@ func _create_overlay(id: String) -> Dictionary:
 	content.name = "Content"
 	holder.add_child(UiKit.full(content))
 	overlay_layer.add_child(holder)
-	var entry := {"node": holder, "y": UiAnim.new(H)}
+	var entry := {"node": holder, "y": UiAnim.new(H, true)}
 	overlays[id] = entry
 	_place_overlay(entry)
 	return entry
@@ -247,8 +272,10 @@ func tab_content(id: String) -> Control:
 	return n.get_node_or_null("Content") as Control if n != null else null
 
 
+## App layers run from the rail to the drawer: `right` is the drawer's
+## width, which a drawer swipe drives directly.
 func overlay_rect() -> Rect2:
-	return Rect2(Tokens.RAIL_W, 0, Tokens.TOUCH_DESIGN.x - Tokens.RAIL_W - drawer_w.value, H)
+	return Rect2(Tokens.RAIL_W, 0, Tokens.TOUCH_DESIGN.x - Tokens.RAIL_W - drawer.occupied_width(), H)
 
 
 func _place_overlay(entry: Dictionary) -> void:
@@ -264,46 +291,47 @@ func _place_overlay(entry: Dictionary) -> void:
 
 
 func entry_done() -> bool:
-	if state.active_tab == "" or not overlays.has(state.active_tab):
-		return false
-	var y: UiAnim = overlays[state.active_tab]["y"]
-	return not y.running and y.value <= 0.0
+	return _entry_done and overlays.has(state.active_tab)
 
 
 func _process(delta: float) -> void:
-	step(delta)
+	step(minf(delta, MAX_STEP_S))
 
 
 func step(dt: float) -> void:
-	drawer_w.step(dt)
-	if _drawer_commit and not drawer_w.running:
-		_drawer_commit = false
-		state.close_panel_immediate()
+	drawer.step(dt)
 	for id: String in overlays.keys():
 		if not overlays.has(id):
 			continue
 		var y: UiAnim = overlays[id]["y"]
-		y.step(dt)
+		var finished := y.step(dt)
 		if id == state.active_tab:
 			if _overlay_commit and not y.running:
 				_overlay_commit = false
 				state.dismiss_overlay_immediate()
+			elif finished and y.value <= 0.0:
+				_entry_done = true
 		elif not y.running and y.value >= H:
 			_free_overlay(id)
-	dock_t.step(dt)
-	if state.dock_closing and not dock_t.running and dock_t.value <= 0.0:
-		dock.visible = false
-		state.finish_dock_close()
+	dock.step(dt)
+	rail.step(dt)
+	ghost.step(dt)
 	_layout()
 	_update_rendering()
 
 
+## Releases every held transition and runs all of them to the end.
+func settle() -> void:
+	UiAnim.release_held()
+	step(10.0)
+
+
 func _layout() -> void:
-	drawer.set_width(drawer_w.value)
-	pill.right_edge = Tokens.TOUCH_DESIGN.x - drawer_w.value
+	drawer.right_edge = Tokens.TOUCH_DESIGN.x
 	for id: String in overlays:
 		_place_overlay(overlays[id])
-	dock.position = Vector2((Tokens.TOUCH_DESIGN.x - dock.size.x) * 0.5, H - dock.size.y * dock_t.value)
+	dock.bottom_center = Vector2(Tokens.TOUCH_DESIGN.x * 0.5, H)
+	pill.position = Vector2((Tokens.TOUCH_DESIGN.x - pill.size.x) * 0.5, H - PILL_BOTTOM - pill.size.y)
 
 
 ## One touch view renders: the active tab's (once nothing slides over it) or
@@ -332,10 +360,10 @@ func _on_catcher_input(event: InputEvent) -> void:
 		catcher.accept_event()
 
 
-## Swipe-down on the active overlay dismisses it; swipe-right on the open
-## drawer closes it. Presses on the dock, rail or keyboard never start one.
-## Events are observed, not consumed: widgets under the finger reject the
-## drag themselves (buttons past their tap slop, sliders on vertical intent).
+## Touch only, like the web's touch listeners: swipe down on the active app
+## layer dismisses it, swipe right on the open drawer closes it. Events are
+## observed, not consumed; sliders and selectors keep horizontal drags (they
+## stop propagation on the web) and 3D views keep theirs.
 func _input(event: InputEvent) -> void:
 	var p := PointerInput.from_event(event)
 	if p.kind == PointerInput.Kind.NONE:
@@ -343,34 +371,37 @@ func _input(event: InputEvent) -> void:
 	var t := float(Time.get_ticks_msec())
 	match p.kind:
 		PointerInput.Kind.DOWN:
-			_begin_swipe(p.pos, t)
+			_swipe = null
+			_swipe_target = ""
+			if p.is_touch:
+				_begin_swipe(p.pos, t)
 		PointerInput.Kind.MOVE:
 			if _swipe == null:
 				return
+			var was := _swipe.is_tracking()
 			_swipe.move(p.pos, t)
 			if _swipe.is_tracking():
+				if not was and _swipe_target == "drawer":
+					drawer.begin_swipe()
 				_apply_swipe(_swipe.delta)
 		PointerInput.Kind.UP:
 			if _swipe == null:
 				return
-			var outcome := _swipe.end()
-			_finish_swipe(outcome)
+			_finish_swipe(_swipe.end())
 
 
 func _begin_swipe(pos: Vector2, t: float) -> void:
-	_swipe = null
-	_swipe_target = ""
 	if keyboard.is_open() or dnd.source != null:
 		return
 	if dock.visible and dock.get_global_rect().has_point(pos):
 		return
 	if drawer.get_global_rect().has_point(pos):
-		if state.panel_is_open() and not drawer_w.running:
-			_swipe = SwipeRecognizer.new(SwipeRecognizer.Dir.RIGHT, Tokens.DRAWER_W - Tokens.RAIL_W)
+		if state.panel_is_open():
+			_swipe = SwipeRecognizer.new(SwipeRecognizer.Dir.RIGHT, RightDrawer.SWIPE_DIM)
 			_swipe.begin(pos, t, gesture_context(drawer, pos))
 			_swipe_target = "drawer"
 		return
-	if rail.get_global_rect().has_point(pos):
+	if rail.get_global_rect().has_point(pos) or catcher.visible:
 		return
 	if entry_done() and overlay_rect().has_point(pos):
 		_swipe = SwipeRecognizer.new(SwipeRecognizer.Dir.DOWN, H)
@@ -401,7 +432,7 @@ func _apply_swipe(delta: float) -> void:
 	if _swipe_target == "overlay" and overlays.has(state.active_tab):
 		(overlays[state.active_tab]["y"] as UiAnim).jump(delta)
 	elif _swipe_target == "drawer":
-		drawer_w.jump(Tokens.DRAWER_W - delta)
+		drawer.swipe_to(delta)
 	_layout()
 
 
@@ -416,8 +447,7 @@ func _finish_swipe(outcome: SwipeRecognizer.Outcome) -> void:
 		_overlay_commit = commit
 		(overlays[state.active_tab]["y"] as UiAnim).start(H if commit else 0.0, Tokens.MOTION_OVERLAY_S)
 	elif target == "drawer":
-		_drawer_commit = commit
-		drawer_w.start(Tokens.RAIL_W if commit else Tokens.DRAWER_W, Tokens.MOTION_OVERLAY_S)
+		drawer.end_swipe(commit)
 
 
 func swiping() -> String:
@@ -434,7 +464,7 @@ func apply_fixture(tf: Dictionary) -> void:
 		state.toggle_panel(str(tf["open_panel"]))
 	if tf.get("dock_open", false):
 		state.toggle_dock()
-	step(10.0)
+	settle()
 	var content := tab_content(state.active_tab)
 	if tf.has("howard_index") and content is HowardTab:
 		(content as HowardTab).show_index(int(tf["howard_index"]))
@@ -501,6 +531,13 @@ func probe() -> Dictionary:
 	return out
 
 
+func _overlay_ys() -> Dictionary:
+	var out := {}
+	for id: String in overlays:
+		out[id] = snappedf((overlays[id]["y"] as UiAnim).value, 0.01)
+	return out
+
+
 static func _r(r: Rect2) -> Array:
 	return [snappedf(r.position.x, 0.01), snappedf(r.position.y, 0.01), snappedf(r.size.x, 0.01), snappedf(r.size.y, 0.01)]
 
@@ -519,9 +556,12 @@ func layout_report() -> Dictionary:
 	return {
 		"state": state.snapshot(),
 		"rail": {"rect": _r(rail.get_global_rect()), "icons": rail_icons, "icon_px": Tokens.ICON},
-		"drawer": {"rect": _r(drawer.get_global_rect()), "expanded": drawer.is_expanded(), "edge_px": Tokens.BORDER if drawer.is_expanded() else 0, "icons": drawer_icons},
-		"overlay": {"rect": _r(overlay_rect()), "tabs": overlays.keys()},
-		"dock": {"visible": dock.visible, "rect": _r(dock.get_global_rect()), "items": dock.ids()},
+		"drawer": {"rect": _r(drawer.get_global_rect()), "expanded": drawer.is_expanded(), "edge_px": Tokens.BORDER,
+			"edge_alpha": snappedf(drawer.glow.value, 0.001), "blur": drawer.over_driver and drawer.backdrop_blur, "icons": drawer_icons},
+		"overlay": {"rect": _r(overlay_rect()), "tabs": overlays.keys(), "y": _overlay_ys()},
+		"dock": {"visible": dock.visible, "rect": _r(dock.get_global_rect()), "items": dock.ids(), "blur": dock.backdrop_blur,
+			"item_rects": dock.items.map(func(it: TabIcon) -> Array: return _r(it.get_global_rect()))},
+		"pill": {"visible": pill.visible, "rect": _r(pill.get_global_rect())},
 		"driver": {"rect": _r(driver.get_global_rect()), "preset": orbit.cam.preset, "rendering": orbit.is_rendering()},
 		"keyboard": {"open": keyboard.is_open(), "numeric": keyboard.numeric},
 		"views": views,

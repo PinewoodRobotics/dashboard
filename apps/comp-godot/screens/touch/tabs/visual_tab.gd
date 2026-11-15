@@ -54,6 +54,7 @@ func _ready() -> void:
 		settings = get_node_or_null("/root/Settings") as SettingsService
 	if models == null:
 		models = get_node_or_null("/root/Models") as ModelsService
+	add_child(UiKit.full(PwRect.new(Tokens.PANEL)))
 	var root := UiKit.vbox(0)
 	var header := UiKit.hbox(16)
 	var title := UiKit.label("Visual Settings", 28, 600)

@@ -1,15 +1,19 @@
 class_name LeftRail
 extends Control
 
-## 84 px rail (LeftRail.tsx): driver-base icon on top, the user's tab icons,
-## the dock toggle at the bottom. Cells are 75 px (the web 27 px line box plus
-## its 48 px gap) and shrink when many tabs are pinned.
+## 84 px rail (LeftRail.tsx), transparent and clipped: 27 px tall, 44 px wide
+## buttons 48 px apart from 30 px padding, the driver-base button and the
+## user's tabs from the top, the dock toggle at the bottom. Pinned tabs never
+## shrink: past five they run under the dock toggle and out of the rail, as on
+## the web.
 
 signal home_tapped
 signal dock_tapped
 
 const PAD_Y := 30.0
-const CELL_H := 75.0
+const BUTTON := Vector2(44, 27)
+const GAP := 48.0
+const PITCH := BUTTON.y + GAP
 
 var state: TouchLayoutState
 var dnd: TouchDnd
@@ -21,7 +25,7 @@ var items: Array[TabIcon] = []
 func _ready() -> void:
 	name = "LeftRail"
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	position = Vector2.ZERO
+	clip_contents = true
 	size = Vector2(Tokens.RAIL_W, Tokens.TOUCH_DESIGN.y)
 	home = TabIcon.new(TabDefs.HOME_INFO)
 	home.name = "Home"
@@ -44,31 +48,33 @@ func rebuild() -> void:
 		it.dnd = dnd
 		add_child(it)
 		items.append(it)
+	move_child(dock_toggle, -1)
 	layout()
 	refresh()
 
 
-func cell_height() -> float:
-	var avail := size.y - 2.0 * PAD_Y - 2.0 * CELL_H
-	return minf(CELL_H, avail / maxf(1.0, items.size()))
+func slot(index: int) -> Rect2:
+	return Rect2(Vector2((size.x - BUTTON.x) * 0.5, PAD_Y + PITCH * (index + 1)), BUTTON)
 
 
 func layout() -> void:
-	home.position = Vector2(0, PAD_Y)
-	home.size = Vector2(size.x, CELL_H)
-	var h := cell_height()
+	var x := (size.x - BUTTON.x) * 0.5
+	home.place(Rect2(Vector2(x, PAD_Y), BUTTON))
 	for i in items.size():
-		items[i].position = Vector2(0, PAD_Y + CELL_H + i * h)
-		items[i].size = Vector2(size.x, h)
-	dock_toggle.position = Vector2(0, size.y - PAD_Y - CELL_H)
-	dock_toggle.size = Vector2(size.x, CELL_H)
+		items[i].place(slot(i))
+	dock_toggle.place(Rect2(Vector2(x, size.y - PAD_Y - BUTTON.y), BUTTON))
 
 
 func refresh() -> void:
 	home.active = state.is_driver_base()
-	dock_toggle.active = state.dock_open and not state.dock_closing
+	dock_toggle.active = state.dock_open
 	for it in items:
 		it.active = it.tab_id == state.active_tab
+
+
+func step(dt: float) -> void:
+	for it in items:
+		it.step(dt)
 
 
 func item(id: String) -> TabIcon:
@@ -83,30 +89,18 @@ func ids() -> Array:
 
 
 func centers() -> Array:
-	return items.map(func(it: TabIcon) -> Vector2: return it.canvas_center())
+	return items.map(func(it: TabIcon) -> Vector2: return it.slot_center())
 
 
-## Insertion marker while a tab is dragged over the rail: before `before_id`, or after the last item.
-var drop_marker := ""
-var drop_marker_on := false
-
-
-func show_drop_marker(on: bool, before_id: String = "") -> void:
-	if on == drop_marker_on and before_id == drop_marker:
-		return
-	drop_marker_on = on
-	drop_marker = before_id
-	queue_redraw()
-
-
-func _draw() -> void:
-	UiDraw.rect(get_canvas_item(), Rect2(Vector2.ZERO, size), Color.BLACK)
-	if not drop_marker_on:
-		return
-	var y := PAD_Y + CELL_H
-	var it := item(drop_marker)
-	if it != null:
-		y = it.position.y
-	elif not items.is_empty():
-		y = items[items.size() - 1].position.y + items[items.size() - 1].size.y
-	UiDraw.rect(get_canvas_item(), Rect2(14, y - 2, size.x - 28, 4), Tokens.ACCENT)
+## verticalListSortingStrategy: while `active_id` is dragged over `over_id`,
+## every item moves to the slot of its index in the reordered list.
+func preview_order(active_id: String, over_id: String) -> void:
+	var order := ids()
+	var from := order.find(active_id)
+	var to := order.find(over_id)
+	if from >= 0 and to >= 0:
+		order.remove_at(from)
+		order.insert(to, active_id)
+	for i in items.size():
+		var at := order.find(items[i].tab_id) if from >= 0 and to >= 0 else i
+		items[i].shift_to(slot(at).position - slot(i).position)

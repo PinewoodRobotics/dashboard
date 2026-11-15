@@ -39,6 +39,7 @@ func _ready() -> void:
 		settings = get_node_or_null("/root/Settings") as SettingsService
 	if nt == null:
 		nt = get_node_or_null("/root/NT") as NtService
+	add_child(UiKit.full(PwRect.new(Tokens.PANEL)))
 	var root := UiKit.vbox(0)
 
 	var header := UiKit.hbox(16)

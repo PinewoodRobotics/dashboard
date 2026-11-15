@@ -67,7 +67,6 @@ const DRAWER_PAD := 20
 const DRAWER_ICON_COL := 44
 const DRAWER_GAP := 30
 const DOCK_PAD := 10
-const DOCK_CELL := 64
 const DOCK_GAP := 12
 
 const INTER_WEIGHTS := [300, 400, 500, 600, 700]

@@ -14,8 +14,9 @@ const RENDER_SCALES := [0.25, 0.5, 0.75, 1.0]
 const MSAA_LEVELS := [0, 2, 4]
 const FPS_CAPS := [30, 60]
 ## auto_quality: PerfGovernor may lower MSAA and render scale when the frame
-## rate falls below the cap.
-const DEFAULT_VISUAL := {"render_scale": 1.0, "msaa": 2, "fps_cap": 60, "auto_quality": true}
+## rate falls below the cap. backdrop_blur: the drawer and dock blur what is
+## behind them (the web's visualSettings.backdropBlur).
+const DEFAULT_VISUAL := {"render_scale": 1.0, "msaa": 2, "fps_cap": 60, "auto_quality": true, "backdrop_blur": true}
 
 ## selected_auto: "" = nothing chosen, "NONE" = No Auto, else an auto name.
 ## intake_speed: null = use the robot's compiled constant, else 0..1.
@@ -63,8 +64,9 @@ static func normalize_visual(raw: Variant) -> Dictionary:
 	out["render_scale"] = _one_of(raw.get("render_scale"), RENDER_SCALES, DEFAULT_VISUAL["render_scale"])
 	out["msaa"] = _one_of(raw.get("msaa"), MSAA_LEVELS, DEFAULT_VISUAL["msaa"])
 	out["fps_cap"] = _one_of(raw.get("fps_cap"), FPS_CAPS, DEFAULT_VISUAL["fps_cap"])
-	if typeof(raw.get("auto_quality")) == TYPE_BOOL:
-		out["auto_quality"] = raw["auto_quality"]
+	for key: String in ["auto_quality", "backdrop_blur"]:
+		if typeof(raw.get(key)) == TYPE_BOOL:
+			out[key] = raw[key]
 	return out
 
 
