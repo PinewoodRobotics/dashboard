@@ -49,8 +49,8 @@ struct Args {
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
-[--dock] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] [--mouse-as-touch] \
-[--touch-test] [--debug-overlay] [--script=STEPS] [--settings=PATH]";
+[--dock] [--layout=PATH] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] \
+[--mouse-as-touch] [--touch-test] [--debug-overlay] [--script=STEPS] [--settings=PATH]";
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
@@ -69,6 +69,8 @@ fn parse_args() -> anyhow::Result<Args> {
         auto_fixture: None,
     };
     let mut nt_down = false;
+    let mut fixture = false;
+    let mut layout_path = None;
     for a in std::env::args().skip(1) {
         let (k, v) = a
             .split_once('=')
@@ -79,6 +81,7 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--screen", Some("hud")) => args.screens = vec![ScreenKind::Hud],
             ("--screen", Some("touch")) => args.screens = vec![ScreenKind::Touch],
             ("--fixture", Some(name)) => {
+                fixture = true;
                 if let Some(fx) = autos::Fixture::parse(name) {
                     args.scenario = Scenario::PreMatch;
                     args.touch.tab.get_or_insert(TabId::Auto);
@@ -98,6 +101,7 @@ fn parse_args() -> anyhow::Result<Args> {
             }
             ("--dock", None) => args.touch.dock = true,
             ("--nt-down", None) => nt_down = true,
+            ("--layout", Some(path)) => layout_path = Some(std::path::PathBuf::from(path)),
             ("--windowed", None) => args.windowed = true,
             ("--design-size", None) => args.design_px = true,
             ("--mouse-as-touch", None) => args.mouse_as_touch = true,
@@ -112,6 +116,15 @@ fn parse_args() -> anyhow::Result<Args> {
             _ => anyhow::bail!("unknown argument {a}\n{USAGE}"),
         }
     }
+    // Fixture runs keep the layout in memory so screenshots never depend on
+    // (or rewrite) the one a person arranged.
+    args.touch.layout_path = layout_path.or_else(|| {
+        if fixture {
+            None
+        } else {
+            touch::default_layout_path()
+        }
+    });
     if nt_down && args.scenario == Scenario::Demo {
         args.scenario = Scenario::NtDisconnected;
     }

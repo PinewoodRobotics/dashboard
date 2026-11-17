@@ -1,5 +1,7 @@
 pub mod autos;
 pub mod controls;
+pub mod dnd;
+pub mod layout_store;
 pub mod match_model;
 pub mod nt;
 pub mod playback;

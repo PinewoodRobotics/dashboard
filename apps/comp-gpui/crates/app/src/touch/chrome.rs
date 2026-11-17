@@ -1,7 +1,9 @@
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
-use super::{PanelId, TabId, TouchScreen, panels};
+use dash_core::dnd::Zone;
+
+use super::{LayoutState, PanelId, TabId, TouchScreen, dnd, panels};
 use crate::icons::{sf, sf_symbol};
 use crate::theme::{
     ACCENT, BLACK, BORDER, DOCK_GAP, DOCK_PAD, DOCK_W, DRAWER_GAP, DRAWER_ICON_COL, DRAWER_PAD,
@@ -46,6 +48,17 @@ fn button_center(x: f32, top: f32) -> Point<f32> {
     point(x + BUTTON_W * 0.5, top + BUTTON_H * 0.5)
 }
 
+/// The button box of the rail's pinned tab `index`, below the home button.
+pub fn rail_slot(index: usize) -> Bounds<f32> {
+    Bounds::new(
+        point(
+            (RAIL_W - BUTTON_W) * 0.5,
+            RAIL_PAD_Y + PITCH * (index + 1) as f32,
+        ),
+        size(BUTTON_W, BUTTON_H),
+    )
+}
+
 /// LeftRail.tsx.
 pub fn left_rail(
     ts: &TouchScreen,
@@ -83,22 +96,13 @@ pub fn left_rail(
         },
     ));
     for (i, tab) in ts.state.rail.iter().copied().enumerate() {
-        let info = tab.info();
+        let slot = rail_slot(i);
+        let bx = Bounds::new(
+            point(slot.origin.x, slot.origin.y + (BUTTON_H - ICON) * 0.5),
+            size(BUTTON_W, ICON),
+        );
         let active = ts.state.active_tab == Some(tab);
-        let e = entity.clone();
-        rail = rail.child(tab_icon(
-            SharedString::from(format!("rail-{}", tab.key())),
-            button_center(x, RAIL_PAD_Y + PITCH * (i + 1) as f32),
-            if active {
-                info.active_symbol
-            } else {
-                info.symbol
-            },
-            active,
-            window,
-            cx,
-            move |_, cx| e.update(cx, |this, cx| this.update_state(cx, |s| s.switch_tab(tab))),
-        ));
+        rail = rail.child(dnd::sortable_icon(ts, Zone::Rail, tab, bx, active, cx));
     }
     let e = entity.clone();
     rail.child(tab_icon(
@@ -201,14 +205,15 @@ fn sf_advance(window: &Window, code: u32, size_px: f32) -> f32 {
     f32::from(line.width)
 }
 
-fn dock_layout(ts: &TouchScreen, window: &Window) -> (Vec<(TabId, Bounds<f32>)>, f32) {
+/// Item spans in dock panel coordinates (border box), and the panel height.
+pub fn dock_layout(state: &LayoutState, window: &Window) -> (Vec<(TabId, Bounds<f32>)>, f32) {
     let inner = DOCK_W - 2.0 * (BORDER + DOCK_PAD);
     let origin = point(BORDER + DOCK_PAD, BORDER + DOCK_PAD);
     let mut out = Vec::new();
     let (mut x, mut row) = (0.0f32, 0usize);
-    for tab in ts.state.dock.iter().copied() {
+    for tab in state.dock.iter().copied() {
         let info = tab.info();
-        let symbol = if ts.state.active_tab == Some(tab) {
+        let symbol = if state.active_tab == Some(tab) {
             info.active_symbol
         } else {
             info.symbol
@@ -234,12 +239,13 @@ fn dock_layout(ts: &TouchScreen, window: &Window) -> (Vec<(TabId, Bounds<f32>)>,
 
 pub fn dock_rect(ts: &TouchScreen) -> Bounds<f32> {
     let height = ts.dock_height.get();
-    Bounds::new(
-        point(
-            (TOUCH_DESIGN.width - DOCK_W) * 0.5,
-            H - height * ts.dock_t.value(),
-        ),
-        size(DOCK_W, height),
+    Bounds::new(dock_origin(ts, height), size(DOCK_W, height))
+}
+
+pub fn dock_origin(ts: &TouchScreen, height: f32) -> Point<f32> {
+    point(
+        (TOUCH_DESIGN.width - DOCK_W) * 0.5,
+        H - height * ts.dock_t.value(),
     )
 }
 
@@ -249,11 +255,10 @@ pub fn dock(
     window: &mut Window,
     cx: &mut Context<TouchScreen>,
 ) -> impl IntoElement {
-    let (items, height) = dock_layout(ts, window);
+    let (items, height) = dock_layout(&ts.state, window);
     ts.dock_height.set(height);
     let rect = dock_rect(ts);
     let blur = ts.data.read(cx).visual.backdrop_blur;
-    let entity = cx.entity();
     let mut panel = div()
         .id("dock")
         .absolute()
@@ -269,37 +274,9 @@ pub fn dock(
         .border_r(u(BORDER))
         .border_color(ACCENT);
     for (tab, b) in items {
-        let info = tab.info();
         let active = ts.state.active_tab == Some(tab);
-        let e = entity.clone();
-        let id = SharedString::from(format!("dock-{}", tab.key()));
-        let state = press_state(id.clone(), window, cx);
-        let item = div()
-            .id(id)
-            .absolute()
-            .left(u(b.origin.x - BORDER))
-            .top(u(b.origin.y - BORDER))
-            .w(u(b.size.width))
-            .h(u(ICON))
-            .flex()
-            .items_center()
-            .child(sf_symbol(
-                if active {
-                    info.active_symbol
-                } else {
-                    info.symbol
-                },
-                ICON,
-                if active { ACCENT } else { WHITE },
-            ));
-        panel = panel.child(tappable(
-            item,
-            state,
-            false,
-            on_tap(move |_, cx| {
-                e.update(cx, |this, cx| this.update_state(cx, |s| s.switch_tab(tab)))
-            }),
-        ));
+        let bx = Bounds::new(point(b.origin.x - BORDER, b.origin.y - BORDER), b.size);
+        panel = panel.child(dnd::sortable_icon(ts, Zone::Dock, tab, bx, active, cx));
     }
     panel
 }
