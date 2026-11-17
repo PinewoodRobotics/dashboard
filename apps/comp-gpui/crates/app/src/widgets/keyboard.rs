@@ -54,7 +54,6 @@ pub fn filter(s: &str, digits_only: bool) -> String {
     }
 }
 
-/// The text a field takes after an edit: filtered, then cut to its length.
 pub fn accept(s: &str, numeric: bool, max_length: usize) -> String {
     filter(s, numeric).chars().take(max_length).collect()
 }
@@ -68,7 +67,6 @@ fn units(k: &str, numeric: bool) -> f32 {
     }
 }
 
-/// Where the sheet sits in a window of `size` design pixels.
 pub fn sheet_rect(numeric: bool, size: Size<f32>) -> Bounds<f32> {
     let rows = if numeric { PAD_ROWS.len() } else { ROWS.len() } as f32;
     let h = PAD * 2.0 + HEADER_H + rows * KEY_H + (rows - 1.0) * KEY_GAP;
@@ -83,7 +81,6 @@ pub fn sheet_rect(numeric: bool, size: Size<f32>) -> Bounds<f32> {
     )
 }
 
-/// Every key and its rect inside the sheet.
 pub fn layout(numeric: bool, size: Size<f32>) -> Vec<(&'static str, Bounds<f32>)> {
     let sheet = sheet_rect(numeric, size);
     let rows = if numeric { PAD_ROWS } else { ROWS };
@@ -142,7 +139,6 @@ fn key_icon(k: &str) -> Option<&'static str> {
     }
 }
 
-/// The field being edited: what the sheet shows and where edits go.
 #[derive(Clone)]
 pub struct Target {
     pub id: ElementId,
@@ -161,7 +157,6 @@ pub enum Outcome {
     Closed(String),
 }
 
-/// The keyboard's state without any UI, so the key logic is testable.
 #[derive(Default)]
 pub struct Model {
     pub target: Option<Target>,
@@ -341,21 +336,20 @@ fn on_physical_key(kb: &Entity<Keyboard>, e: &KeyDownEvent, window: &mut Window,
     if ks.modifiers.platform || ks.modifiers.control {
         return;
     }
-    cx.stop_propagation();
     match ks.key.as_str() {
         "backspace" => apply(kb, window, cx, |m| m.backspace()),
         "enter" | "escape" => apply(kb, window, cx, |m| m.close()),
-        _ => {
-            if let Some(c) = ks.key_char.as_deref().filter(|c| !c.chars().any(char::is_control)) {
+        _ => match ks.key_char.as_deref() {
+            Some(c) if !c.chars().any(char::is_control) => {
                 let c = c.to_owned();
                 apply(kb, window, cx, move |m| m.insert(&c));
             }
-        }
+            _ => return,
+        },
     }
+    cx.stop_propagation();
 }
 
-/// The keyboard sheet over everything else in the window, nothing while
-/// closed. `size` is the window's design size.
 pub fn layer(size: Size<f32>, window: &mut Window, cx: &mut App) -> AnyElement {
     let kb = ensure(window, cx);
     let k = kb.read(cx);

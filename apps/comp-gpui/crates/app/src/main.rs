@@ -33,11 +33,14 @@ struct Args {
     windowed: bool,
     design_px: bool,
     mouse_as_touch: bool,
+    touch_test: bool,
+    debug_overlay: bool,
     script: Vec<dev_script::Step>,
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
-[--dock] [--nt-down] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS]";
+[--dock] [--nt-down] [--windowed] [--design-size] [--mouse-as-touch] [--touch-test] [--debug-overlay] \
+[--script=STEPS]";
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
@@ -47,6 +50,8 @@ fn parse_args() -> anyhow::Result<Args> {
         windowed: false,
         design_px: false,
         mouse_as_touch: false,
+        touch_test: false,
+        debug_overlay: false,
         script: Vec::new(),
     };
     let mut nt_down = false;
@@ -76,6 +81,8 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--windowed", None) => args.windowed = true,
             ("--design-size", None) => args.design_px = true,
             ("--mouse-as-touch", None) => args.mouse_as_touch = true,
+            ("--touch-test", None) => args.touch_test = true,
+            ("--debug-overlay", None) => args.debug_overlay = true,
             ("--script", Some(s)) => args.script = dev_script::parse(s)?,
             _ => anyhow::bail!("unknown argument {a}\n{USAGE}"),
         }
@@ -103,6 +110,10 @@ fn main() -> anyhow::Result<()> {
                 KeyBinding::new("ctrl-q", Quit, None),
             ]);
             cx.on_window_closed(|cx, _| cx.quit()).detach();
+            debug_overlay::init(cx);
+            if args.touch_test {
+                touch_test::open_all(cx);
+            }
 
             let data = cx.new(|_| MockData::new(args.scenario));
             if args.scenario == Scenario::Demo {
@@ -144,7 +155,12 @@ fn main() -> anyhow::Result<()> {
                         }
                         cx.new(|cx| hud::HudScreen::new(data, cx))
                     })
-                    .map(|_| ()),
+                    .map(|(handle, _)| {
+                        if args.screens == [ScreenKind::Hud] && !args.script.is_empty() {
+                            dev_script::run(handle.into(), args.script.clone(), cx);
+                        }
+                        handle.window_id()
+                    }),
                     ScreenKind::Touch => gpui_kit::open_window(options, cx, move |window, cx| {
                         if design_px {
                             windows::resize_to_design_pixels(kind, window);
@@ -155,8 +171,14 @@ fn main() -> anyhow::Result<()> {
                         if !args.script.is_empty() {
                             dev_script::run(handle.into(), args.script.clone(), cx);
                         }
+                        handle.window_id()
                     }),
                 };
+                if let Ok(id) = &opened {
+                    if args.debug_overlay && index == 0 {
+                        debug_overlay::open(*id, cx);
+                    }
+                }
                 if let Err(e) = opened {
                     eprintln!("comp-gpui: cannot open {}: {e:#}", kind.title());
                 }

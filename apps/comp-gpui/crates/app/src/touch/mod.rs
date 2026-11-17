@@ -439,7 +439,14 @@ impl Render for TouchScreen {
             .when(!self.data.read(cx).nt_connected, |d| {
                 d.child(crate::widgets::status_pill(TOUCH_DESIGN, "NT Disconnected"))
             })
-            .child(crate::widgets::keyboard::layer(TOUCH_DESIGN, window, cx));
+            .child(crate::widgets::keyboard::layer(TOUCH_DESIGN, window, cx))
+            .child(crate::touch_test::layer(
+                crate::windows::ScreenKind::Touch,
+                TOUCH_DESIGN,
+                window,
+                cx,
+            ))
+            .child(crate::debug_overlay::layer(&self.data, window, cx));
 
         div()
             .size_full()
