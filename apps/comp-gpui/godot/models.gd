@@ -11,6 +11,7 @@ const FUEL_PREFIX := "GE-26900"
 
 var templates := {}
 var load_ms := {}
+var failed := {}
 var _jobs := {}
 
 
@@ -19,6 +20,7 @@ func request(key: String, path: String) -> void:
 		return
 	if path.is_empty() or not FileAccess.file_exists(path):
 		push_error("models: %s not found at '%s'" % [key, path])
+		failed[key] = true
 		return
 	var job := {"key": key, "path": path, "t0": Time.get_ticks_msec(), "err": FAILED, "root": null}
 	job["task"] = WorkerThreadPool.add_task(_load.bind(job), false, "load " + key)
@@ -44,6 +46,7 @@ func _process(_delta: float) -> void:
 		var root := job["root"] as Node3D
 		if job["err"] != OK or root == null:
 			push_error("models: %s failed to load (%s)" % [key, error_string(job["err"])])
+			failed[key] = true
 			continue
 		_to_mesh_instances(root)
 		if key == "field":
@@ -54,6 +57,11 @@ func _process(_delta: float) -> void:
 		model_ready.emit(key)
 	if _jobs.is_empty():
 		set_process(false)
+
+
+## Loaded, or known never to load.
+func settled(key: String) -> bool:
+	return templates.has(key) or failed.has(key)
 
 
 func instance(key: String) -> Node3D:

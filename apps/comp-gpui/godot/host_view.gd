@@ -65,7 +65,7 @@ func close(bridge: Object) -> void:
 
 
 func wants_frame(now_us: int) -> bool:
-	return active and ring_size != Vector2i.ZERO and now_us + SLACK_US >= _next_due_us
+	return active and ring_size != Vector2i.ZERO and now_us + SLACK_US >= _next_due_us and content.is_ready()
 
 
 func begin_frame(slot: int, now_us: int) -> void:

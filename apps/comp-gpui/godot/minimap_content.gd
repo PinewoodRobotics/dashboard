@@ -43,6 +43,10 @@ func on_model_ready(key: String) -> void:
 			add_child(_field)
 
 
+func is_ready() -> bool:
+	return models == null or (models.settled("robot") and models.settled("field"))
+
+
 func step(dt: float, visible: bool) -> void:
 	_t += dt
 	var a := _t * 0.25

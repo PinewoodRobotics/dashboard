@@ -38,6 +38,10 @@ func on_model_ready(key: String) -> void:
 	add_child(_robot)
 
 
+func is_ready() -> bool:
+	return models == null or models.settled("robot")
+
+
 func step(dt: float, visible: bool) -> void:
 	if visible:
 		cam.step(dt)

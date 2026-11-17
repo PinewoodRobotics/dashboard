@@ -20,6 +20,12 @@ func on_model_ready(_key: String) -> void:
 	pass
 
 
+## A view sends no frames until it has its content, so after a respawn the host
+## keeps showing the previous process's last frame instead of an empty scene.
+func is_ready() -> bool:
+	return true
+
+
 ## robot_model.tscn's CadUp: CAD Z-up to Godot Y-up.
 static func cad_up() -> Node3D:
 	var n := Node3D.new()
