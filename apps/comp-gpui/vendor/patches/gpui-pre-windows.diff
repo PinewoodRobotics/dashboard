@@ -1,0 +1,244 @@
+diff --git a/gpui-pre-windows/src/directx_renderer.rs b/gpui-pre-windows/src/directx_renderer.rs
+index 4cce3e0..2ed80fa 100644
+--- a/gpui-pre-windows/src/directx_renderer.rs
++++ b/gpui-pre-windows/src/directx_renderer.rs
+@@ -1,8 +1,11 @@
+ use std::{
++    borrow::Cow,
+     slice,
+     sync::{Arc, OnceLock},
+ };
+ 
++use collections::FxHashMap;
++
+ use anyhow::{Context, Result};
+ use gpui_util::ResultExt;
+ use windows::{
+@@ -45,6 +48,7 @@ pub(crate) struct DirectXRenderer {
+     pipelines: DirectXRenderPipelines,
+     direct_composition: Option<DirectComposition>,
+     font_info: &'static FontInfo,
++    shared_textures: SharedTextureCache,
+ 
+     width: u32,
+     height: u32,
+@@ -191,6 +195,7 @@ impl DirectXRenderer {
+             pipelines,
+             direct_composition,
+             font_info: Self::get_font_info(),
++            shared_textures: SharedTextureCache::default(),
+             width: 1,
+             height: 1,
+             skip_draws: false,
+@@ -283,6 +288,7 @@ impl DirectXRenderer {
+             }
+ 
+             self.direct_composition.take();
++            self.shared_textures.clear();
+             self.devices.take();
+         }
+ 
+@@ -384,7 +390,10 @@ impl DirectXRenderer {
+                 PrimitiveBatch::PolychromeSprites { texture_id, range } => {
+                     self.draw_polychrome_sprites(texture_id, range.start, range.len())
+                 }
+-                PrimitiveBatch::Surfaces(range) => self.draw_surfaces(&scene.surfaces[range]),
++                PrimitiveBatch::Surfaces(range) => self.draw_surfaces(
++                    scene.polychrome_sprites.len() + range.start,
++                    &scene.surfaces[range],
++                ),
+             }
+             .with_context(|| {
+                 format!(
+@@ -401,6 +410,7 @@ impl DirectXRenderer {
+                 )
+             })?;
+         }
++        self.shared_textures.end_frame();
+         Ok(())
+     }
+ 
+@@ -569,11 +579,32 @@ impl DirectXRenderer {
+             )?;
+         }
+ 
+-        if !scene.polychrome_sprites.is_empty() {
++        // Surfaces are drawn through the polychrome sprite pipeline, so their sprites follow the
++        // scene's polychrome sprites in the same instance buffer.
++        let poly_sprites: Cow<[PolychromeSprite]> = if scene.surfaces.is_empty() {
++            Cow::Borrowed(&scene.polychrome_sprites)
++        } else {
++            let shared_textures = &mut self.shared_textures;
++            let surface_sprites = scene.surfaces.iter().map(|surface| {
++                let size = shared_textures
++                    .open(&devices.device, &surface.shared_texture)
++                    .map_or(surface.shared_texture.size, |texture| texture.size);
++                surface_sprite(surface, size)
++            });
++            Cow::Owned(
++                scene
++                    .polychrome_sprites
++                    .iter()
++                    .copied()
++                    .chain(surface_sprites)
++                    .collect(),
++            )
++        };
++        if !poly_sprites.is_empty() {
+             self.pipelines.poly_sprites.update_buffer(
+                 &devices.device,
+                 &devices.device_context,
+-                &scene.polychrome_sprites,
++                &poly_sprites,
+             )?;
+         }
+ 
+@@ -813,10 +844,32 @@ impl DirectXRenderer {
+         )
+     }
+ 
+-    fn draw_surfaces(&mut self, surfaces: &[PaintSurface]) -> Result<()> {
++    fn draw_surfaces(&mut self, first_sprite: usize, surfaces: &[PaintSurface]) -> Result<()> {
+         if surfaces.is_empty() {
+             return Ok(());
+         }
++        let devices = self.devices.as_ref().context("devices missing")?;
++        let batch_params_buffer = self
++            .globals
++            .batch_params_buffer
++            .as_ref()
++            .context("batch params buffer missing")?;
++        for (offset, surface) in surfaces.iter().enumerate() {
++            let Some(texture) = self
++                .shared_textures
++                .open(&devices.device, &surface.shared_texture)
++            else {
++                continue;
++            };
++            self.pipelines.poly_sprites.draw_range_with_texture(
++                &devices.device_context,
++                slice::from_ref(&texture.view),
++                batch_params_buffer,
++                slice::from_ref(&self.globals.sampler),
++                (first_sprite + offset) as u32,
++                1,
++            )?;
++        }
+         Ok(())
+     }
+ 
+@@ -1076,6 +1129,99 @@ struct GlobalParams {
+     _pad: [u32; 3],
+ }
+ 
++fn surface_sprite(surface: &PaintSurface, texture_size: Size<DevicePixels>) -> PolychromeSprite {
++    PolychromeSprite {
++        order: surface.order,
++        // polychrome_sprite_fragment reads a nonzero pad as "force alpha to one".
++        pad: surface.shared_texture.opaque as u32,
++        tile: AtlasTile {
++            texture_id: AtlasTextureId {
++                index: 0,
++                kind: AtlasTextureKind::Polychrome,
++            },
++            tile_id: TileId(0),
++            padding: 0,
++            bounds: Bounds {
++                origin: Point::default(),
++                size: texture_size,
++            },
++        },
++        grayscale: false.into(),
++        opacity: 1.0,
++        bounds: surface.bounds,
++        content_mask: surface.content_mask.clone(),
++        corner_radii: Corners::default(),
++    }
++}
++
++struct OpenedSharedTexture {
++    view: Option<ID3D11ShaderResourceView>,
++    size: Size<DevicePixels>,
++}
++
++struct SharedTextureEntry {
++    texture: Option<OpenedSharedTexture>,
++    last_used_frame: u64,
++}
++
++/// Textures opened from other processes, keyed by handle name. A name is opened once and kept
++/// while scenes keep painting it. A failed open is cached as well, so it is retried only after
++/// the entry has been evicted.
++#[derive(Default)]
++struct SharedTextureCache {
++    entries: FxHashMap<SharedString, SharedTextureEntry>,
++    frame: u64,
++}
++
++impl SharedTextureCache {
++    const EVICT_AFTER_FRAMES: u64 = 60;
++
++    fn clear(&mut self) {
++        self.entries.clear();
++    }
++
++    fn open(
++        &mut self,
++        device: &ID3D11Device,
++        shared: &SharedTexture,
++    ) -> Option<&OpenedSharedTexture> {
++        let frame = self.frame;
++        let entry = self
++            .entries
++            .entry(shared.name.clone())
++            .or_insert_with(|| SharedTextureEntry {
++                texture: open_shared_texture(device, &shared.name)
++                    .with_context(|| format!("opening shared texture {}", shared.name))
++                    .log_err(),
++                last_used_frame: frame,
++            });
++        entry.last_used_frame = frame;
++        entry.texture.as_ref()
++    }
++
++    fn end_frame(&mut self) {
++        self.frame += 1;
++        let frame = self.frame;
++        self.entries
++            .retain(|_, entry| frame - entry.last_used_frame <= Self::EVICT_AFTER_FRAMES);
++    }
++}
++
++fn open_shared_texture(device: &ID3D11Device, name: &str) -> Result<OpenedSharedTexture> {
++    let device1: ID3D11Device1 = device.cast()?;
++    let texture: ID3D11Texture2D = unsafe {
++        device1.OpenSharedResourceByName(&HSTRING::from(name), DXGI_SHARED_RESOURCE_READ.0)
++    }?;
++    let mut desc = D3D11_TEXTURE2D_DESC::default();
++    unsafe { texture.GetDesc(&mut desc) };
++    let mut view = None;
++    unsafe { device.CreateShaderResourceView(&texture, None, Some(&mut view)) }?;
++    Ok(OpenedSharedTexture {
++        view,
++        size: size(DevicePixels(desc.Width as i32), DevicePixels(desc.Height as i32)),
++    })
++}
++
+ #[derive(Clone, Copy, Debug, Default)]
+ #[repr(C, align(16))]
+ struct BatchParams {
+diff --git a/gpui-pre-windows/src/shaders.hlsl b/gpui-pre-windows/src/shaders.hlsl
+index 2f9a00c..fea7bfa 100644
+--- a/gpui-pre-windows/src/shaders.hlsl
++++ b/gpui-pre-windows/src/shaders.hlsl
+@@ -1263,6 +1263,10 @@ float4 polychrome_sprite_fragment(PolychromeSpriteFragmentInput input): SV_Targe
+         float3 grayscale = dot(color.rgb, GRAYSCALE_FACTORS);
+         color = float4(grayscale, sample.a);
+     }
++    // Shared surfaces set pad to draw opaque: Godot leaves alpha 0 on background pixels.
++    if (sprite.pad != 0u) {
++        color.a = 1.0;
++    }
+     color.a *= sprite.opacity * saturate(0.5 - distance);
+     return color;
+ }

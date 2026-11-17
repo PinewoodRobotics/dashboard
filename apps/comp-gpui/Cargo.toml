@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/*", "vendor/gpui-pre-apple"]
 resolver = "3"
+exclude = ["vendor/gpui-pre", "vendor/gpui-pre-windows"]
 
 [workspace.package]
 edition = "2024"
@@ -16,4 +17,6 @@ objc2-metal = { version = "0.3.2", features = ["objc2-io-surface"] }
 objc2-core-video = { version = "0.3.2", features = ["objc2-io-surface", "objc2-metal", "CVPixelBufferIOSurface"] }
 
 [patch.crates-io]
+gpui-pre = { path = "vendor/gpui-pre" }
 gpui-pre-apple = { path = "vendor/gpui-pre-apple" }
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }

@@ -4,5 +4,9 @@ compatibility_minimum = 4.7
 reloadable = false
 
 [libraries]
-macos.debug = "../target/release/libgodot_bridge.dylib"
-macos.release = "../target/release/libgodot_bridge.dylib"
+macos.debug = "res://bin/libgodot_bridge.dylib"
+macos.release = "res://bin/libgodot_bridge.dylib"
+windows.debug.arm64 = "res://bin/godot_bridge.dll"
+windows.release.arm64 = "res://bin/godot_bridge.dll"
+windows.debug.x86_64 = "res://bin/godot_bridge.dll"
+windows.release.x86_64 = "res://bin/godot_bridge.dll"

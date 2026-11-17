@@ -32,7 +32,48 @@ use objc2_metal::{MTLBlitCommandEncoder, MTLOrigin, MTLRegion, MTLSize};
 use objc2_quartz_core::{CAMetalDrawable, CAMetalLayer};
 use parking_lot::Mutex;
 
-use std::{cell::Cell, mem, mem::MaybeUninit, ops::Range, ptr, slice, sync::Arc};
+use std::{
+    cell::Cell,
+    mem,
+    mem::MaybeUninit,
+    ops::Range,
+    ptr, slice,
+    sync::{Arc, OnceLock},
+};
+
+/// Called on a Metal thread when a frame that drew surfaces reaches the display, with the
+/// addresses of those surfaces' CVPixelBuffers and the drawable's `presentedTime` (seconds on
+/// the CACurrentMediaTime clock).
+pub type SurfacePresentObserver = dyn Fn(&[usize], f64) + Send + Sync;
+
+static SURFACE_PRESENT_OBSERVER: OnceLock<Box<SurfacePresentObserver>> = OnceLock::new();
+
+/// Installs the process-wide observer of surface presentation; only the first call takes effect.
+pub fn set_surface_present_observer(observer: impl Fn(&[usize], f64) + Send + Sync + 'static) {
+    let _ = SURFACE_PRESENT_OBSERVER.set(Box::new(observer));
+}
+
+fn observe_surface_presentation(scene: &Scene, drawable: &ProtocolObject<dyn CAMetalDrawable>) {
+    let Some(observer) = SURFACE_PRESENT_OBSERVER.get() else {
+        return;
+    };
+    if scene.surfaces.is_empty() {
+        return;
+    }
+    let buffers: Vec<usize> = scene
+        .surfaces
+        .iter()
+        .map(|surface| CFRetained::as_ptr(&surface.image_buffer).as_ptr() as usize)
+        .collect();
+    let block = RcBlock::new(move |drawable: ptr::NonNull<ProtocolObject<dyn MTLDrawable>>| {
+        let presented = unsafe { drawable.as_ref() }.presentedTime();
+        if presented > 0.0 {
+            observer(&buffers, presented);
+        }
+    });
+    // SAFETY: Metal copies the block and calls it once, when the drawable is presented or dropped.
+    unsafe { drawable.addPresentedHandler(RcBlock::as_ptr(&block)) };
+}
 
 // Exported to metal
 pub(crate) type PointF = gpui::Point<f32>;
@@ -647,6 +688,7 @@ impl MetalRenderer {
             }
         };
 
+        observe_surface_presentation(scene, &drawable);
         if self.presents_with_transaction {
             command_buffer.commit();
             command_buffer.waitUntilScheduled();

@@ -1,0 +1,115 @@
+diff --git a/gpui-pre/src/elements/surface.rs b/gpui-pre/src/elements/surface.rs
+index acd2932..2f701ab 100644
+--- a/gpui-pre/src/elements/surface.rs
++++ b/gpui-pre/src/elements/surface.rs
+@@ -14,6 +14,16 @@ pub enum SurfaceSource {
+     /// A CoreVideo image buffer
+     #[cfg(any(target_os = "macos", target_os = "ios"))]
+     Surface(CFRetained<CVPixelBuffer>),
++    /// A texture shared by another process
++    #[cfg(target_os = "windows")]
++    SharedTexture(crate::SharedTexture),
++}
++
++#[cfg(target_os = "windows")]
++impl From<crate::SharedTexture> for SurfaceSource {
++    fn from(value: crate::SharedTexture) -> Self {
++        SurfaceSource::SharedTexture(value)
++    }
+ }
+ 
+ #[cfg(any(target_os = "macos", target_os = "ios"))]
+@@ -31,7 +41,7 @@ pub struct Surface {
+ }
+ 
+ /// Create a new surface element.
+-#[cfg(any(target_os = "macos", target_os = "ios"))]
++#[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))]
+ pub fn surface(source: impl Into<SurfaceSource>) -> Surface {
+     Surface {
+         source: source.into(),
+@@ -89,14 +99,14 @@ impl Element for Surface {
+         _global_id: Option<&GlobalElementId>,
+         _inspector_id: Option<&InspectorElementId>,
+         #[cfg_attr(
+-            not(any(target_os = "macos", target_os = "ios")),
++            not(any(target_os = "macos", target_os = "ios", target_os = "windows")),
+             allow(unused_variables)
+         )]
+         bounds: Bounds<Pixels>,
+         _: &mut Self::RequestLayoutState,
+         _: &mut Self::PrepaintState,
+         #[cfg_attr(
+-            not(any(target_os = "macos", target_os = "ios")),
++            not(any(target_os = "macos", target_os = "ios", target_os = "windows")),
+             allow(unused_variables)
+         )]
+         window: &mut Window,
+@@ -113,6 +123,11 @@ impl Element for Surface {
+                 // TODO: Add support for corner_radii
+                 window.paint_surface(new_bounds, surface.clone());
+             }
++            #[cfg(target_os = "windows")]
++            SurfaceSource::SharedTexture(texture) => {
++                let new_bounds = self.object_fit.get_bounds(bounds, texture.size);
++                window.paint_shared_texture(new_bounds, texture.clone());
++            }
+             #[allow(unreachable_patterns)]
+             _ => {}
+         }
+diff --git a/gpui-pre/src/scene.rs b/gpui-pre/src/scene.rs
+index a4116aa..be67339 100644
+--- a/gpui-pre/src/scene.rs
++++ b/gpui-pre/src/scene.rs
+@@ -771,6 +771,20 @@ pub struct PaintSurface {
+     pub content_mask: ContentMask<ScaledPixels>,
+     #[cfg(any(target_os = "macos", target_os = "ios"))]
+     pub image_buffer: objc2_core_foundation::CFRetained<objc2_core_video::CVPixelBuffer>,
++    #[cfg(target_os = "windows")]
++    pub shared_texture: SharedTexture,
++}
++
++/// An RGBA8 texture another process shares through a named NT handle.
++#[cfg(target_os = "windows")]
++#[derive(Clone, Debug, PartialEq, Eq, Hash)]
++pub struct SharedTexture {
++    /// The handle name, opened with `ID3D11Device1::OpenSharedResourceByName`.
++    pub name: crate::SharedString,
++    /// The texture's size.
++    pub size: Size<crate::DevicePixels>,
++    /// Draw with alpha forced to one.
++    pub opaque: bool,
+ }
+ 
+ impl From<PaintSurface> for Primitive {
+diff --git a/gpui-pre/src/window.rs b/gpui-pre/src/window.rs
+index 4e2e1a7..d85bd44 100644
+--- a/gpui-pre/src/window.rs
++++ b/gpui-pre/src/window.rs
+@@ -5421,6 +5421,26 @@ impl Window {
+         });
+     }
+ 
++    /// Paint a texture shared by another process into the scene for the next frame at the
++    /// current z-index.
++    ///
++    /// This method should only be called as part of the paint phase of element drawing.
++    #[cfg(target_os = "windows")]
++    pub fn paint_shared_texture(&mut self, bounds: Bounds<Pixels>, texture: crate::SharedTexture) {
++        use crate::PaintSurface;
++
++        self.invalidator.debug_assert_paint();
++
++        let bounds = self.snap_bounds(bounds);
++        let content_mask = self.snapped_content_mask();
++        self.next_frame.scene.insert_primitive(PaintSurface {
++            order: 0,
++            bounds,
++            content_mask,
++            shared_texture: texture,
++        });
++    }
++
+     /// Removes an image from the sprite atlas.
+     pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
+         for frame_index in 0..data.frame_count() {
