@@ -242,7 +242,7 @@ pub fn dock_origin(ts: &TouchScreen, height: f32) -> Point<f32> {
 }
 
 /// DockDrawer.tsx.
-pub fn dock(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> impl IntoElement {
+pub fn dock(ts: &TouchScreen, window: &Window, cx: &mut Context<TouchScreen>) -> impl IntoElement {
     let (items, height) = dock_layout(&ts.state);
     ts.dock_height.set(height);
     let rect = dock_rect(ts);

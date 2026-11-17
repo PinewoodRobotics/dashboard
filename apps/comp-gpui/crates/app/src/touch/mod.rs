@@ -446,7 +446,7 @@ impl Render for TouchScreen {
             .child(chrome::left_rail(self, window, cx))
             .child(chrome::right_drawer(self, window, cx))
             .when(self.dock_visible(), |d| {
-                d.child(chrome::dock(self, cx))
+                d.child(chrome::dock(self, window, cx))
             })
             .children(dnd::ghost(self))
             .when(!self.data.read(cx).nt_connected, |d| {
