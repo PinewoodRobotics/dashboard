@@ -1,5 +1,6 @@
 pub mod autos;
 pub mod controls;
+pub mod field;
 pub mod match_model;
 pub mod nt;
 pub mod playback;
