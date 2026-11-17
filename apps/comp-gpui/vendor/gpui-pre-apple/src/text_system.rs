@@ -47,13 +47,6 @@ use pathfinder_geometry::{
 use smallvec::SmallVec;
 use std::{borrow::Cow, char, convert::TryFrom, sync::Arc};
 
-#[cfg(target_os = "macos")]
-use {
-    core_foundation::base::CFType,
-    gpui::{Hsla, Rgba},
-    std::sync::OnceLock,
-};
-
 use crate::open_type::apply_features_and_fallbacks;
 
 #[allow(non_upper_case_globals)]
@@ -220,44 +213,6 @@ impl PlatformTextSystem for AppleTextSystem {
     ) -> TextRenderingMode {
         TextRenderingMode::Grayscale
     }
-
-    #[cfg(target_os = "macos")]
-    fn glyph_dilation_for_color(&self, color: Hsla) -> u8 {
-        // When font smoothing is enabled, CoreGraphics thickens glyph strokes by an amount that
-        // depends on the foreground color's luminance. We replicate the logic used by CoreGraphics
-        // to select between the different levels of dilation.
-        if !font_smoothing_allowed_by_user() {
-            return 0;
-        }
-        let rgba: Rgba = color.into();
-        let luminance = 0.2126 * rgba.r + 0.7152 * rgba.g + 0.0722 * rgba.b;
-        let level = ((4.0 * luminance) + 0.5).floor() as i32;
-        level.clamp(0, 4) as u8
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn font_smoothing_allowed_by_user() -> bool {
-    static ALLOWED: OnceLock<bool> = OnceLock::new();
-    *ALLOWED.get_or_init(|| {
-        use core_foundation_sys::preferences::{
-            CFPreferencesCopyAppValue, kCFPreferencesCurrentApplication,
-        };
-
-        let key = CFString::new("AppleFontSmoothing");
-        let value_ref = unsafe {
-            CFPreferencesCopyAppValue(key.as_concrete_TypeRef(), kCFPreferencesCurrentApplication)
-        };
-        if value_ref.is_null() {
-            return true;
-        }
-        let value = unsafe { CFType::wrap_under_create_rule(value_ref) };
-        let Some(number) = value.downcast_into::<CFNumber>() else {
-            return true;
-        };
-        // Only an explicit value of `0` means that font smoothing is disabled.
-        number.to_i64() != Some(0)
-    })
 }
 
 impl AppleTextSystemState {
