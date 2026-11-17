@@ -74,7 +74,7 @@ build (`apps/comp-godot/tools/assets/build_models.mjs`, which writes
 ### Measurements
 
 MacBook Pro M1 Pro (Metal, Apple7 GPU), Godot 4.7.2, release build, `--kiosk` (robot view
-1920x515 device px, MSAA 2x, driver robot view camera), HUD minimap view 720x440 px at 30 fps
+1920x515 device px, MSAA 2x, driver robot view camera), HUD minimap view 716x436 px at 30 fps
 when on, scripted drag and wheel input during the run (`--demo-input`). Values are medians of
 the overlay over the last two thirds of 34 s runs.
 
