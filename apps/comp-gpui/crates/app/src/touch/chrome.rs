@@ -9,13 +9,20 @@ use crate::theme::{
     ACCENT, BLACK, BORDER, DOCK_GAP, DOCK_PAD, DOCK_W, DRAWER_GAP, DRAWER_ICON_COL, DRAWER_PAD,
     DRAWER_W, ICON, RAIL_W, SCRIM, TOUCH_DESIGN, WHITE, alpha, u,
 };
-use crate::widgets::{Button, ButtonStyle, on_tap, press_state, tappable};
+use crate::widgets::{Button, ButtonStyle, dpx, on_tap, press_state, tappable};
 
 const H: f32 = TOUCH_DESIGN.height;
 const BUTTON_W: f32 = 44.0;
 const BUTTON_H: f32 = 27.0;
 const RAIL_PAD_Y: f32 = 30.0;
 const PITCH: f32 = BUTTON_H + 48.0;
+const PRESET_COUNT: usize = 4;
+const PRESET: f32 = 40.0;
+const PRESET_GAP: f32 = 8.0;
+const PRESET_BOTTOM: f32 = 24.0;
+const BACKDROP_BLUR: f32 = 8.0;
+const DOCK_FROST: Rgba = alpha(BLACK, 0.8);
+const DRIVER_BG: Rgba = crate::placeholder::VIEW3D_FILL;
 
 /// LeftIcon.tsx, RightIconColumn.tsx. The 48 px span overflows the 27 px
 /// button and still takes taps on the web, so the hit box is the span.
@@ -240,6 +247,8 @@ pub fn dock(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> impl IntoElement
     ts.dock_height.set(height);
     let rect = dock_rect(ts);
     let blur = ts.data.read(cx).visual.backdrop_blur;
+    let content_origin = point(rect.origin.x + BORDER, rect.origin.y + BORDER);
+    let content = size(DOCK_W - 2.0 * BORDER, height - BORDER);
     let mut panel = div()
         .id("dock")
         .absolute()
@@ -249,11 +258,11 @@ pub fn dock(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> impl IntoElement
         .h(u(height))
         .overflow_hidden()
         .occlude()
-        .bg(if blur { alpha(BLACK, 0.5) } else { SCRIM })
         .border_t(u(BORDER))
         .border_l(u(BORDER))
         .border_r(u(BORDER))
-        .border_color(ACCENT);
+        .border_color(ACCENT)
+        .child(dock_backdrop(ts, blur, content_origin, content, window));
     for (tab, b) in items {
         let active = ts.state.active_tab == Some(tab);
         let bx = Bounds::new(point(b.origin.x - BORDER, b.origin.y - BORDER), b.size);
@@ -262,36 +271,142 @@ pub fn dock(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> impl IntoElement
     panel
 }
 
+/// GPUI cannot blur what is behind an element, so the dock fakes the web's
+/// `backdrop-blur-[8px] bg-black/50`. Over the driver base the only detail
+/// under the dock is the preset row, which it redraws blurred over covers
+/// hiding the sharp pills. Tab content is arbitrary, so over a tab layer a
+/// denser tint stands in for the detail the blur would wash out.
+fn dock_backdrop(
+    ts: &TouchScreen,
+    blur: bool,
+    origin: Point<f32>,
+    content: Size<f32>,
+    window: &Window,
+) -> Div {
+    let layer = div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .w(u(content.width))
+        .h(u(content.height))
+        .overflow_hidden();
+    if !blur {
+        return layer.bg(SCRIM);
+    }
+    let split = (ts.driver_base_bottom() - origin.y).clamp(0.0, content.height);
+    let band = |top: f32, h: f32| {
+        div()
+            .absolute()
+            .left_0()
+            .top(u(top))
+            .w(u(content.width))
+            .h(u(h))
+            .overflow_hidden()
+    };
+    let presets = (0..PRESET_COUNT).flat_map(|i| {
+        let slot = preset_slot(i);
+        let at = point(slot.origin.x - origin.x, slot.origin.y - origin.y);
+        [
+            preset_cover(at),
+            preset_ghost(at, ts.driver_preset == i, window),
+        ]
+    });
+    layer
+        .child(
+            band(0.0, split)
+                .children(presets)
+                .child(div().size_full().bg(alpha(BLACK, 0.5))),
+        )
+        .child(band(split, content.height - split).bg(DOCK_FROST))
+}
+
+fn preset_cover(at: Point<f32>) -> Div {
+    div()
+        .absolute()
+        .left(u(at.x - 1.0))
+        .top(u(at.y - 1.0))
+        .size(u(PRESET + 2.0))
+        .rounded_full()
+        .bg(DRIVER_BG)
+}
+
+/// The Pill button and its glow seen through the 8 px blur: blurring a
+/// gaussian shadow adds the variances.
+fn preset_ghost(at: Point<f32>, selected: bool, window: &Window) -> Div {
+    let blur = |sigma: f32| dpx(window, sigma.hypot(BACKDROP_BLUR));
+    let fill: Hsla = if selected { WHITE } else { alpha(WHITE, 0.1) }.into();
+    let mut shadows = vec![BoxShadow::new(px(0.), px(0.), fill).blur_radius(blur(0.0))];
+    if selected {
+        let glow: Hsla = alpha(WHITE, 0.2).into();
+        shadows.push(
+            BoxShadow::new(px(0.), dpx(window, 10.), glow)
+                .blur_radius(blur(15.0))
+                .spread_radius(dpx(window, -3.)),
+        );
+        shadows.push(
+            BoxShadow::new(px(0.), dpx(window, 4.), glow)
+                .blur_radius(blur(6.0))
+                .spread_radius(dpx(window, -4.)),
+        );
+    }
+    div()
+        .absolute()
+        .left(u(at.x))
+        .top(u(at.y))
+        .size(u(PRESET))
+        .rounded_full()
+        .shadow(shadows)
+}
+
+/// DriverTab.tsx: a `bottom-6` row of `h-10 w-10` pills `gap-2` apart,
+/// centered in the driver base right of the rail.
+pub fn preset_slot(i: usize) -> Bounds<f32> {
+    let n = PRESET_COUNT as f32;
+    let row = n * PRESET + (n - 1.0) * PRESET_GAP;
+    let x = RAIL_W + (TOUCH_DESIGN.width - RAIL_W - row) * 0.5;
+    Bounds::new(
+        point(
+            x + i as f32 * (PRESET + PRESET_GAP),
+            H - PRESET_BOTTOM - PRESET,
+        ),
+        size(PRESET, PRESET),
+    )
+}
+
 /// DriverTab.tsx.
 pub fn driver_view(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> impl IntoElement {
     let entity = cx.entity();
-    let pills = (0..4usize).map(|i| {
+    let pills = (0..PRESET_COUNT).map(|i| {
         let e = entity.clone();
-        Button::new(("preset", i), format!("{}", i + 1), ButtonStyle::Pill)
-            .selected(ts.driver_preset == i)
-            .on_tap(move |_, cx| {
-                e.update(cx, |this, cx| {
-                    this.driver_preset = i;
-                    cx.notify();
-                })
-            })
+        let slot = preset_slot(i);
+        div()
+            .absolute()
+            .left(u(slot.origin.x))
+            .top(u(slot.origin.y))
+            .child(
+                Button::new(("preset", i), format!("{}", i + 1), ButtonStyle::Pill)
+                    .selected(ts.driver_preset == i)
+                    .on_tap(move |_, cx| {
+                        e.update(cx, |this, cx| {
+                            this.driver_preset = i;
+                            cx.notify();
+                        })
+                    }),
+            )
     });
     div()
         .absolute()
         .top_0()
-        .left(u(RAIL_W))
-        .w(u(TOUCH_DESIGN.width - RAIL_W))
-        .h(u(H))
-        .child(crate::placeholder::view3d("Driver view (3D)"))
+        .left_0()
+        .size_full()
         .child(
             div()
                 .absolute()
-                .left_0()
-                .right_0()
-                .bottom(u(24.))
-                .flex()
-                .justify_center()
-                .gap(u(8.))
-                .children(pills),
+                .top_0()
+                .left(u(RAIL_W))
+                .w(u(TOUCH_DESIGN.width - RAIL_W))
+                .h(u(H))
+                .child(crate::placeholder::view3d("Driver view (3D)")),
         )
+        .children(pills)
 }

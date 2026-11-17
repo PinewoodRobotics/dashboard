@@ -272,6 +272,10 @@ impl TouchScreen {
         )
     }
 
+    fn driver_base_bottom(&self) -> f32 {
+        self.overlays.iter().map(|o| o.y.value()).fold(H, f32::min)
+    }
+
     fn dock_visible(&self) -> bool {
         self.dock_phase != DockPhase::Hidden
     }
