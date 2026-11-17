@@ -173,14 +173,20 @@ pub fn resize_to_design_pixels(kind: ScreenKind, window: &mut Window) {
 
 gpui_kit::actions!(comp, [Retile]);
 
+const RETIRE_DELAY: std::time::Duration = std::time::Duration::from_millis(300);
+
 thread_local! {
-    static REPLACING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static RETIRED: std::cell::RefCell<Vec<WindowId>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// True while Re-tile closes a window it has replaced, so closing it does
-/// not quit the app as closing a window by hand does.
-pub fn closing_for_retile() -> bool {
-    REPLACING.get()
+/// True for a window Re-tile replaced, so closing it does not quit the app
+/// as closing a window by hand does.
+pub fn closing_for_retile(id: WindowId) -> bool {
+    RETIRED.with_borrow_mut(|r| {
+        let found = r.contains(&id);
+        r.retain(|w| *w != id);
+        found
+    })
 }
 
 /// The open windows and where they went, so Re-tile (the Visual tab,
@@ -318,6 +324,7 @@ pub fn retile(touch: TouchStart, cx: &mut App) {
         let kinds: Vec<ScreenKind> = tiler.open.iter().map(|(k, _, _)| *k).collect();
         let planned = plan(&displays, &kinds, &overrides);
         let mut open = Vec::new();
+        let mut retired = Vec::new();
         for (index, (kind, handle, old)) in std::mem::take(&mut tiler.open).into_iter().enumerate()
         {
             let new = planned
@@ -332,9 +339,8 @@ pub fn retile(touch: TouchStart, cx: &mut App) {
             eprintln!("comp-gpui: re-tile {} {:?}", kind.title(), new);
             match tiler.open_screen(kind, &new, index, touch.clone(), cx) {
                 Ok(replacement) => {
-                    REPLACING.set(true);
-                    let _ = handle.update(cx, |_, window, _| window.remove_window());
-                    REPLACING.set(false);
+                    RETIRED.with_borrow_mut(|r| r.push(handle.window_id()));
+                    retired.push(handle);
                     open.push((kind, replacement, new));
                 }
                 Err(e) => {
@@ -346,5 +352,17 @@ pub fn retile(touch: TouchStart, cx: &mut App) {
         tiler.open = open;
         cx.set_global(tiler);
         cx.refresh_windows();
+        if retired.is_empty() {
+            return;
+        }
+        // Closing a window in the run-loop turn that opened its replacement
+        // makes AppKit throw from its touch bar observer; close it later.
+        cx.spawn(async move |cx| {
+            cx.background_executor().timer(RETIRE_DELAY).await;
+            for handle in retired {
+                let _ = handle.update(cx, |_, window, _| window.remove_window());
+            }
+        })
+        .detach();
     });
 }

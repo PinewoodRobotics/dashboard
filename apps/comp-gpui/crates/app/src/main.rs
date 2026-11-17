@@ -107,8 +107,8 @@ fn main() -> anyhow::Result<()> {
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("ctrl-q", Quit, None),
             ]);
-            cx.on_window_closed(|cx, _| {
-                if !windows::closing_for_retile() {
+            cx.on_window_closed(|cx, id| {
+                if !windows::closing_for_retile(id) {
                     cx.quit();
                 }
             })
