@@ -1,6 +1,6 @@
 use gpui_kit::*;
 
-use super::{TabId, TouchScreen, settings_tab};
+use super::{TabId, TouchScreen, auto_tab, howard_tab, robot3d_tab, settings_tab, visual_tab};
 use crate::icons::sf;
 use crate::theme::{PANEL, SF, WHITE, ZINC_400, u};
 use crate::widgets::{
@@ -18,9 +18,11 @@ pub fn render_tab(
     match id {
         TabId::Settings => settings_tab::render(ts, key, window, cx).into_any_element(),
         TabId::Effects => coming_soon("Special effects tab").into_any_element(),
-        TabId::Robot3d => crate::placeholder::view3d("Robot 3D view (3D)").into_any_element(),
+        TabId::Auto => auto_tab::render(ts, key, window, cx).into_any_element(),
+        TabId::Howard => howard_tab::render(ts, key, window, cx).into_any_element(),
+        TabId::Robot3d => robot3d_tab::render(ts, key, window, cx).into_any_element(),
+        TabId::Visual => visual_tab::render(ts, key, window, cx).into_any_element(),
         TabId::Gallery => gallery(key, window, cx).into_any_element(),
-        TabId::Auto | TabId::Howard | TabId::Visual => not_ported(id).into_any_element(),
     }
 }
 
@@ -38,7 +40,7 @@ fn coming_soon(title: &str) -> Div {
         .child(format!("{title} is coming soon\u{2122}"))
 }
 
-fn not_ported(id: TabId) -> Div {
+pub(super) fn not_ported(id: TabId) -> Div {
     div()
         .size_full()
         .bg(PANEL)

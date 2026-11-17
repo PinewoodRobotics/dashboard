@@ -1,6 +1,6 @@
 use gpui_kit::*;
 
-use super::{PanelId, TouchScreen};
+use super::{PanelId, TouchScreen, intake_panel};
 use crate::icons::sf;
 use crate::mock::{MapMode, MapSettings};
 use crate::theme::{INTER, WHITE, ZINC_400, touch_weight, u};
@@ -33,15 +33,20 @@ fn hints(entries: &[(f32, &str)]) -> Vec<SliderHint> {
         .collect()
 }
 
-pub fn render_panel(ts: &TouchScreen, panel: PanelId, cx: &mut Context<TouchScreen>) -> AnyElement {
+pub fn render_panel(
+    ts: &TouchScreen,
+    panel: PanelId,
+    window: &mut Window,
+    cx: &mut Context<TouchScreen>,
+) -> AnyElement {
     match panel {
         PanelId::Map => map_panel(ts, cx).into_any_element(),
-        PanelId::Intake => coming_soon(panel).into_any_element(),
+        PanelId::Intake => intake_panel::render(ts, window, cx).into_any_element(),
     }
 }
 
 /// RightSideContent.tsx's body for panels without controls yet.
-fn coming_soon(panel: PanelId) -> Div {
+pub(super) fn coming_soon(panel: PanelId) -> Div {
     div()
         .flex()
         .flex_col()

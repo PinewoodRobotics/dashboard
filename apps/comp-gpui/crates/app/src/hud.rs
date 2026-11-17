@@ -3,6 +3,9 @@ use std::time::{Duration, Instant};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
+mod camera_overlay;
+mod minimap;
+
 use crate::icons::{sf, sf_symbol};
 use crate::mock::{AimMode, HeaderColor, LinkBanner, MockData};
 use crate::theme::{
@@ -17,13 +20,6 @@ const HEADER_H: f32 = 180.0;
 const SHIFT_CENTER_Y: f32 = 335.5;
 const SHIFT_ICON_PX: f32 = 200.0;
 const BUFFER_POS: Point<f32> = Point { x: 975.0, y: 224.0 };
-const MINIMAP: Bounds<f32> = Bounds {
-    origin: Point { x: 540.0, y: 480.0 },
-    size: Size {
-        width: 840.0,
-        height: 1080.0 + 19.2 - 480.0,
-    },
-};
 const TOAST_OFFSET: f32 = 24.0;
 const TOAST_W: f32 = 356.0;
 const TOAST_LIFE: Duration = Duration::from_millis(1800);
@@ -165,7 +161,7 @@ impl Render for HudScreen {
             .font_family(INTER)
             .text_color(WHITE);
 
-        root = root.child(minimap());
+        root = root.child(minimap::render(data, window));
 
         if m.show_shift_indicator {
             let (main, buffer) = m.shift_display(now);
@@ -233,6 +229,10 @@ impl Render for HudScreen {
                 ),
         );
 
+        if let Some(overlay) = camera_overlay::render(data, now, window) {
+            root = root.child(overlay);
+        }
+
         if let Some(toast) = data.lane_toast.as_ref() {
             let mut age = now.saturating_duration_since(toast.shown_at);
             if m.frozen {
@@ -250,79 +250,6 @@ impl Render for HudScreen {
         }
 
         div().size_full().bg(BLACK).child(root)
-    }
-}
-
-/// MiniMap3D.tsx's frame around the 3D placeholder.
-fn minimap() -> impl IntoElement {
-    let fill = crate::placeholder::VIEW3D_FILL;
-    div()
-        .absolute()
-        .left(u(MINIMAP.origin.x))
-        .top(u(MINIMAP.origin.y))
-        .w(u(MINIMAP.size.width))
-        .h(u(MINIMAP.size.height))
-        .child(
-            canvas(
-                |_, _, _| {},
-                move |b, _, window, _| {
-                    let rx = b.size.width * 0.3;
-                    let ry = b.size.height * 0.3;
-                    let (l, t) = (b.origin.x, b.origin.y);
-                    let (r, btm) = (l + b.size.width, t + b.size.height);
-                    let mut path = PathBuilder::fill();
-                    path.move_to(point(l, btm));
-                    path.line_to(point(l, t + ry));
-                    arc(
-                        &mut path,
-                        point(l + rx, t + ry),
-                        rx,
-                        ry,
-                        std::f32::consts::PI,
-                        1.5 * std::f32::consts::PI,
-                    );
-                    path.line_to(point(r - rx, t));
-                    arc(
-                        &mut path,
-                        point(r - rx, t + ry),
-                        rx,
-                        ry,
-                        1.5 * std::f32::consts::PI,
-                        2.0 * std::f32::consts::PI,
-                    );
-                    path.line_to(point(r, btm));
-                    path.close();
-                    if let Ok(p) = path.build() {
-                        window.paint_path(p, fill);
-                    }
-                },
-            )
-            .absolute()
-            .top_0()
-            .left_0()
-            .size_full(),
-        )
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_size(u(18.))
-                .line_height(u(27.))
-                .text_color(crate::theme::ZINC_500)
-                .child("Minimap (3D)"),
-        )
-}
-
-fn arc(path: &mut PathBuilder, c: Point<Pixels>, rx: Pixels, ry: Pixels, from: f32, to: f32) {
-    const STEPS: usize = 24;
-    for i in 1..=STEPS {
-        let a = from + (to - from) * i as f32 / STEPS as f32;
-        path.line_to(point(c.x + rx * a.cos(), c.y + ry * a.sin()));
     }
 }
 

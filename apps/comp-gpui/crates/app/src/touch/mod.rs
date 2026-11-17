@@ -1,8 +1,14 @@
+mod auto_tab;
 mod chrome;
+mod dnd;
+mod howard_tab;
+mod intake_panel;
 mod panels;
+mod robot3d_tab;
 mod settings_tab;
 mod state;
 mod tabs;
+mod visual_tab;
 
 use std::cell::Cell;
 use std::rc::Rc;

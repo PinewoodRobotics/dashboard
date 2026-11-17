@@ -207,6 +207,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dash-core",
  "gpui-kit",
  "serde_json",
 ]
@@ -1343,6 +1344,14 @@ checksum = "ea691ed9f36489d087419b8b2ba3ef27d89621380b4178c73e2445a379e4e0f4"
 dependencies = [
  "link-section",
  "linktime-proc-macro",
+]
+
+[[package]]
+name = "dash-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

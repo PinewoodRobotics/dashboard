@@ -2,6 +2,7 @@
 
 mod anim;
 mod assets;
+mod debug_overlay;
 mod dev_script;
 mod hud;
 mod icons;
@@ -11,6 +12,7 @@ mod placeholder;
 mod screen;
 mod theme;
 mod touch;
+mod touch_test;
 mod widgets;
 mod windows;
 

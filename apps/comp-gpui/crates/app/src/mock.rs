@@ -4,6 +4,8 @@
 
 use std::time::Instant;
 
+use dash_core::request_state::RequestTopics;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchPhase {
     PreMatch,
@@ -60,9 +62,18 @@ impl LinkBanner {
     }
 }
 
-/// `/matchhud/state/*` as the robot publishes it (MatchStatusCalculator.java).
+/// `/matchhud/state/*` as the robot publishes it (MatchStatusCalculator.java),
+/// less the pose ([`RobotPose`]) and auto-align ([`AutoAlign`]) keys.
 #[derive(Clone, Debug)]
 pub struct MatchState {
+    pub seq: i64,
+    pub robot_time_us: i64,
+    /// The robot's own `connected` key (FMS/DS link), not the NT connection.
+    pub robot_connected: bool,
+    pub enabled: bool,
+    pub autonomous: bool,
+    pub game_specific_message: String,
+    pub is_shooting: bool,
     pub phase: MatchPhase,
     pub hub: HubStatus,
     pub header: HeaderColor,
@@ -75,8 +86,6 @@ pub struct MatchState {
     pub buffer_remaining_s: f64,
     pub show_shift_indicator: bool,
     pub show_buffer: bool,
-    pub pose: (f32, f32, f32),
-    pub pose_valid: bool,
     /// When the times above were published; the HUD counts down from here.
     pub sampled_at: Instant,
     /// The clock is frozen (fixtures): the HUD shows the sampled times.
@@ -196,6 +205,249 @@ pub struct NtDiagnostics {
     pub server: String,
     pub rtt_ms: Option<f32>,
     pub reconnects: u32,
+    /// Connection attempts since the last successful connect.
+    pub attempt: u32,
+}
+
+impl NtDiagnostics {
+    pub fn seed() -> Self {
+        Self {
+            state: "READY",
+            server: "10.47.65.2:5810".into(),
+            rtt_ms: Some(3.2),
+            reconnects: 0,
+            attempt: 0,
+        }
+    }
+}
+
+/// `/matchhud/state/robot_pose_*` and `robot_heading_rad` (HUD minimap).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RobotPose {
+    pub x_m: f64,
+    pub y_m: f64,
+    pub heading_rad: f64,
+    pub valid: bool,
+}
+
+impl RobotPose {
+    /// hud_base.json.
+    pub fn seed() -> Self {
+        Self {
+            x_m: 4.2,
+            y_m: 2.6,
+            heading_rad: 0.6,
+            valid: true,
+        }
+    }
+}
+
+/// `/matchhud/state/auto_align_*`, `driver_override`, `camera_topic`
+/// (HUD CameraOverlay).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AutoAlign {
+    pub active: bool,
+    pub distance_m: f64,
+    pub ready: bool,
+    pub driver_override: bool,
+    /// Optional: the FIR robot never publishes it.
+    pub camera_topic: Option<String>,
+}
+
+impl AutoAlign {
+    /// hud_base.json.
+    pub fn seed() -> Self {
+        Self {
+            active: false,
+            distance_m: 0.0,
+            ready: false,
+            driver_override: false,
+            camera_topic: None,
+        }
+    }
+}
+
+/// The three joint topics (Robot 3D tab, driver view). `None` is a topic
+/// that has not arrived, which the UI shows as a manual fallback.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Joints {
+    /// /AdvantageKit/RealOutputs/IntakeSubsystem/WristPosition
+    pub wrist: Option<f64>,
+    /// /AdvantageKit/RealOutputs/Turret/PositionRot
+    pub turret_rot: Option<f64>,
+    /// /AdvantageKit/RealOutputs/Climber/CurrentHeightMeters
+    pub climber_height_m: Option<f64>,
+}
+
+impl Joints {
+    /// touch_base.json: turret and wrist live, climber on manual fallback.
+    pub fn seed() -> Self {
+        Self {
+            wrist: Some(0.0),
+            turret_rot: Some(0.0),
+            climber_height_m: None,
+        }
+    }
+}
+
+/// Topics::READOUT_TOPICS, under /AdvantageKit/RealOutputs/ (Intake panel).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ShooterReadouts {
+    /// Turret/DistanceToTarget
+    pub distance_to_target_m: Option<f64>,
+    /// Shooter/RequestedVelocityRPM
+    pub requested_rpm: Option<f64>,
+    /// Shooter/VelocityRPM
+    pub velocity_rpm: Option<f64>,
+    /// Shooter/LeaderVelocityRPM
+    pub leader_rpm: Option<f64>,
+    /// Shooter/FollowerVelocityRPM
+    pub follower_rpm: Option<f64>,
+    /// Turret/PositionDeg
+    pub turret_position_deg: Option<f64>,
+    /// Turret/Angle
+    pub turret_angle: Option<f64>,
+    /// Shooter/IsSpunUp
+    pub is_spun_up: Option<bool>,
+    /// ShooterSubsystem/GPSAssistFeaturesEnabled
+    pub gps_assist_enabled: Option<bool>,
+    /// MatchStatus/isShooting
+    pub is_shooting: Option<bool>,
+}
+
+impl ShooterReadouts {
+    /// touch_m6_base.json.
+    pub fn seed() -> Self {
+        Self {
+            distance_to_target_m: Some(3.456),
+            requested_rpm: Some(3200.0),
+            velocity_rpm: Some(3187.6),
+            leader_rpm: Some(3190.2),
+            follower_rpm: Some(3185.1),
+            turret_position_deg: Some(-42.37),
+            turret_angle: Some(-0.7401),
+            is_spun_up: Some(true),
+            gps_assist_enabled: Some(true),
+            is_shooting: Some(false),
+        }
+    }
+}
+
+/// /AdvantageKit/RealOutputs/SwerveSubsystem/AdjustingVelocity, the raw
+/// signal behind the lane toast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LaneSignal {
+    pub adjusting_velocity: Option<bool>,
+}
+
+impl LaneSignal {
+    /// hud_base.json.
+    pub fn seed() -> Self {
+        Self {
+            adjusting_velocity: Some(false),
+        }
+    }
+}
+
+/// /AdvantageKit/RealOutputs/PathPlanner/* as the robot reports it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PathPlannerTopics {
+    pub current_selected_auto: Option<String>,
+    pub selected_auto_valid: Option<bool>,
+    /// ValidNames/Autos.
+    pub valid_autos: Option<Vec<String>>,
+    /// Optional: only robot code with the README snippet publishes it.
+    pub deploy_hash: Option<String>,
+}
+
+impl PathPlannerTopics {
+    /// touch_m6_base.json.
+    pub fn seed() -> Self {
+        Self {
+            current_selected_auto: Some("Ball Shooter Left".into()),
+            selected_auto_valid: Some(true),
+            valid_autos: Some(
+                [
+                    "Ball Shooter Left",
+                    "Ball Shooter Right",
+                    "Climber Right Left",
+                    "Climber Right Middle",
+                    "Climber Right Right",
+                    "Move Forward And Shoot Center",
+                    "Move Forward And Shoot Left",
+                    "Move Forward And Shoot Right",
+                    "Stay And Shoot",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+            ),
+            deploy_hash: None,
+        }
+    }
+}
+
+/// One Request/State pair: what the dashboard last published and what the
+/// robot echoes (see `dash_core::request_state`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RequestEcho<T> {
+    pub topics: RequestTopics,
+    pub request: Option<T>,
+    pub state: Option<T>,
+}
+
+/// <shared>/PathPlanner/SelectedPath Request/State (Auto tab).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AutoSelection {
+    pub link: RequestEcho<String>,
+    /// The dashboard's persisted choice: "" mirrors the robot, "NONE" is No Auto.
+    pub stored: String,
+}
+
+impl AutoSelection {
+    /// touch_m6_base.json.
+    pub fn seed() -> Self {
+        Self {
+            link: RequestEcho {
+                topics: RequestTopics::new("Shared", "PathPlanner/SelectedPath"),
+                request: None,
+                state: Some("Ball Shooter Left".into()),
+            },
+            stored: "Ball Shooter Left".into(),
+        }
+    }
+}
+
+/// <shared>/Intake/Speed Request/State and aim trim publish/readback
+/// (Intake panel).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ControlTopics {
+    /// Persisted override; `None` uses the robot's compiled constant.
+    pub intake_stored: Option<f64>,
+    pub intake: RequestEcho<f64>,
+    pub aim_trim: RequestEcho<f64>,
+}
+
+impl ControlTopics {
+    /// touch_m6_base.json.
+    pub fn seed() -> Self {
+        Self {
+            intake_stored: None,
+            intake: RequestEcho {
+                topics: RequestTopics::new("Shared", "Intake/Speed"),
+                request: None,
+                state: Some(0.5),
+            },
+            aim_trim: RequestEcho {
+                topics: RequestTopics {
+                    request: "/Tuning/Turret/AimTrimDeg".into(),
+                    state: "/AdvantageKit/NetworkInputs/Tuning/Turret/AimTrimDeg".into(),
+                },
+                request: None,
+                state: Some(0.0),
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -209,9 +461,14 @@ pub struct MockData {
     pub visual: VisualSettings,
     pub nt: NtDiagnostics,
     pub autos: Vec<String>,
-    pub selected_auto: Option<String>,
-    pub intake_speed: f32,
-    pub aim_trim_deg: f32,
+    pub pose: RobotPose,
+    pub align: AutoAlign,
+    pub joints: Joints,
+    pub readouts: ShooterReadouts,
+    pub lane: LaneSignal,
+    pub pathplanner: PathPlannerTopics,
+    pub auto_selection: AutoSelection,
+    pub controls: ControlTopics,
     pub demo_started: Instant,
     pub demo: bool,
 }
@@ -250,24 +507,32 @@ impl Scenario {
     }
 }
 
-fn base_match(now: Instant) -> MatchState {
-    MatchState {
-        phase: MatchPhase::PreMatch,
-        hub: HubStatus::None,
-        header: HeaderColor::Hidden,
-        aim: AimMode::ShooterDisabled,
-        is_red_alliance: Some(false),
-        total_time_remaining_s: 0.0,
-        period_time_remaining_s: 0.0,
-        shift_time_remaining_s: 0.0,
-        shift_time_with_buffer_s: 0.0,
-        buffer_remaining_s: 0.0,
-        show_shift_indicator: false,
-        show_buffer: false,
-        pose: (4.2, 2.6, 0.6),
-        pose_valid: true,
-        sampled_at: now,
-        frozen: true,
+impl MatchState {
+    /// hud_base.json.
+    pub fn seed(now: Instant) -> Self {
+        Self {
+            seq: 4242,
+            robot_time_us: 100_000_000,
+            robot_connected: true,
+            enabled: true,
+            autonomous: false,
+            game_specific_message: "B".into(),
+            is_shooting: false,
+            phase: MatchPhase::PreMatch,
+            hub: HubStatus::None,
+            header: HeaderColor::Hidden,
+            aim: AimMode::ShooterDisabled,
+            is_red_alliance: Some(false),
+            total_time_remaining_s: 0.0,
+            period_time_remaining_s: 0.0,
+            shift_time_remaining_s: 0.0,
+            shift_time_with_buffer_s: 0.0,
+            buffer_remaining_s: 0.0,
+            show_shift_indicator: false,
+            show_buffer: false,
+            sampled_at: now,
+            frozen: true,
+        }
     }
 }
 
@@ -277,17 +542,12 @@ impl MockData {
         let mut data = Self {
             nt_connected: true,
             banner: LinkBanner::None,
-            matchs: base_match(now),
+            matchs: MatchState::seed(now),
             lane_toast: None,
             connection: ConnectionSettings::default(),
             map: MapSettings::default(),
             visual: VisualSettings::default(),
-            nt: NtDiagnostics {
-                state: "READY",
-                server: "10.47.65.2:5810".into(),
-                rtt_ms: Some(3.2),
-                reconnects: 0,
-            },
+            nt: NtDiagnostics::seed(),
             autos: [
                 "Center 3 Note",
                 "Amp Side 4 Piece",
@@ -298,9 +558,14 @@ impl MockData {
             .into_iter()
             .map(String::from)
             .collect(),
-            selected_auto: Some("Center 3 Note".into()),
-            intake_speed: 0.8,
-            aim_trim_deg: 0.0,
+            pose: RobotPose::seed(),
+            align: AutoAlign::seed(),
+            joints: Joints::seed(),
+            readouts: ShooterReadouts::seed(),
+            lane: LaneSignal::seed(),
+            pathplanner: PathPlannerTopics::seed(),
+            auto_selection: AutoSelection::seed(),
+            controls: ControlTopics::seed(),
             demo_started: now,
             demo: scenario == Scenario::Demo,
         };
@@ -389,6 +654,7 @@ impl MockData {
                 self.banner = LinkBanner::Disconnected;
                 self.nt.state = "CONNECTING";
                 self.nt.rtt_ms = None;
+                self.nt.attempt = 3;
             }
             Scenario::LaneToast => {
                 shift_active(m);
@@ -418,7 +684,7 @@ impl MockData {
         const POST: f64 = 5.0;
         let cycle = PRE + AUTO + TELEOP + POST;
         let t = now.duration_since(self.demo_started).as_secs_f64() % cycle;
-        let mut m = base_match(now);
+        let mut m = MatchState::seed(now);
         m.frozen = false;
         if t < PRE {
             m.phase = MatchPhase::PreMatch;

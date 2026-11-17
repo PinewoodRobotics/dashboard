@@ -161,7 +161,7 @@ pub fn right_drawer(
         .h(u(H - 2.0 * DRAWER_PAD))
         .overflow_hidden()
         .when_some(ts.state.display_panel(), |d, panel| {
-            d.child(panels::render_panel(ts, panel, cx))
+            d.child(panels::render_panel(ts, panel, window, cx))
         });
     div()
         .id("right-drawer")
