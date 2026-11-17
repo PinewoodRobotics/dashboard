@@ -65,8 +65,9 @@ impl Shell {
             observers.push(cx.observe(&view, |_, _, cx| cx.notify()));
             main = Some(view);
             if options.layout != Layout::Second {
-                let view =
-                    bridge.update(cx, |b, cx| b.open_view(Scene::Minimap, options.minimap_fps, cx));
+                let view = bridge.update(cx, |b, cx| {
+                    b.open_view(Scene::Minimap, options.minimap_fps, cx)
+                });
                 view.update(cx, |view, cx| view.set_active(options.minimap, cx));
                 observers.push(cx.observe(&view, |_, _, cx| cx.notify()));
                 minimap = Some(view);
@@ -134,7 +135,9 @@ impl Shell {
     }
 
     fn open_second_window(&mut self, cx: &mut Context<Self>) {
-        let Some(bridge) = self.bridge.clone() else { return };
+        let Some(bridge) = self.bridge.clone() else {
+            return;
+        };
         let fps = self.robot_fps.min(60);
         open_shell_window(
             cx,
@@ -266,8 +269,16 @@ impl Render for Shell {
             });
         let overlay = div()
             .absolute()
-            .top(px(if self.layout == Layout::Spike { 64. } else { 12. }))
-            .left(px(if self.layout == Layout::Spike { 32. } else { 12. }))
+            .top(px(if self.layout == Layout::Spike {
+                64.
+            } else {
+                12.
+            }))
+            .left(px(if self.layout == Layout::Spike {
+                32.
+            } else {
+                12.
+            }))
             .p(px(10.))
             .rounded(px(8.))
             .bg(rgba(0x000000b0))
@@ -379,7 +390,12 @@ impl Shell {
             .child(
                 button(
                     "toggle-drawer",
-                    if self.drawer_open { "Hide drawer" } else { "Show drawer" }.into(),
+                    if self.drawer_open {
+                        "Hide drawer"
+                    } else {
+                        "Show drawer"
+                    }
+                    .into(),
                 )
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.drawer_open = !this.drawer_open;
@@ -391,7 +407,12 @@ impl Shell {
                 this.child(
                     button(
                         "toggle-minimap",
-                        if minimap_on { "Hide minimap" } else { "Show minimap" }.into(),
+                        if minimap_on {
+                            "Hide minimap"
+                        } else {
+                            "Show minimap"
+                        }
+                        .into(),
                     )
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_minimap(cx))),
                 )

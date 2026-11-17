@@ -46,7 +46,10 @@ fn main() -> anyhow::Result<()> {
     };
     let options = ShellOptions {
         layout,
-        robot_fps: arg_value(&args, "--fps").map(|v| v.parse()).transpose()?.unwrap_or(120),
+        robot_fps: arg_value(&args, "--fps")
+            .map(|v| v.parse())
+            .transpose()?
+            .unwrap_or(120),
         minimap_fps: arg_value(&args, "--minimap-fps")
             .map(|v| v.parse())
             .transpose()?
@@ -84,7 +87,10 @@ fn main() -> anyhow::Result<()> {
         .detach();
 
         let (bridge, pattern) = if test_pattern {
-            (None, Some(TestPattern::new(1280, 720).expect("test pattern surface")))
+            (
+                None,
+                Some(TestPattern::new(1280, 720).expect("test pattern surface")),
+            )
         } else {
             match Bridge3d::start(config, cx) {
                 Ok(bridge) => (Some(bridge), None),
@@ -116,7 +122,10 @@ fn main() -> anyhow::Result<()> {
             window
                 .update(cx, |_, window, _| {
                     let scale = window.scale_factor();
-                    window.resize(size(px(KIOSK_VIEW_PX.0 / scale), px(KIOSK_VIEW_PX.1 / scale)));
+                    window.resize(size(
+                        px(KIOSK_VIEW_PX.0 / scale),
+                        px(KIOSK_VIEW_PX.1 / scale),
+                    ));
                 })
                 .ok();
         }
@@ -138,7 +147,9 @@ fn main() -> anyhow::Result<()> {
             );
         }
         cx.activate(true);
-        window.update(cx, |_, window, _| window.activate_window()).ok();
+        window
+            .update(cx, |_, window, _| window.activate_window())
+            .ok();
         if demo_input {
             let bounds = window
                 .update(cx, |_, window, _| window.viewport_size())

@@ -153,7 +153,9 @@ fn supervise(
         } else {
             0
         };
-        std::thread::sleep(Duration::from_millis(250 * u64::from(quick_failures.min(20))));
+        std::thread::sleep(Duration::from_millis(
+            250 * u64::from(quick_failures.min(20)),
+        ));
     }
 }
 
@@ -212,7 +214,10 @@ fn run_once(
     Ok((pid, status))
 }
 
-fn accept_from_child(listener: &TcpListener, child_slot: &Mutex<Option<Child>>) -> Result<TcpStream> {
+fn accept_from_child(
+    listener: &TcpListener,
+    child_slot: &Mutex<Option<Child>>,
+) -> Result<TcpStream> {
     listener.set_nonblocking(true)?;
     let deadline = Instant::now() + CONNECT_TIMEOUT;
     loop {

@@ -251,7 +251,9 @@ impl View3d {
     /// Takes the newest delivered frame for this paint and acks it, which frees the producer to
     /// reuse the slot shown before the previous one.
     fn take_latest(&mut self) {
-        let Some(frame) = self.latest.take() else { return };
+        let Some(frame) = self.latest.take() else {
+            return;
+        };
         let Some(ring) = &self.ring else { return };
         if frame.generation != ring.generation {
             return;
@@ -283,7 +285,13 @@ impl View3d {
         });
     }
 
-    fn send_pointer(&self, phase: PointerPhase, position: Point<Pixels>, origin: Point<Pixels>, fill: impl FnOnce(&mut Pointer)) {
+    fn send_pointer(
+        &self,
+        phase: PointerPhase,
+        position: Point<Pixels>,
+        origin: Point<Pixels>,
+        fill: impl FnOnce(&mut Pointer),
+    ) {
         let mut pointer = Pointer {
             view: self.id,
             kind: PointerKind::Mouse,
@@ -308,7 +316,12 @@ impl View3d {
         let size = self
             .shown
             .as_ref()
-            .map(|s| format!("{}x{} gen {} seq {}", s.width, s.height, s.generation, s.seq))
+            .map(|s| {
+                format!(
+                    "{}x{} gen {} seq {}",
+                    s.width, s.height, s.generation, s.seq
+                )
+            })
             .unwrap_or_else(|| "no frame".into());
         let element = self
             .measured
@@ -469,7 +482,9 @@ fn register_pointer_handlers(
             if phase != DispatchPhase::Bubble || !hitbox.is_hovered(window) {
                 return;
             }
-            let Some(button) = button_code(event.button) else { return };
+            let Some(button) = button_code(event.button) else {
+                return;
+            };
             entity
                 .update(cx, |view, _| {
                     if view.captured.is_some() {
@@ -507,7 +522,9 @@ fn register_pointer_handlers(
             if phase != DispatchPhase::Bubble {
                 return;
             }
-            let Some(button) = button_code(event.button) else { return };
+            let Some(button) = button_code(event.button) else {
+                return;
+            };
             entity
                 .update(cx, |view, _| {
                     if view.captured != Some(button) {
@@ -560,4 +577,28 @@ fn register_pointer_handlers(
             })
             .ok();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit::{Bounds, Pixels, point, px, size};
+
+    use super::cover;
+
+    #[test]
+    fn cover_is_the_element_once_sizes_match_and_crops_without_distortion_before() {
+        let bounds = Bounds {
+            origin: point(px(10.), px(20.)),
+            size: size(px(960.), px(257.5)),
+        };
+        assert_eq!(cover(bounds, 1920, 515, 2.0), bounds);
+
+        let stale = cover(bounds, 1280, 720, 2.0);
+        let aspect = f32::from(stale.size.width) / f32::from(stale.size.height);
+        assert!((aspect - 1280.0 / 720.0).abs() < 1e-4);
+        assert_eq!(stale.size.width, px(960.));
+        assert!(stale.size.height > bounds.size.height);
+        let center = |b: Bounds<Pixels>| f32::from(b.origin.y + b.size.height / 2.0);
+        assert!((center(stale) - center(bounds)).abs() < 1e-3);
+    }
 }

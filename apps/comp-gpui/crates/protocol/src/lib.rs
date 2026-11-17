@@ -179,7 +179,9 @@ mod tests {
         let mut bytes = Vec::new();
         write_message(&mut bytes, &message).unwrap();
         let text = String::from_utf8(bytes.clone()).unwrap();
-        assert!(text.starts_with(r#"{"type":"Pointer","view":1,"kind":"Touch","id":7,"phase":"Move""#));
+        assert!(
+            text.starts_with(r#"{"type":"Pointer","view":1,"kind":"Touch","id":7,"phase":"Move""#)
+        );
         let back: ToProducer = read_message(&mut bytes.as_slice()).unwrap().unwrap();
         let ToProducer::Pointer(pointer) = back else {
             panic!("not a pointer");

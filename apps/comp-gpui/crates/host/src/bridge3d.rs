@@ -102,7 +102,8 @@ impl Bridge3d {
                     ToHost::Status { .. } => return,
                 };
                 if let Some(view) = self.views.get(&id) {
-                    view.update(cx, |view, cx| view.on_message(message, cx)).ok();
+                    view.update(cx, |view, cx| view.on_message(message, cx))
+                        .ok();
                 }
                 return;
             }

@@ -23,7 +23,14 @@ fn send(cx: &mut AsyncApp, window: AnyWindowHandle, input: PlatformInput) {
     .ok();
 }
 
-async fn drag(cx: &mut AsyncApp, window: AnyWindowHandle, from: Point<Pixels>, step: Point<Pixels>, steps: u32, hold: Duration) {
+async fn drag(
+    cx: &mut AsyncApp,
+    window: AnyWindowHandle,
+    from: Point<Pixels>,
+    step: Point<Pixels>,
+    steps: u32,
+    hold: Duration,
+) {
     send(
         cx,
         window,
@@ -63,14 +70,27 @@ async fn drag(cx: &mut AsyncApp, window: AnyWindowHandle, from: Point<Pixels>, s
 }
 
 /// `view_point` is a point over the 3D view, `drawer_point` one over the drawer.
-pub fn run(window: AnyWindowHandle, view_point: Point<Pixels>, drawer_point: Point<Pixels>, cx: &mut App) {
+pub fn run(
+    window: AnyWindowHandle,
+    view_point: Point<Pixels>,
+    drawer_point: Point<Pixels>,
+    cx: &mut App,
+) {
     cx.spawn(async move |cx| {
         wait(cx, Duration::from_secs(12)).await;
         log("start");
         wait(cx, Duration::from_secs(2)).await;
 
         log("drag on view");
-        drag(cx, window, view_point, point(px(8.), px(1.5)), 40, Duration::from_millis(2500)).await;
+        drag(
+            cx,
+            window,
+            view_point,
+            point(px(8.), px(1.5)),
+            40,
+            Duration::from_millis(2500),
+        )
+        .await;
         log("drag released");
         wait(cx, Duration::from_secs(3)).await;
 
@@ -91,7 +111,15 @@ pub fn run(window: AnyWindowHandle, view_point: Point<Pixels>, drawer_point: Poi
         wait(cx, Duration::from_secs(3)).await;
 
         log("drag on drawer");
-        drag(cx, window, drawer_point, point(px(-8.), px(0.)), 30, Duration::from_millis(500)).await;
+        drag(
+            cx,
+            window,
+            drawer_point,
+            point(px(-8.), px(0.)),
+            30,
+            Duration::from_millis(500),
+        )
+        .await;
         log("drawer drag released");
         wait(cx, Duration::from_secs(3)).await;
         log("done");
