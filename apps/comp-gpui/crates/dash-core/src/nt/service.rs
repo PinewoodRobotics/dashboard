@@ -263,7 +263,6 @@ mod tests {
         M::Array(vec![M::Int(id), M::Int(ts), M::Int(t), v])
     }
 
-    /// The client thread, run by hand on the test thread.
     struct H {
         clock: Clock,
         driver: Driver,

@@ -8,6 +8,7 @@ mod hud;
 mod icons;
 mod input;
 mod mock;
+mod nt_source;
 mod placeholder;
 mod screen;
 mod theme;
@@ -34,10 +35,12 @@ struct Args {
     design_px: bool,
     mouse_as_touch: bool,
     script: Vec<dev_script::Step>,
+    nt_host: Option<String>,
+    nt_port: Option<u16>,
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
-[--dock] [--nt-down] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS]";
+[--dock] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS]";
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
@@ -48,6 +51,8 @@ fn parse_args() -> anyhow::Result<Args> {
         design_px: false,
         mouse_as_touch: false,
         script: Vec::new(),
+        nt_host: None,
+        nt_port: None,
     };
     let mut nt_down = false;
     for a in std::env::args().skip(1) {
@@ -77,6 +82,10 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--design-size", None) => args.design_px = true,
             ("--mouse-as-touch", None) => args.mouse_as_touch = true,
             ("--script", Some(s)) => args.script = dev_script::parse(s)?,
+            ("--nt-host", Some(h)) => args.nt_host = Some(h.to_owned()),
+            ("--nt-port", Some(p)) => {
+                args.nt_port = Some(p.parse().map_err(|_| anyhow::anyhow!("bad --nt-port {p}"))?)
+            }
             _ => anyhow::bail!("unknown argument {a}\n{USAGE}"),
         }
     }
@@ -105,7 +114,24 @@ fn main() -> anyhow::Result<()> {
             cx.on_window_closed(|cx, _| cx.quit()).detach();
 
             let data = cx.new(|_| MockData::new(args.scenario));
-            if args.scenario == Scenario::Demo {
+            if args.nt_host.is_some() || args.nt_port.is_some() {
+                let (host, port) = (args.nt_host.clone(), args.nt_port);
+                let mut source = data.update(cx, |d, _| nt_source::NtSource::start(d, host, port));
+                let data = data.clone();
+                cx.spawn(async move |cx| {
+                    loop {
+                        cx.background_executor()
+                            .timer(Duration::from_millis(16))
+                            .await;
+                        data.update(cx, |d, cx| {
+                            if source.tick(d) {
+                                cx.notify();
+                            }
+                        });
+                    }
+                })
+                .detach();
+            } else if args.scenario == Scenario::Demo {
                 let data = data.clone();
                 cx.spawn(async move |cx| {
                     loop {
