@@ -486,6 +486,8 @@ pub enum Scenario {
     PostMatch,
     NtDisconnected,
     LaneToast,
+    AutoAlign,
+    AutoAlignReady,
 }
 
 impl Scenario {
@@ -502,6 +504,8 @@ impl Scenario {
             "post_match" => Self::PostMatch,
             "nt_disconnected" => Self::NtDisconnected,
             "lane_toast" => Self::LaneToast,
+            "auto_align" => Self::AutoAlign,
+            "auto_align_ready" => Self::AutoAlignReady,
             _ => return None,
         })
     }
@@ -647,6 +651,13 @@ impl MockData {
                 m.aim = AimMode::ManualAiming;
                 m.total_time_remaining_s = 21.37;
                 m.period_time_remaining_s = 21.37;
+            }
+            Scenario::AutoAlign | Scenario::AutoAlignReady => {
+                shift_active(m);
+                let ready = scenario == Scenario::AutoAlignReady;
+                self.align.active = true;
+                self.align.ready = ready;
+                self.align.distance_m = if ready { 0.42 } else { 1.26 };
             }
             Scenario::NtDisconnected => {
                 shift_active(m);
