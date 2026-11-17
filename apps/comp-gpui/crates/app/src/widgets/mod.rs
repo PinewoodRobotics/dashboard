@@ -1,5 +1,5 @@
 mod button;
-mod keyboard;
+pub mod keyboard;
 mod pill;
 mod scroll;
 mod selector;

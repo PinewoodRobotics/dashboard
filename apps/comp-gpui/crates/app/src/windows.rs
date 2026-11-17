@@ -213,7 +213,7 @@ pub fn open_all(
     data: &Entity<MockData>,
     opts: OpenOptions,
     cx: &mut App,
-) -> Option<AnyWindowHandle> {
+) -> Vec<(ScreenKind, AnyWindowHandle)> {
     let displays = displays(cx);
     let planned = plan(&displays, &opts.screens, &settings::windows(cx));
     let mut tiler = Tiler {
@@ -223,15 +223,13 @@ pub fn open_all(
         open: Vec::new(),
         display_count: displays.len(),
     };
-    let mut touch_window = None;
+    let mut opened = Vec::new();
     for (index, (kind, placement)) in planned.into_iter().enumerate() {
         let placement = tiler.adjust(placement);
         eprintln!("comp-gpui: {} {:?}", kind.title(), placement);
         match tiler.open_screen(kind, &placement, index, opts.touch.clone(), cx) {
             Ok(handle) => {
-                if kind == ScreenKind::Touch {
-                    touch_window = Some(handle);
-                }
+                opened.push((kind, handle));
                 tiler.open.push((kind, handle, placement));
             }
             Err(e) => eprintln!("comp-gpui: cannot open {}: {e:#}", kind.title()),
@@ -243,7 +241,7 @@ pub fn open_all(
         KeyBinding::new("cmd-shift-f", Retile, None),
         KeyBinding::new("ctrl-shift-f", Retile, None),
     ]);
-    touch_window
+    opened
 }
 
 impl Tiler {

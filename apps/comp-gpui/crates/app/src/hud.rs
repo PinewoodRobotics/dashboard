@@ -15,6 +15,7 @@ use crate::theme::{
     TOAST_BORDER, WHITE, YELLOW, alpha, u, weight,
 };
 use crate::widgets::dpx;
+use crate::windows::ScreenKind;
 
 const FONT_TIMER_LARGE: f32 = 128.0;
 const FONT_TIMER_SMALL: f32 = 64.0;
@@ -232,6 +233,11 @@ impl Render for HudScreen {
         if banner_kind != Banner::None {
             root = root.child(banner(banner_kind));
         }
+
+        let data = self.data.clone();
+        root = root
+            .child(crate::touch_test::layer(ScreenKind::Hud, HUD_DESIGN, window, cx))
+            .child(crate::debug_overlay::layer(&data, window, cx));
 
         div().size_full().bg(BLACK).child(root)
     }

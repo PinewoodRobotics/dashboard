@@ -274,6 +274,10 @@ impl MatchModel {
         self.connected() && now_us - self.last_seq_change_us >= STALE_AFTER_US
     }
 
+    pub fn last_seq_change_us(&self) -> i64 {
+        self.last_seq_change_us
+    }
+
     pub fn link_ok(&self) -> bool {
         self.link_ok
     }

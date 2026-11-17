@@ -38,6 +38,8 @@ struct Args {
     windowed: bool,
     design_px: bool,
     mouse_as_touch: bool,
+    touch_test: bool,
+    debug_overlay: bool,
     script: Vec<dev_script::Step>,
     nt_host: Option<String>,
     nt_port: Option<u16>,
@@ -46,7 +48,8 @@ struct Args {
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
-[--dock] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS] [--settings=PATH]";
+[--dock] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] [--mouse-as-touch] \
+[--touch-test] [--debug-overlay] [--script=STEPS] [--settings=PATH]";
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
@@ -56,6 +59,8 @@ fn parse_args() -> anyhow::Result<Args> {
         windowed: false,
         design_px: false,
         mouse_as_touch: false,
+        touch_test: false,
+        debug_overlay: false,
         script: Vec::new(),
         nt_host: None,
         nt_port: None,
@@ -95,6 +100,8 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--windowed", None) => args.windowed = true,
             ("--design-size", None) => args.design_px = true,
             ("--mouse-as-touch", None) => args.mouse_as_touch = true,
+            ("--touch-test", None) => args.touch_test = true,
+            ("--debug-overlay", None) => args.debug_overlay = true,
             ("--script", Some(s)) => args.script = dev_script::parse(s)?,
             ("--nt-host", Some(h)) => args.nt_host = Some(h.to_owned()),
             ("--nt-port", Some(p)) => {
@@ -132,6 +139,10 @@ fn main() -> anyhow::Result<()> {
                 }
             })
             .detach();
+            debug_overlay::init(cx);
+            if args.touch_test {
+                touch_test::open_all(cx);
+            }
 
             let data = cx.new(|_| MockData::new(args.scenario));
             settings::install(
@@ -174,7 +185,7 @@ fn main() -> anyhow::Result<()> {
                 .detach();
             }
 
-            let touch_window = windows::open_all(
+            let opened = windows::open_all(
                 &data,
                 windows::OpenOptions {
                     screens: args.screens.clone(),
@@ -184,10 +195,19 @@ fn main() -> anyhow::Result<()> {
                 },
                 cx,
             );
-            if let Some(handle) = touch_window
+            if args.debug_overlay
+                && let Some((_, first)) = opened.first()
+            {
+                debug_overlay::open(first.window_id(), cx);
+            }
+            let script_target = opened
+                .iter()
+                .find(|(kind, _)| *kind == ScreenKind::Touch)
+                .or_else(|| opened.first().filter(|_| args.screens == [ScreenKind::Hud]));
+            if let Some((_, handle)) = script_target
                 && !args.script.is_empty()
             {
-                dev_script::run(handle, args.script.clone(), cx);
+                dev_script::run(*handle, args.script.clone(), cx);
             }
             cx.activate(true);
         });
