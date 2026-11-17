@@ -8,8 +8,6 @@
 //! read `model.hud()` the same way.
 
 use std::collections::HashMap;
-use std::io::Cursor;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -30,13 +28,6 @@ const TICK: Duration = Duration::from_millis(20);
 const HIDDEN_AFTER: Duration = Duration::from_millis(250);
 /// How long the mock robot takes to echo a Request on State.
 const ECHO_DELAY: Duration = Duration::from_millis(250);
-
-/// Electron's `public/path-overview`: per-auto GIFs and the Howard pictures
-/// shown when a preview fails. Read from the source tree at runtime.
-pub const PATH_OVERVIEW: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../comp/public/path-overview"
-);
 
 fn mock_value(d: &MockData, topic: &str) -> Option<Value> {
     let pp = &d.pathplanner;
@@ -579,27 +570,44 @@ impl AutoService {
     }
 
     /// The first frame of the web's path-overview GIF for `auto`, which
-    /// stands where the realtime 3D preview will go. Only the first frame is
-    /// decoded: the whole GIF runs to hundreds of MB of frames.
+    /// stands where the realtime 3D preview will go.
     pub fn preview_image(&mut self, auto: &str) -> Option<Arc<RenderImage>> {
         if let Some(img) = self.previews.get(auto) {
             return img.clone();
         }
-        let img =
-            decode_first_frame(&PathBuf::from(PATH_OVERVIEW).join(format!("animated/{auto}.gif")));
+        let img = crate::assets::path_overview_png(auto).and_then(decode_png);
         self.previews.insert(auto.to_owned(), img.clone());
         img
     }
 }
 
-fn decode_first_frame(path: &PathBuf) -> Option<Arc<RenderImage>> {
-    use image::AnimationDecoder;
-    let bytes = std::fs::read(path).ok()?;
-    let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(bytes)).ok()?;
-    let frame = decoder.into_frames().next()?.ok()?;
-    let mut buf = frame.into_buffer();
+fn decode_png(png: &[u8]) -> Option<Arc<RenderImage>> {
+    let mut buf = image::load_from_memory_with_format(png, image::ImageFormat::Png)
+        .ok()?
+        .into_rgba8();
     for px in buf.chunks_exact_mut(4) {
         px.swap(0, 2);
     }
     Some(Arc::new(RenderImage::new(vec![image::Frame::new(buf)])))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_png;
+    use crate::assets::path_overview_png;
+
+    #[test]
+    fn path_overview_frames_are_embedded() {
+        for auto in [
+            "Ball Shooter Left",
+            "Climber Right Middle",
+            "Move Forward And Shoot Center",
+        ] {
+            let png = path_overview_png(auto).unwrap_or_else(|| panic!("{auto} embedded"));
+            let img = decode_png(png).unwrap_or_else(|| panic!("{auto} decodes"));
+            let size = img.size(0);
+            assert_eq!((size.width.0, size.height.0), (877, 454), "{auto}");
+        }
+        assert!(path_overview_png("Stay And Shoot").is_none());
+    }
 }

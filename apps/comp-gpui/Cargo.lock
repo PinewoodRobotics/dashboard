@@ -208,8 +208,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dash-core",
+ "gif 0.14.2",
  "gpui-kit",
  "image",
+ "png 0.18.1",
  "serde_json",
 ]
 

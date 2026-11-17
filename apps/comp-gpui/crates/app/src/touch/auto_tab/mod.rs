@@ -25,7 +25,7 @@ use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 pub(super) use export_box::export_box;
-use kit::{Btn, Look, ROSE, ROSE_TEXT, howard_error, text};
+use kit::{Btn, Look, ROSE, ROSE_TEXT, text};
 use preview::{Notes, PreviewState};
 
 use super::TouchScreen;
@@ -524,7 +524,7 @@ pub fn render(
             .into_any_element(),
         )
     } else {
-        Some(howard_error(howard_pick).into_any_element())
+        Some(super::howard_tab::howard_error(howard_pick as u64).into_any_element())
     };
 
     let banner = locked.then(|| {
