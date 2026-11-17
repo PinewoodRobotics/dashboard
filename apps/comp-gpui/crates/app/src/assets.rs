@@ -15,6 +15,17 @@ const FONTS: [&[u8]; 7] = [
 ];
 
 const LUCIDE_JSON: &str = include_str!("../assets/icons/lucide.json");
+
+/// The first frame of each of the web's `public/path-overview/animated` GIFs
+/// as PNG, keyed by auto name (see build.rs).
+const PATH_OVERVIEW: &[(&str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/path_overview.rs"));
+
+pub fn path_overview_png(auto: &str) -> Option<&'static [u8]> {
+    PATH_OVERVIEW
+        .iter()
+        .find(|(name, _)| *name == auto)
+        .map(|(_, png)| *png)
+}
 const LUCIDE_PREFIX: &str = "lucide/";
 
 // Sonner's built-in success and error icons (sonner/dist assets).

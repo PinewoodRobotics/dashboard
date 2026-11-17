@@ -269,53 +269,54 @@ fn more_button(
         .child("More Howard");
     tappable(el, state, false, crate::widgets::on_tap(on_tap))
 }
-
-/// ImageBox: a 6 px rounded zinc-950 box that letterboxes its picture
-/// (rounded-md bg-zinc-950 overflow-hidden around an object-contain image).
-/// A picture that fails to load shows the failed-preview card instead.
-pub fn image_box(entry: &Entry, _outside: Rgba) -> impl IntoElement {
-    let failed = entry.clone();
+/// rounded-md bg-zinc-950 overflow-hidden: the box both the Howard tab and
+/// the Auto tab's failed preview letterbox their picture in.
+fn picture_box() -> Div {
     div()
         .relative()
         .size_full()
         .rounded(u(RADIUS))
         .overflow_hidden()
         .bg(ZINC_950)
-        .child(
-            img(entry.image.clone())
-                .absolute()
-                .inset_0()
-                .size_full()
-                .rounded(u(RADIUS))
-                .object_fit(ObjectFit::Contain)
-                .with_fallback(move || unhappy_card(&failed.text).into_any_element()),
-        )
+}
+
+fn picture(image: SharedString) -> Img {
+    img(image)
+        .absolute()
+        .inset_0()
+        .size_full()
+        .object_fit(ObjectFit::Contain)
+}
+
+/// ImageBox: the picture letterboxed in [`picture_box`]. A picture that fails
+/// to load shows the failed-preview card instead.
+pub fn image_box(entry: &Entry, _outside: Rgba) -> impl IntoElement {
+    let failed = entry.clone();
+    picture_box().child(
+        picture(entry.image.clone())
+            .rounded(u(RADIUS))
+            .with_fallback(move || unhappy_card(&failed.text).into_any_element()),
+    )
 }
 
 /// HowardError (PathDetailPane.tsx's failed preview): a random picture of
-/// Howard letterboxed over the area, with a black/60 caption box centered on
-/// it holding "Failed to load preview", the picture's unhappy line and the
-/// small print. `roll` picks the picture; re-roll it for every failed auto.
+/// Howard letterboxed in [`picture_box`], with a black/60 caption box
+/// centered on it holding "Failed to load preview", the picture's unhappy
+/// line and the small print. `roll` picks the picture; re-roll it for every
+/// failed auto.
 pub fn howard_error(roll: u64) -> impl IntoElement {
     let list = entries();
     let entry = (!list.is_empty()).then(|| &list[(roll % list.len() as u64) as usize]);
     let line: SharedString = entry
         .map(|e| e.text.clone())
         .unwrap_or_else(|| "Howard is unhappy now".into());
-    div()
-        .relative()
-        .size_full()
-        .when_some(entry, |d, e| {
-            d.child(
-                img(e.image.clone())
-                    .absolute()
-                    .inset_0()
-                    .size_full()
-                    .object_fit(ObjectFit::Contain),
-            )
-        })
+    picture_box()
+        .when_some(entry, |d, e| d.child(picture(e.image.clone())))
         .child(unhappy_card(&line))
 }
+
+const SMALL_PRINT: &str =
+    "The error does not mean the auto is broken, you can select it and it'll probably still work?";
 
 fn unhappy_card(line: &SharedString) -> impl IntoElement {
     let centered = |size: f32, lh: f32| {
@@ -327,6 +328,15 @@ fn unhappy_card(line: &SharedString) -> impl IntoElement {
             .text_size(u(size))
             .line_height(u(lh))
     };
+    let not = SMALL_PRINT.find(" not ").map_or(0..0, |i| i + 1..i + 4);
+    let small_print = StyledText::new(SMALL_PRINT).with_highlights(vec![(
+        not,
+        HighlightStyle {
+            font_weight: Some(FontWeight::BOLD),
+            font_style: Some(FontStyle::Italic),
+            ..Default::default()
+        },
+    )]);
     div()
         .absolute()
         .inset_0()
@@ -346,24 +356,7 @@ fn unhappy_card(line: &SharedString) -> impl IntoElement {
                 .bg(alpha(BLACK, 0.6))
                 .child(centered(28., 42.).child("Failed to load preview"))
                 .child(centered(18., 28.).child(line.clone()))
-                .child(
-                    centered(12., 12.).mt(u(8.)).child(
-                        div()
-                            .flex()
-                            .flex_wrap()
-                            .justify_center()
-                            .child("The error does\u{a0}")
-                            .child(
-                                div()
-                                    .font_weight(FontWeight::BOLD)
-                                    .italic()
-                                    .child("not"),
-                            )
-                            .child(
-                                "\u{a0}mean the auto is broken, you can select it and it'll probably still work?",
-                            ),
-                    ),
-                ),
+                .child(centered(12., 12.).mt(u(8.)).child(small_print)),
         )
 }
 
