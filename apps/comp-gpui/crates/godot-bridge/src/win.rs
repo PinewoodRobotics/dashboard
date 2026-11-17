@@ -208,11 +208,16 @@ fn initial_state_for_godot(device: &ID3D12Device) -> D3D12_RESOURCE_STATES {
     }
     .is_ok()
         && options.EnhancedBarriersSupported.as_bool();
-    if enhanced {
+    let state = if enhanced {
         D3D12_RESOURCE_STATE_COMMON
     } else {
         D3D12_RESOURCE_STATE_RENDER_TARGET
-    }
+    };
+    godot_print!(
+        "bridge: d3d12 enhanced_barriers={enhanced} slots start in {}",
+        if enhanced { "COMMON" } else { "RENDER_TARGET" }
+    );
+    state
 }
 
 fn create_slot(

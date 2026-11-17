@@ -3101,6 +3101,7 @@ dependencies = [
  "anyhow",
  "async-channel",
  "gpui-kit",
+ "log",
  "objc2-core-foundation",
  "objc2-core-video",
  "objc2-io-surface",

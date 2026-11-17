@@ -29,6 +29,7 @@ pub struct TestPattern {
 
 impl TestPattern {
     pub fn new(width: usize, height: usize) -> Result<Self> {
+        crate::viewport::install_stderr_logger();
         let mut device: Option<ID3D11Device> = None;
         let mut context: Option<ID3D11DeviceContext> = None;
         unsafe {
