@@ -209,6 +209,7 @@ dependencies = [
  "anyhow",
  "dash-core",
  "gpui-kit",
+ "image",
  "serde_json",
 ]
 

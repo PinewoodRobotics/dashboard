@@ -766,6 +766,20 @@ impl MockData {
             });
         }
         self.matchs = m;
+        self.demo_drive(t);
         true
+    }
+
+    /// The demo robot laps an oval on the blue half and auto-aligns for the
+    /// last 7 s of every 25 s.
+    fn demo_drive(&mut self, t: f64) {
+        let a = std::f64::consts::TAU / 20.0 * t;
+        self.pose.x_m = 4.5 + 2.4 * a.cos();
+        self.pose.y_m = 4.03 + 2.2 * a.sin();
+        self.pose.heading_rad = (2.2 * a.cos()).atan2(-2.4 * a.sin());
+        let phase = t.rem_euclid(25.0);
+        self.align.active = phase > 18.0;
+        self.align.distance_m = ((25.0 - phase) / 7.0 * 2.0).max(0.0);
+        self.align.ready = self.align.distance_m < 0.5;
     }
 }
