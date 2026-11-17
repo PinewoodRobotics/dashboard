@@ -1,7 +1,10 @@
 mod godot;
+#[cfg(target_os = "macos")]
 mod iosurface;
 mod shell;
+#[cfg_attr(windows, path = "win/test_pattern.rs")]
 mod test_pattern;
+#[cfg_attr(windows, path = "win/viewport.rs")]
 mod viewport;
 
 use gpui_kit::*;

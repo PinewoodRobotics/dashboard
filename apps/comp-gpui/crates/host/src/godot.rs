@@ -7,6 +7,15 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Context as _, Result, bail};
 use protocol::{ToHost, ToProducer};
 
+#[cfg(not(windows))]
+const DEFAULT_GODOT_BIN: &str = "/opt/homebrew/bin/godot";
+#[cfg(windows)]
+const DEFAULT_GODOT_BIN: &str = "godot";
+#[cfg(not(windows))]
+const BRIDGE_LIBRARY: &str = "libgodot_bridge.dylib";
+#[cfg(windows)]
+const BRIDGE_LIBRARY: &str = "godot_bridge.dll";
+
 pub struct GodotConfig {
     pub binary: PathBuf,
     pub project: PathBuf,
@@ -21,7 +30,7 @@ impl GodotConfig {
         Self {
             binary: std::env::var_os("GODOT_BIN")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("/opt/homebrew/bin/godot")),
+                .unwrap_or_else(|| PathBuf::from(DEFAULT_GODOT_BIN)),
             project: root.join("godot"),
             fps: 120,
             width: 1280,
@@ -39,7 +48,8 @@ impl GodotProcess {
     pub fn spawn(config: &GodotConfig) -> Result<(Self, async_channel::Receiver<ToHost>)> {
         let bridge = config
             .project
-            .join("../target/release/libgodot_bridge.dylib");
+            .join("../target/release")
+            .join(BRIDGE_LIBRARY);
         if !bridge.exists() {
             bail!(
                 "{} is missing; run `cargo build --release -p godot-bridge` first",
@@ -62,6 +72,7 @@ impl GodotProcess {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let port = listener.local_addr()?.port();
         let child = Command::new(&config.binary)
+            .args(std::env::var("GODOT_ARGS").unwrap_or_default().split_whitespace())
             .arg("--path")
             .arg(&config.project)
             .arg("--")
@@ -92,6 +103,11 @@ impl GodotProcess {
             }
         });
         Ok((Self { child, writer }, rx))
+    }
+
+    #[cfg_attr(not(windows), expect(dead_code))]
+    pub fn pid(&self) -> u32 {
+        self.child.id()
     }
 
     pub fn send(&self, message: &ToProducer) {
