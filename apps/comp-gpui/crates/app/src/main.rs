@@ -10,6 +10,7 @@ mod icons;
 mod input;
 mod match_feed;
 mod mock;
+mod mock_link;
 mod nt_source;
 mod placeholder;
 mod screen;
@@ -161,7 +162,9 @@ fn main() -> anyhow::Result<()> {
                             .timer(Duration::from_millis(16))
                             .await;
                         data.update(cx, |d, cx| {
-                            if source.tick(d) {
+                            let changed = source.tick(d);
+                            mock_link::step(d);
+                            if changed {
                                 cx.notify();
                             }
                         });

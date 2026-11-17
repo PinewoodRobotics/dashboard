@@ -4,6 +4,7 @@
 
 use std::time::Instant;
 
+use dash_core::controls::Controls;
 use dash_core::match_model::{Aim, Clock, Header, Hub, LANE_KEY, MatchEvent, Phase};
 use dash_core::request_state::{RequestTopics, Value};
 pub use dash_core::settings::{ConnectionSettings, MapMode, MapSettings, VisualSettings};
@@ -359,8 +360,14 @@ pub struct MockData {
     pub pathplanner: PathPlannerTopics,
     pub auto_selection: AutoSelection,
     pub controls: ControlTopics,
+    /// The intake speed and aim trim controllers over `controls`
+    /// (see `mock_link`).
+    pub control: Controls,
     pub demo_started: Instant,
     pub demo: bool,
+    /// Fed by the NT client (`--nt-host` / `--nt-port`); the mock robot
+    /// must not answer requests.
+    pub live_nt: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -432,6 +439,8 @@ impl MatchState {
 impl MockData {
     pub fn new(scenario: Scenario) -> Self {
         let now = Instant::now();
+        let controls = ControlTopics::seed();
+        let control = Controls::with_topics(controls.intake.topics.clone(), controls.intake_stored);
         let mut data = Self {
             nt_connected: true,
             matchs: MatchState::seed(),
@@ -461,11 +470,14 @@ impl MockData {
             lane: LaneSignal::seed(),
             pathplanner: PathPlannerTopics::seed(),
             auto_selection: AutoSelection::seed(),
-            controls: ControlTopics::seed(),
+            controls,
+            control,
             demo_started: now,
             demo: scenario == Scenario::Demo,
+            live_nt: false,
         };
         data.apply(scenario);
+        crate::mock_link::step(&mut data);
         data
     }
 

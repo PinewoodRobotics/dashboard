@@ -35,6 +35,7 @@ pub struct Slider {
     step: Option<f32>,
     snap_points: Vec<f32>,
     decimals: Option<usize>,
+    format_value: Option<fn(f32) -> String>,
     label: Option<SharedString>,
     value_label: Option<SharedString>,
     hints: Vec<SliderHint>,
@@ -53,6 +54,7 @@ impl Slider {
             step: None,
             snap_points: Vec::new(),
             decimals: None,
+            format_value: None,
             label: None,
             value_label: None,
             hints: Vec::new(),
@@ -80,6 +82,12 @@ impl Slider {
 
     pub fn decimals(mut self, decimals: usize) -> Self {
         self.decimals = Some(decimals);
+        self
+    }
+
+    /// Formats the value for `{v}`, in place of `decimals`.
+    pub fn format_value(mut self, f: fn(f32) -> String) -> Self {
+        self.format_value = Some(f);
         self
     }
 
@@ -115,6 +123,9 @@ impl Slider {
     }
 
     fn format(&self, v: f32) -> String {
+        if let Some(f) = self.format_value {
+            return f(v);
+        }
         match self.decimals {
             Some(d) => format!("{v:.d$}"),
             None => {

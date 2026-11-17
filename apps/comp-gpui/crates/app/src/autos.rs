@@ -487,7 +487,7 @@ impl AutoService {
             let mut link = MockLink { data: d };
             sync.set_topics(&mut link, topics, now);
             sync.update(&mut link, now);
-            if echo && d.nt_connected {
+            if echo && d.nt_connected && !d.live_nt {
                 let req = d.auto_selection.link.request.clone();
                 let differs = req.is_some() && req != d.auto_selection.link.state;
                 match (differs, req, echo_since.as_ref()) {

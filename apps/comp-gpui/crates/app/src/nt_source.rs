@@ -142,6 +142,7 @@ fn refresh(data: &mut MockData, v: &impl TopicView) {
 /// The topic-backed fields as they are before anything arrives.
 fn blank(data: &mut MockData) {
     data.demo = false;
+    data.live_nt = true;
     data.nt_connected = false;
     data.match_feed = MatchFeed::new(match_model::Clock::new());
     data.matchs = MatchState {
