@@ -667,6 +667,7 @@ impl MockData {
         } else {
             m.phase = Phase::PostMatch;
         }
+        m.enabled = !matches!(m.phase, Phase::PreMatch | Phase::PostMatch);
         self.lane.adjusting_velocity = Some(((t / 12.0) as u32) % 2 == 1);
         self.matchs = m;
         !self.sync_match().is_empty()

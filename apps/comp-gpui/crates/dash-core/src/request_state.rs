@@ -378,7 +378,8 @@ impl<T: Wire> RequestState<T> {
             .or_else(|| self.robot(link))
     }
 
-    fn publish(&mut self, link: &mut dyn ControlLink, v: &T) {
+    /// Publishes without touching the override or the pending request.
+    pub fn publish(&mut self, link: &mut dyn ControlLink, v: &T) {
         let value = v.to_value();
         self.publishes += 1;
         self.last_published = Some(value.clone());
