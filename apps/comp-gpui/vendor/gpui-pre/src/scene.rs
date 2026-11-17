@@ -771,6 +771,20 @@ pub struct PaintSurface {
     pub content_mask: ContentMask<ScaledPixels>,
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     pub image_buffer: objc2_core_foundation::CFRetained<objc2_core_video::CVPixelBuffer>,
+    #[cfg(target_os = "windows")]
+    pub shared_texture: SharedTexture,
+}
+
+/// An RGBA8 texture another process shares through a named NT handle.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SharedTexture {
+    /// The handle name, opened with `ID3D11Device1::OpenSharedResourceByName`.
+    pub name: crate::SharedString,
+    /// The texture's size.
+    pub size: Size<crate::DevicePixels>,
+    /// Draw with alpha forced to one.
+    pub opaque: bool,
 }
 
 impl From<PaintSurface> for Primitive {

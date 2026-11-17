@@ -1263,6 +1263,10 @@ float4 polychrome_sprite_fragment(PolychromeSpriteFragmentInput input): SV_Targe
         float3 grayscale = dot(color.rgb, GRAYSCALE_FACTORS);
         color = float4(grayscale, sample.a);
     }
+    // Shared surfaces set pad to draw opaque: Godot leaves alpha 0 on background pixels.
+    if (sprite.pad != 0u) {
+        color.a = 1.0;
+    }
     color.a *= sprite.opacity * saturate(0.5 - distance);
     return color;
 }
