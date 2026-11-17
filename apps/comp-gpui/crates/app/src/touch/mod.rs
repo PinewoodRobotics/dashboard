@@ -11,6 +11,7 @@ mod tabs;
 mod visual_tab;
 
 use std::cell::Cell;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use gpui_kit::prelude::FluentBuilder;
@@ -56,7 +57,12 @@ pub struct TouchStart {
     pub tab: Option<TabId>,
     pub panel: Option<PanelId>,
     pub dock: bool,
+    /// Where the rail and dock lists are loaded from and saved to; `None`
+    /// keeps them in memory.
+    pub layout_path: Option<PathBuf>,
 }
+
+pub use dnd::default_layout_path;
 
 /// TouchscreenDashboard.tsx.
 pub struct TouchScreen {
@@ -78,6 +84,7 @@ pub struct TouchScreen {
     swipe: Option<(SwipeTarget, SwipeRecognizer)>,
     pub driver_preset: usize,
     dock_height: Cell<f32>,
+    dnd: dnd::Dnd,
 }
 
 impl TouchScreen {
@@ -102,7 +109,13 @@ impl TouchScreen {
             swipe: None,
             driver_preset: 0,
             dock_height: Cell::new(BORDER + DOCK_PAD * 2.0 + ICON),
+            dnd: dnd::Dnd::default(),
         };
+        if let Some(path) = start.layout_path {
+            let (rail, dock) = dnd::load_layout(&path);
+            this.state.set_lists(&rail, &dock);
+            this.dnd.layout_path = Some(path);
+        }
         if let Some(tab) = start.tab {
             this.state.switch_tab(tab);
         }
@@ -191,6 +204,9 @@ impl TouchScreen {
             self.dock_t.play(1.0, 0.0, MOTION_DOCK_S);
         } else if !self.state.dock_open {
             self.dock_phase = DockPhase::Hidden;
+        }
+        if !self.state.can_drag() && self.dnd.is_dragging() {
+            self.dnd_cancel();
         }
     }
 
@@ -375,7 +391,8 @@ impl TouchScreen {
 impl Render for TouchScreen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::screen::fit(window, TOUCH_DESIGN);
-        if self.step() {
+        let moving = self.step();
+        if self.dnd_step(window) || moving {
             window.request_animation_frame();
         }
 
@@ -436,6 +453,7 @@ impl Render for TouchScreen {
             .when(self.dock_visible(), |d| {
                 d.child(chrome::dock(self, window, cx))
             })
+            .children(dnd::ghost(self))
             .when(!self.data.read(cx).nt_connected, |d| {
                 d.child(crate::widgets::status_pill(TOUCH_DESIGN, "NT Disconnected"))
             });

@@ -1,3 +1,5 @@
+use dash_core::layout_store::Tabs;
+
 use crate::icons::sf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -45,6 +47,8 @@ impl TabId {
             active_symbol,
         }
     }
+
+    pub const DEFAULT_RAIL: [TabId; 2] = [TabId::Auto, TabId::Settings];
 
     pub fn parse(s: &str) -> Option<Self> {
         Some(match s {
@@ -105,6 +109,17 @@ impl PanelId {
     }
 }
 
+/// The rail and dock ids layoutStorage.ts accepts: the dock tabs, never the
+/// dev-only gallery.
+pub fn layout_tabs() -> Tabs<'static> {
+    const ALL: [&str; 6] = ["auto", "settings", "effects", "howard", "robot3d", "visual"];
+    const RAIL: [&str; 2] = ["auto", "settings"];
+    Tabs {
+        all: &ALL,
+        default_rail: &RAIL,
+    }
+}
+
 /// useTouchscreenLayoutState.ts. `None` active tab is the driver base,
 /// `None` open panel a collapsed drawer. Views animate from this state.
 #[derive(Clone, Debug)]
@@ -133,7 +148,7 @@ impl Default for LayoutState {
             dock_closing: false,
             skip_panel_anim: false,
             skip_exit_anim: false,
-            rail: vec![TabId::Auto, TabId::Settings],
+            rail: TabId::DEFAULT_RAIL.to_vec(),
             dock: TabId::ALL.to_vec(),
         }
     }
@@ -227,5 +242,56 @@ impl LayoutState {
 
     pub fn take_skip_exit_anim(&mut self) -> bool {
         std::mem::take(&mut self.skip_exit_anim)
+    }
+
+    /// Edit mode: rail and dock items drag while the dock is mounted,
+    /// closing included.
+    pub fn can_drag(&self) -> bool {
+        self.dock_open
+    }
+
+    /// Sanitized like a stored layout; false when nothing changed.
+    pub fn set_lists(&mut self, rail: &[TabId], dock: &[TabId]) -> bool {
+        let tabs = layout_tabs();
+        let keys = |l: &[TabId]| l.iter().map(|t| t.key()).collect::<Vec<_>>();
+        let parse = |l: Vec<String>| l.iter().filter_map(|s| TabId::parse(s)).collect::<Vec<_>>();
+        let rail = parse(tabs.sanitize(&keys(rail)));
+        let dock = parse(tabs.normalize_dock(&keys(dock)));
+        if rail == self.rail && dock == self.dock {
+            return false;
+        }
+        self.rail = rail;
+        self.dock = dock;
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use TabId::*;
+
+    #[test]
+    fn set_lists_sanitizes() {
+        let mut s = LayoutState::default();
+        assert!(s.set_lists(&[Visual, Gallery, Visual], &[Howard, Gallery]));
+        assert_eq!(s.rail, [Visual]);
+        assert_eq!(s.dock, [Howard, Auto, Settings, Effects, Robot3d, Visual]);
+        assert!(
+            !s.set_lists(&[Visual], &s.dock.clone()),
+            "an unchanged layout reports no change"
+        );
+    }
+
+    #[test]
+    fn edit_mode_follows_the_dock() {
+        let mut s = LayoutState::default();
+        assert!(!s.can_drag());
+        s.toggle_dock();
+        assert!(s.can_drag());
+        s.close_dock();
+        assert!(s.can_drag(), "closing still counts");
+        s.finish_dock_close();
+        assert!(!s.can_drag());
     }
 }
