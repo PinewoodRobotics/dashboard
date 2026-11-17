@@ -67,6 +67,7 @@ pub struct View3d {
     producer: FpsCounter,
     cpu_ms: Smoothed,
     gpu_ms: Smoothed,
+    tick_ms: Smoothed,
     paint_age_ms: Smoothed,
     error: Option<String>,
 }
@@ -90,6 +91,7 @@ impl View3d {
             producer: FpsCounter::default(),
             cpu_ms: Smoothed::default(),
             gpu_ms: Smoothed::default(),
+            tick_ms: Smoothed::default(),
             paint_age_ms: Smoothed::default(),
             error: None,
         }
@@ -218,6 +220,7 @@ impl View3d {
                 seq,
                 cpu_ms,
                 gpu_ms,
+                tick_ms,
                 ready_us,
                 input_stamp,
                 ..
@@ -229,6 +232,7 @@ impl View3d {
                 self.producer.tick();
                 self.cpu_ms.push(cpu_ms);
                 self.gpu_ms.push(gpu_ms);
+                self.tick_ms.push(tick_ms);
                 if self.latest.is_none_or(|latest| seq > latest.seq) {
                     self.latest = Some(FrameInfo {
                         generation,
@@ -306,17 +310,27 @@ impl View3d {
             .as_ref()
             .map(|s| format!("{}x{} gen {} seq {}", s.width, s.height, s.generation, s.seq))
             .unwrap_or_else(|| "no frame".into());
+        let element = self
+            .measured
+            .map(|m| format!(" on {}x{} px", m.width, m.height))
+            .unwrap_or_default();
         let mut lines = vec![
-            format!("[{:?} view {}] {size}{}", self.scene, self.id, if self.active { "" } else { " (inactive)" }),
+            format!(
+                "[{:?} view {}] {size}{element}{}",
+                self.scene,
+                self.id,
+                if self.active { "" } else { " (inactive)" }
+            ),
             format!(
                 "producer fps {:.0}  shown fps {:.0}",
                 self.producer.fps, present.fps.fps
             ),
             format!(
-                "godot cpu ms {}  gpu ms {}",
+                "godot cpu ms {}  tick wall ms {}",
                 fmt_ms(self.cpu_ms.get()),
-                fmt_ms(self.gpu_ms.get())
+                fmt_ms(self.tick_ms.get())
             ),
+            format!("gpu ms (submit to fence) {}", fmt_ms(self.gpu_ms.get())),
         ];
         if observed {
             lines.push(format!(

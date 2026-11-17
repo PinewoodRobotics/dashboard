@@ -8,7 +8,7 @@ use host::bridge3d::Bridge3d;
 use host::godot::GodotConfig;
 use host::test_pattern::TestPattern;
 
-use crate::shell::{DRAWER_WIDTH, Layout, ShellOptions, open_shell_window};
+use crate::shell::{DRAWER_WIDTH, KIOSK_VIEW_PX, Layout, ShellOptions, open_shell_window};
 
 gpui_kit::actions!(host, [Quit]);
 
@@ -21,6 +21,7 @@ host [options]
   --no-minimap          start with the minimap view inactive
   --second-window       also open a second window with its own orbit view
   --demo-input          drive scripted pointer input (logged as `demo:` lines)
+  --demo-resize         grow the window in steps like a live resize, then hold still
   --no-idle-return      robot camera stays where it was dragged
   --log-stats SECS      print the overlay to stderr every SECS seconds
   --auto-drawer         toggle the drawer every 2 s
@@ -60,6 +61,7 @@ fn main() -> anyhow::Result<()> {
     let test_pattern = flag("--test-pattern");
     let second_window = flag("--second-window");
     let demo_input = flag("--demo-input");
+    let demo_resize = flag("--demo-resize");
     let mut config = GodotConfig::from_env();
     if flag("--no-idle-return") {
         config.extra_args.push("--no-idle-return".into());
@@ -113,7 +115,7 @@ fn main() -> anyhow::Result<()> {
             window
                 .update(cx, |_, window, _| {
                     let scale = window.scale_factor();
-                    window.resize(size(px(1920. / scale), px(515. / scale)));
+                    window.resize(size(px(KIOSK_VIEW_PX.0 / scale), px(KIOSK_VIEW_PX.1 / scale)));
                 })
                 .ok();
         }
@@ -143,6 +145,9 @@ fn main() -> anyhow::Result<()> {
             let view_point = point(bounds.width * 0.3, bounds.height * 0.4);
             let drawer_point = point(bounds.width - px(32. + DRAWER_WIDTH / 2.), px(200.));
             demo::run(window, view_point, drawer_point, cx);
+        }
+        if demo_resize {
+            demo::resize(window, cx);
         }
     });
     Ok(())

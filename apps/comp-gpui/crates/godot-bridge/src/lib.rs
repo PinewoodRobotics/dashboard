@@ -82,6 +82,7 @@ struct HostBridge {
         objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandQueue>>,
     >,
     views: HashMap<u32, ViewSlots>,
+    max_ahead: usize,
     base: Base<RefCounted>,
 }
 
@@ -154,6 +155,30 @@ impl HostBridge {
         protocol::now_us() as i64
     }
 
+    /// CPU time the calling thread has consumed, which unlike wall time leaves out blocking
+    /// waits such as RenderingDevice waiting for an earlier frame's GPU work.
+    #[func]
+    fn thread_cpu_us(&self) -> i64 {
+        #[cfg(unix)]
+        {
+            let mut ts = libc::timespec {
+                tv_sec: 0,
+                tv_nsec: 0,
+            };
+            unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
+            ts.tv_sec * 1_000_000 + ts.tv_nsec / 1000
+        }
+        #[cfg(not(unix))]
+        0
+    }
+
+    /// Frames a view may have handed to the host but not yet seen acked; rings created later
+    /// use it. 0 leaves only the ring size as the limit.
+    #[func]
+    fn set_max_ahead(&mut self, frames: i64) {
+        self.max_ahead = frames.max(0) as usize;
+    }
+
     /// Allocates a new generation of shared slots for `view` and announces it to the host. The
     /// caller owns the returned RIDs and frees the previous generation's.
     #[func]
@@ -210,7 +235,7 @@ impl HostBridge {
                 view,
                 ViewRing {
                     generation: entry.generation,
-                    state: RingState::new(count as usize),
+                    state: RingState::new(count as usize, self.max_ahead),
                 },
             );
             link.send(&ToHost::Surfaces {
@@ -254,12 +279,23 @@ impl HostBridge {
         }
     }
 
+    /// Releases a slot whose copy was never issued, e.g. while the viewport resizes.
+    #[func]
+    fn cancel_frame(&mut self, view: i64, slot: i64) {
+        if let Some(link) = &self.link
+            && let Some(ring) = link.rings.lock().unwrap().get_mut(&(view as u32))
+        {
+            ring.state.cancel(slot as u32);
+        }
+    }
+
     /// Sends Frame once Godot's queue has drained past this tick's copies.
     #[func]
     fn submit_frame(
         &mut self,
         view: i64,
         slot: i64,
+        tick_ms: f64,
         cpu_ms: f64,
         render_submitted_us: i64,
         input_stamp: i64,
@@ -285,6 +321,7 @@ impl HostBridge {
                     generation,
                     slot: slot as u32,
                     seq,
+                    tick_ms: tick_ms as f32,
                     cpu_ms: cpu_ms as f32,
                     gpu_ms: (ready_us.saturating_sub(render_submitted_us as u64)) as f32 / 1000.0,
                     ready_us,

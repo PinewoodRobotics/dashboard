@@ -19,7 +19,12 @@ pub enum ToHost {
         generation: u32,
         slot: u32,
         seq: u64,
+        /// Wall time of Godot's tick: both force_draws and the copies, including waits on the
+        /// GPU for earlier frames.
+        tick_ms: f32,
+        /// CPU time Godot's main thread spent in that tick (all views drawn in it).
         cpu_ms: f32,
+        /// From the tick's submit to the fence that follows the copies.
         gpu_ms: f32,
         ready_us: u64,
         /// Stamp of the newest Pointer applied before this frame was drawn, 0 if none yet.

@@ -98,3 +98,25 @@ pub fn run(window: AnyWindowHandle, view_point: Point<Pixels>, drawer_point: Poi
     })
     .detach();
 }
+
+/// Grows the window in small steps like a live resize drag, then holds still.
+pub fn resize(window: AnyWindowHandle, cx: &mut App) {
+    cx.spawn(async move |cx| {
+        wait(cx, Duration::from_secs(12)).await;
+        log("resize start");
+        for step in 0..=20 {
+            let grow = step as f32 * 12.0;
+            cx.update_window(window, |_, window, _| {
+                window.resize(size(px(1100. + grow), px(700. + grow * 0.4)));
+            })
+            .ok();
+            wait(cx, Duration::from_millis(25)).await;
+        }
+        log("resize dragging stopped");
+        wait(cx, Duration::from_secs(2)).await;
+        log("resize settled");
+        wait(cx, Duration::from_secs(1)).await;
+        log("done");
+    })
+    .detach();
+}

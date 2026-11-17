@@ -12,6 +12,8 @@ pub const DRAWER_WIDTH: f32 = 320.0;
 pub const MINIMAP_SIZE: (f32, f32) = (360.0, 220.0);
 pub const INSET: f32 = 16.0;
 pub const HEADER_HEIGHT: f32 = 40.0;
+/// The driver station touchscreen.
+pub const KIOSK_VIEW_PX: (f32, f32) = (1920.0, 515.0);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Layout {
@@ -258,7 +260,21 @@ impl Render for Shell {
 
         let root = div().size_full().relative().bg(rgb(0x0b0d12));
         match self.layout {
-            Layout::Kiosk | Layout::Second => root
+            Layout::Kiosk => {
+                let scale = window.scale_factor();
+                root.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .w(px(KIOSK_VIEW_PX.0 / scale))
+                        .h(px(KIOSK_VIEW_PX.1 / scale))
+                        .child(main),
+                )
+                .children(minimap)
+                .child(overlay)
+            }
+            Layout::Second => root
                 .child(div().absolute().inset_0().child(main))
                 .children(minimap)
                 .child(overlay),

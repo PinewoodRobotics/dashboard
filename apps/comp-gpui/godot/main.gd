@@ -40,6 +40,7 @@ func _start_producer(args: PackedStringArray) -> void:
 	RenderingServer.render_loop_enabled = false
 	RenderingServer.set_default_clear_color(CLEAR_COLOR)
 	Engine.max_fps = IDLE_FPS
+	_bridge.set_max_ahead(int(_arg_value(args, "--max-ahead", "0")))
 	_idle_return = not ("--no-idle-return" in args)
 
 	_models = Models.new()
@@ -91,6 +92,7 @@ func _process(delta: float) -> void:
 		return
 
 	var tick_start := Time.get_ticks_usec()
+	var cpu_start: int = _bridge.thread_cpu_us()
 	RenderingServer.force_draw(false)
 	var submitted_us: int = _bridge.now_us()
 	var rd := RenderingServer.get_rendering_device()
@@ -98,12 +100,15 @@ func _process(delta: float) -> void:
 	for v in due:
 		if v.copy_to_slot(rd):
 			copied.append(v)
+		else:
+			_bridge.cancel_frame(v.id, v.pending_slot)
 	# The copies are only recorded here; this draw submits them. Every due
 	# viewport's UPDATE_ONCE was consumed by the first draw.
 	RenderingServer.force_draw(false)
-	var cpu_ms := (Time.get_ticks_usec() - tick_start) / 1000.0
+	var tick_ms := (Time.get_ticks_usec() - tick_start) / 1000.0
+	var cpu_ms: float = (_bridge.thread_cpu_us() - cpu_start) / 1000.0
 	for v in copied:
-		_bridge.submit_frame(v.id, v.pending_slot, cpu_ms, submitted_us, v.input_stamp)
+		_bridge.submit_frame(v.id, v.pending_slot, tick_ms, cpu_ms, submitted_us, v.input_stamp)
 
 
 func _handle(m: Dictionary) -> void:

@@ -44,7 +44,9 @@ impl GodotConfig {
                 "PWRUP_FIELD_GLB",
                 app.join("../comp/cad-assets/field-2026.glb"),
             ),
-            extra_args: Vec::new(),
+            extra_args: std::env::var("PWRUP_GODOT_ARGS")
+                .map(|args| args.split_whitespace().map(str::to_string).collect())
+                .unwrap_or_default(),
         }
     }
 }
