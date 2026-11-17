@@ -285,7 +285,12 @@ pub fn render(
             .into_any_element(),
     ];
 
-    let diagnostics = vec![info_box("Renderer", renderer_rows(&data, window, cx)).into_any_element()];
+    let diagnostics = vec![
+        Button::new(("visual-touch-test", key), "Touch Test", ButtonStyle::Outline)
+            .on_tap(|_, cx| crate::touch_test::open_all(cx))
+            .into_any_element(),
+        info_box("Renderer", renderer_rows(&data, window, cx)).into_any_element(),
+    ];
 
     let columns = div()
         .flex()
