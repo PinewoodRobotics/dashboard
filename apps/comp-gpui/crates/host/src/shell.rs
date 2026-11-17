@@ -73,13 +73,18 @@ impl Shell {
             }
         }
         if let Some(every) = options.log_stats {
+            let label = if options.layout == Layout::Second {
+                "stats second window"
+            } else {
+                "stats"
+            };
             cx.spawn(async move |this, cx| {
                 loop {
                     cx.background_executor().timer(every).await;
                     let Ok(lines) = this.update(cx, |shell, cx| shell.stats_lines(cx)) else {
                         break;
                     };
-                    eprintln!("stats: {}", lines.join(" | "));
+                    eprintln!("{label}: {}", lines.join(" | "));
                 }
             })
             .detach();
@@ -178,7 +183,11 @@ pub fn window_options(content: Size<Pixels>, title: &str, cx: &App) -> WindowOpt
         }),
         // GPUI caps inactive windows at ~30 fps by default; the driver station keeps the FRC
         // Driver Station app focused, so the dashboard is inactive for the whole match.
-        inactive_frame_interval: None,
+        inactive_frame_interval: if std::env::var_os("PWRUP_GPUI_INACTIVE_THROTTLE").is_some() {
+            WindowOptions::default().inactive_frame_interval
+        } else {
+            None
+        },
         low_power_frame_interval: None,
         ..Default::default()
     }
@@ -192,7 +201,15 @@ pub fn open_shell_window(
     content: Size<Pixels>,
     title: &str,
 ) -> Option<(AnyWindowHandle, Entity<Shell>)> {
-    let window_options = window_options(content, title, cx);
+    let mut window_options = window_options(content, title, cx);
+    // A window wholly covered by another stops drawing (and so stops acking its views), so the
+    // second window cascades out from under the first.
+    if options.layout == Layout::Second
+        && let Some(WindowBounds::Windowed(bounds)) = &mut window_options.window_bounds
+    {
+        bounds.origin.x += px(380.);
+        bounds.origin.y += px(150.);
+    }
     gpui_kit::open_window(window_options, cx, |window, cx| {
         let shell = cx.new(|cx| Shell::new(bridge, test_pattern, options, cx));
         let closing = shell.downgrade();
@@ -232,10 +249,13 @@ impl Render for Shell {
             .clone()
             .filter(|_| self.minimap_visible(cx))
             .map(|view| {
-                div()
-                    .absolute()
-                    .left(px(INSET * 2.0))
-                    .bottom(px(INSET * 2.0))
+                let inset = div().absolute();
+                let inset = if self.layout == Layout::Kiosk {
+                    inset.right(px(12.)).top(px(12.))
+                } else {
+                    inset.left(px(INSET * 2.0)).bottom(px(INSET * 2.0))
+                };
+                inset
                     .w(px(MINIMAP_SIZE.0))
                     .h(px(MINIMAP_SIZE.1))
                     .rounded(px(10.))

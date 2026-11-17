@@ -58,6 +58,7 @@ fn main() -> anyhow::Result<()> {
             .transpose()?
             .map(Duration::from_secs_f32),
     };
+    let log_stats = options.log_stats;
     let test_pattern = flag("--test-pattern");
     let second_window = flag("--second-window");
     let demo_input = flag("--demo-input");
@@ -130,7 +131,7 @@ fn main() -> anyhow::Result<()> {
                     minimap_fps: 0,
                     minimap: false,
                     auto_drawer: false,
-                    log_stats: None,
+                    log_stats,
                 },
                 size(px(720.), px(480.)),
                 "PWRUP comp-gpui (second window)",
