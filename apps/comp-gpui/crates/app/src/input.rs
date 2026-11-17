@@ -45,7 +45,7 @@ impl Pointer {
     }
 }
 
-type Handler = Box<dyn FnMut(&Pointer, &mut Window, &mut App)>;
+pub type Handler = Box<dyn FnMut(&Pointer, &mut Window, &mut App)>;
 
 thread_local! {
     static MOUSE_AS_TOUCH: Cell<bool> = const { Cell::new(false) };
@@ -82,6 +82,19 @@ pub fn pointer(phase: Phase, pos: Point<Pixels>, window: &Window) -> Pointer {
 pub fn capture(window: &Window, handler: impl FnMut(&Pointer, &mut Window, &mut App) + 'static) {
     let id = window.window_handle().window_id();
     CAPTURE.with(|c| *c.borrow_mut() = Some((id, Box::new(handler))));
+}
+
+/// Takes this window's capture, so an outer widget can take over a press an
+/// inner one started and still hand it the events (or a Cancel).
+pub fn take_capture(window: &Window) -> Option<Handler> {
+    let id = window.window_handle().window_id();
+    CAPTURE.with(|c| {
+        let mut slot = c.borrow_mut();
+        match slot.as_ref() {
+            Some((owner, _)) if *owner == id => slot.take().map(|(_, h)| h),
+            _ => None,
+        }
+    })
 }
 
 pub fn release_capture() {

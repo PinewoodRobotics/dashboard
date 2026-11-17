@@ -3,7 +3,7 @@ use std::time::Instant;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
-use crate::input::{self, Phase, TAP_SLOP};
+use crate::input::{self, Phase, Pointer, PressWidget, TAP_SLOP};
 use crate::theme::{ACCENT, TRANSPARENT, u};
 
 const BAR_W: f32 = 5.0;
@@ -175,9 +175,13 @@ impl RenderOnce for Scroll {
                 if axis == Axis2::Vertical && offset > 0.0 {
                     input::note_scroll_not_at_top();
                 }
-                if !p.is_touch() || max <= 0.0 {
+                // The web's touch-action: none on slider tracks and selector
+                // cells: a stroke that starts there never scrolls the panel.
+                if !p.is_touch() || max <= 0.0 || input::press_context().widget != PressWidget::None
+                {
                     return;
                 }
+                let mut inner = input::take_capture(window);
                 state.update(cx, |s, _| {
                     s.fling = None;
                     s.dragging = false;
@@ -188,6 +192,7 @@ impl RenderOnce for Scroll {
                 let st = state.clone();
                 input::capture(window, move |p, window, cx| {
                     let rem = f32::from(window.rem_size()).max(0.0001);
+                    let was_dragging = st.read(cx).dragging;
                     st.update(cx, |s, cx| {
                         let d = along(axis, p.pos) - s.start;
                         match p.phase {
@@ -227,6 +232,18 @@ impl RenderOnce for Scroll {
                             Phase::Down => {}
                         }
                     });
+                    if let Some(h) = inner.as_mut() {
+                        if st.read(cx).dragging && !was_dragging {
+                            let cancel = Pointer {
+                                phase: Phase::Cancel,
+                                ..*p
+                            };
+                            h(&cancel, window, cx);
+                            inner = None;
+                        } else {
+                            h(p, window, cx);
+                        }
+                    }
                 });
             }
         });
