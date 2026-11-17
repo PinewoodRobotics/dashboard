@@ -14,7 +14,7 @@ gpui_kit::actions!(host, [Quit]);
 
 const USAGE: &str = "\
 host [options]
-  --test-pattern        show a host-written IOSurface instead of Godot
+  --test-pattern        show a host-written shared texture instead of Godot
   --kiosk               robot view full-bleed at 1920x515 device pixels, like the touchscreen
   --fps N               robot view frame rate (default 120)
   --minimap-fps N       HUD minimap view frame rate (default 30)
@@ -71,6 +71,8 @@ fn main() -> anyhow::Result<()> {
         config.extra_args.push("--no-idle-return".into());
     }
 
+    #[cfg(windows)]
+    host::win_log::install_stderr_logger();
     gpui_kit::application().run(move |cx| {
         gpui_kit::init(cx);
         host::present::install();

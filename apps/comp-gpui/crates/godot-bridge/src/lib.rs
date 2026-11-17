@@ -1,6 +1,8 @@
 #[cfg(target_os = "macos")]
 mod mac;
 mod ring;
+#[cfg(windows)]
+mod win;
 
 use std::collections::HashMap;
 use std::io::{BufReader, BufWriter};
@@ -69,6 +71,10 @@ impl Link {
 struct ViewSlots {
     #[cfg(target_os = "macos")]
     slots: Vec<mac::SharedSlot>,
+    #[cfg(windows)]
+    slots: Vec<win::SharedSlot>,
+    #[cfg(windows)]
+    previous: Vec<win::SharedSlot>,
     generation: u32,
     seq: u64,
 }
@@ -81,6 +87,8 @@ struct HostBridge {
     queue: Option<
         objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandQueue>>,
     >,
+    #[cfg(windows)]
+    win: win::WinState,
     views: HashMap<u32, ViewSlots>,
     max_ahead: usize,
     base: Base<RefCounted>,
@@ -148,6 +156,8 @@ impl HostBridge {
     fn hide_window(&self) {
         #[cfg(target_os = "macos")]
         mac::hide_app_windows();
+        #[cfg(windows)]
+        win::hide_window();
     }
 
     #[func]
@@ -168,7 +178,11 @@ impl HostBridge {
             unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
             ts.tv_sec * 1_000_000 + ts.tv_nsec / 1000
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            win::thread_cpu_us()
+        }
+        #[cfg(not(any(unix, windows)))]
         0
     }
 
@@ -193,8 +207,9 @@ impl HostBridge {
             godot_error!("bridge: no RenderingDevice");
             return rids;
         };
+        let generation = self.views.get(&view).map_or(0, |entry| entry.generation) + 1;
         #[cfg(target_os = "macos")]
-        {
+        let (handles, ids): (Vec<u64>, Vec<u32>) = {
             let device_handle =
                 rd.get_driver_resource(DriverResource::LOGICAL_DEVICE, Rid::Invalid, 0);
             let Some(device) = (unsafe { mac::device_from_handle(device_handle) }) else {
@@ -214,45 +229,80 @@ impl HostBridge {
                 };
                 slots.push(slot);
             }
-            for slot in &slots {
-                rids.push(rd.texture_create_from_extension(
-                    TextureType::TYPE_2D,
-                    DataFormat::R8G8B8A8_UNORM,
-                    TextureSamples::SAMPLES_1,
-                    TextureUsageBits::CAN_COPY_TO_BIT | TextureUsageBits::SAMPLING_BIT,
-                    slot.native_handle,
-                    width as u64,
-                    height as u64,
-                    1,
-                    1,
-                ));
-            }
+            let handles = slots.iter().map(|slot| slot.native_handle).collect();
             let ids = slots.iter().map(|slot| slot.id()).collect();
+            self.views.entry(view).or_default().slots = slots;
+            (handles, ids)
+        };
+        // UNTESTED. Slots are named from (pid, view, generation, index), so ids carries indices.
+        #[cfg(windows)]
+        let (handles, ids): (Vec<u64>, Vec<u32>) = {
+            let slots = unsafe {
+                self.win.create_slots(
+                    rd.get_driver_resource(DriverResource::LOGICAL_DEVICE, Rid::Invalid, 0),
+                    rd.get_driver_resource(DriverResource::COMMAND_QUEUE, Rid::Invalid, 0),
+                    view,
+                    generation,
+                    width as u32,
+                    height as u32,
+                    count as u32,
+                )
+            };
+            let Some(slots) = slots else {
+                return rids;
+            };
+            let handles = slots.iter().map(win::SharedSlot::native_handle).collect();
             let entry = self.views.entry(view).or_default();
-            entry.generation += 1;
-            entry.slots = slots;
-            link.rings.lock().unwrap().insert(
-                view,
-                ViewRing {
-                    generation: entry.generation,
-                    state: RingState::new(count as usize, self.max_ahead),
-                },
-            );
-            link.send(&ToHost::Surfaces {
-                view,
-                generation: entry.generation,
-                width: width as u32,
-                height: height as u32,
-                ids,
-            });
+            // The script frees the previous generation's RIDs only after this returns.
+            entry.previous = std::mem::replace(&mut entry.slots, slots);
+            (handles, (0..count as u32).collect())
+        };
+        #[cfg(not(any(target_os = "macos", windows)))]
+        let (handles, ids): (Vec<u64>, Vec<u32>) = {
+            let _ = (&mut rd, &link, generation, width, height, count);
+            godot_error!("bridge: no shared texture path on this platform");
+            return rids;
+        };
+        for handle in handles {
+            rids.push(rd.texture_create_from_extension(
+                TextureType::TYPE_2D,
+                DataFormat::R8G8B8A8_UNORM,
+                TextureSamples::SAMPLES_1,
+                TextureUsageBits::CAN_COPY_TO_BIT | TextureUsageBits::SAMPLING_BIT,
+                handle,
+                width as u64,
+                height as u64,
+                1,
+                1,
+            ));
         }
+        self.views.entry(view).or_default().generation = generation;
+        link.rings.lock().unwrap().insert(
+            view,
+            ViewRing {
+                generation,
+                state: RingState::new(count as usize, self.max_ahead),
+            },
+        );
+        link.send(&ToHost::Surfaces {
+            view,
+            generation,
+            width: width as u32,
+            height: height as u32,
+            ids,
+        });
         rids
     }
 
     #[func]
     fn release_ring(&mut self, view: i64) {
         let view = view as u32;
-        self.views.remove(&view);
+        let _released = self.views.remove(&view);
+        #[cfg(windows)]
+        if let Some(entry) = _released {
+            self.win
+                .retire(entry.slots.into_iter().chain(entry.previous));
+        }
         if let Some(link) = &self.link {
             link.rings.lock().unwrap().remove(&view);
         }
@@ -309,27 +359,35 @@ impl HostBridge {
         };
         let generation = entry.generation;
         let seq = entry.seq;
+        let send_frame = move || {
+            let ready_us = protocol::now_us();
+            link.send(&ToHost::Frame {
+                view,
+                generation,
+                slot: slot as u32,
+                seq,
+                tick_ms: tick_ms as f32,
+                cpu_ms: cpu_ms as f32,
+                gpu_ms: (ready_us.saturating_sub(render_submitted_us as u64)) as f32 / 1000.0,
+                ready_us,
+                input_stamp: input_stamp.max(0) as u64,
+            });
+        };
         #[cfg(target_os = "macos")]
         {
             let Some(queue) = &self.queue else {
                 return false;
             };
-            return mac::notify_when_queue_drains(queue, move || {
-                let ready_us = protocol::now_us();
-                link.send(&ToHost::Frame {
-                    view,
-                    generation,
-                    slot: slot as u32,
-                    seq,
-                    tick_ms: tick_ms as f32,
-                    cpu_ms: cpu_ms as f32,
-                    gpu_ms: (ready_us.saturating_sub(render_submitted_us as u64)) as f32 / 1000.0,
-                    ready_us,
-                    input_stamp: input_stamp.max(0) as u64,
-                });
-            });
+            mac::notify_when_queue_drains(queue, send_frame)
         }
-        #[allow(unreachable_code)]
-        false
+        #[cfg(windows)]
+        {
+            self.win.notify_when_queue_drains(send_frame)
+        }
+        #[cfg(not(any(target_os = "macos", windows)))]
+        {
+            let _ = send_frame;
+            false
+        }
     }
 }

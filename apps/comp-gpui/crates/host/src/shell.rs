@@ -162,7 +162,11 @@ impl Shell {
             lines.extend(bridge.read(cx).status_lines());
         }
         if self.test_pattern.is_some() {
-            lines.push("source test pattern (host IOSurface)".into());
+            lines.push(if cfg!(windows) {
+                "source test pattern (host D3D11 shared texture)".into()
+            } else {
+                "source test pattern (host IOSurface)".into()
+            });
         }
         for view in self.main.iter().chain(self.minimap.iter()) {
             lines.extend(view.read(cx).stats_lines());

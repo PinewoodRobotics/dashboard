@@ -2,13 +2,18 @@ use std::time::Duration;
 
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
+#[cfg(target_os = "macos")]
 use objc2_core_foundation::CFRetained;
+#[cfg(target_os = "macos")]
 use objc2_core_video::CVPixelBuffer;
 use protocol::{Pointer, PointerKind, PointerPhase, Scene, ToHost, ToProducer};
 
 use crate::godot::ProducerLink;
+#[cfg(target_os = "macos")]
 use crate::iosurface;
-use crate::present::{self, Painted};
+use crate::present;
+#[cfg(target_os = "macos")]
+use crate::present::Painted;
 use crate::stats::{FpsCounter, Smoothed, fmt_ms};
 
 /// How long the element's size must hold still before Godot builds surfaces at the new size.
@@ -16,6 +21,11 @@ use crate::stats::{FpsCounter, Smoothed, fmt_ms};
 const RESIZE_DEBOUNCE: Duration = Duration::from_millis(150);
 /// Chromium's WheelEvent delta per Cocoa line.
 const LINE_PX: f32 = 40.0;
+
+#[cfg(target_os = "macos")]
+type SlotBuffer = CFRetained<CVPixelBuffer>;
+#[cfg(windows)]
+type SlotBuffer = SharedTexture;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DeviceSize {
@@ -28,7 +38,7 @@ struct Ring {
     generation: u32,
     width: u32,
     height: u32,
-    buffers: Vec<CFRetained<CVPixelBuffer>>,
+    buffers: Vec<SlotBuffer>,
 }
 
 #[derive(Clone, Copy)]
@@ -41,7 +51,7 @@ struct FrameInfo {
 }
 
 struct Shown {
-    buffer: CFRetained<CVPixelBuffer>,
+    buffer: SlotBuffer,
     width: u32,
     height: u32,
     generation: u32,
@@ -55,6 +65,7 @@ pub struct View3d {
     scene: Scene,
     fps: u32,
     link: ProducerLink,
+    producer_pid: Option<u32>,
     active: bool,
     opened: bool,
     measured: Option<DeviceSize>,
@@ -69,6 +80,8 @@ pub struct View3d {
     gpu_ms: Smoothed,
     tick_ms: Smoothed,
     paint_age_ms: Smoothed,
+    paint_input_ms: Smoothed,
+    painted_input: u64,
     error: Option<String>,
 }
 
@@ -79,6 +92,7 @@ impl View3d {
             scene,
             fps,
             link,
+            producer_pid: None,
             active: true,
             opened: false,
             measured: None,
@@ -93,6 +107,8 @@ impl View3d {
             gpu_ms: Smoothed::default(),
             tick_ms: Smoothed::default(),
             paint_age_ms: Smoothed::default(),
+            paint_input_ms: Smoothed::default(),
+            painted_input: 0,
             error: None,
         }
     }
@@ -133,7 +149,8 @@ impl View3d {
 
     /// A new Godot process is up: it knows nothing of this view, so open it again at the
     /// current size. The last frame stays on screen until the new process sends one.
-    pub fn on_connected(&mut self) {
+    pub fn on_connected(&mut self, pid: u32) {
+        self.producer_pid = Some(pid);
         self.opened = false;
         self.latest = None;
         self.ring = None;
@@ -193,27 +210,18 @@ impl View3d {
                 height,
                 ids,
                 ..
-            } => {
-                let buffers: anyhow::Result<Vec<_>> = ids
-                    .iter()
-                    .map(|&id| {
-                        let surface = iosurface::lookup_surface(id)?;
-                        iosurface::pixel_buffer(&surface, true)
-                    })
-                    .collect();
-                match buffers {
-                    Ok(buffers) => {
-                        self.ring = Some(Ring {
-                            generation,
-                            width,
-                            height,
-                            buffers,
-                        });
-                        self.latest = None;
-                    }
-                    Err(error) => self.error = Some(format!("{error:#}")),
+            } => match self.slot_buffers(generation, width, height, &ids) {
+                Ok(buffers) => {
+                    self.ring = Some(Ring {
+                        generation,
+                        width,
+                        height,
+                        buffers,
+                    });
+                    self.latest = None;
                 }
-            }
+                Err(error) => self.error = Some(format!("{error:#}")),
+            },
             ToHost::Frame {
                 generation,
                 slot,
@@ -259,6 +267,7 @@ impl View3d {
             return;
         }
         let buffer = ring.buffers[frame.slot as usize].clone();
+        #[cfg(target_os = "macos")]
         present::painted(
             CFRetained::as_ptr(&buffer).as_ptr() as usize,
             Painted {
@@ -268,8 +277,14 @@ impl View3d {
                 input_stamp: frame.input_stamp,
             },
         );
+        let now_us = protocol::now_us();
         self.paint_age_ms
-            .push(protocol::now_us().saturating_sub(frame.ready_us) as f32 / 1000.0);
+            .push(now_us.saturating_sub(frame.ready_us) as f32 / 1000.0);
+        if frame.input_stamp > self.painted_input {
+            self.painted_input = frame.input_stamp;
+            self.paint_input_ms
+                .push(now_us.saturating_sub(frame.input_stamp) as f32 / 1000.0);
+        }
         self.link.send(&ToProducer::Ack {
             view: self.id,
             generation: frame.generation,
@@ -283,6 +298,47 @@ impl View3d {
             generation: frame.generation,
             seq: frame.seq,
         });
+    }
+
+    #[cfg(target_os = "macos")]
+    fn slot_buffers(
+        &self,
+        _generation: u32,
+        _width: u32,
+        _height: u32,
+        ids: &[u32],
+    ) -> anyhow::Result<Vec<SlotBuffer>> {
+        ids.iter()
+            .map(|&id| {
+                let surface = iosurface::lookup_surface(id)?;
+                iosurface::pixel_buffer(&surface, true)
+            })
+            .collect()
+    }
+
+    /// UNTESTED. Godot names each slot after its pid, this view, the generation and the slot
+    /// index, which is what `ids` carries on Windows.
+    #[cfg(windows)]
+    fn slot_buffers(
+        &self,
+        generation: u32,
+        width: u32,
+        height: u32,
+        ids: &[u32],
+    ) -> anyhow::Result<Vec<SlotBuffer>> {
+        use anyhow::Context as _;
+        let pid = self
+            .producer_pid
+            .context("surfaces arrived before Godot connected")?;
+        Ok(ids
+            .iter()
+            .map(|&slot| SharedTexture {
+                name: protocol::shared_texture::windows_slot_name(pid, self.id, generation, slot)
+                    .into(),
+                size: size(DevicePixels(width as i32), DevicePixels(height as i32)),
+                opaque: true,
+            })
+            .collect())
     }
 
     fn send_pointer(
@@ -353,8 +409,9 @@ impl View3d {
             ));
         } else {
             lines.push(format!(
-                "frame age at paint ms {}",
-                fmt_ms(self.paint_age_ms.get())
+                "frame age at paint ms {}  input->paint ms {}",
+                fmt_ms(self.paint_age_ms.get()),
+                fmt_ms(self.paint_input_ms.get())
             ));
         }
         if let Some(error) = &self.error {
@@ -393,7 +450,7 @@ impl Render for View3d {
                 if let Some((buffer, width, height)) = shown {
                     let rect = cover(bounds, width, height, window.scale_factor());
                     window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                        window.paint_surface(rect, buffer)
+                        paint_slot(window, rect, buffer)
                     });
                 }
                 register_pointer_handlers(entity, bounds, hitbox, window);
@@ -422,6 +479,16 @@ impl Render for View3d {
                 )
             })
     }
+}
+
+#[cfg(target_os = "macos")]
+fn paint_slot(window: &mut Window, rect: Bounds<Pixels>, buffer: SlotBuffer) {
+    window.paint_surface(rect, buffer);
+}
+
+#[cfg(windows)]
+fn paint_slot(window: &mut Window, rect: Bounds<Pixels>, buffer: SlotBuffer) {
+    window.paint_shared_texture(rect, buffer);
 }
 
 /// The rect that draws a `width` x `height` device-pixel frame over `bounds` without

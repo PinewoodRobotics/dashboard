@@ -20,7 +20,9 @@ pub struct PresentStats {
     pub age_ms: Smoothed,
     pub input_ms: Smoothed,
     pub fps: FpsCounter,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     last_seq: u64,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     last_input: u64,
 }
 

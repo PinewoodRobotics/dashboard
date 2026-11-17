@@ -86,7 +86,7 @@ impl Bridge3d {
                 self.status.clear();
                 self.views.retain(|_, view| view.upgrade().is_some());
                 for view in self.views.values() {
-                    view.update(cx, |view, _| view.on_connected()).ok();
+                    view.update(cx, |view, _| view.on_connected(pid)).ok();
                 }
             }
             GodotEvent::Message(ToHost::Status { message }) => {

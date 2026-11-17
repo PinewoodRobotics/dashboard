@@ -11,8 +11,18 @@ use std::time::{Duration, Instant, SystemTime};
 use anyhow::{Context as _, Result, bail};
 use protocol::{ToHost, ToProducer};
 
+#[cfg(not(windows))]
+const DEFAULT_GODOT_BIN: &str = "/opt/homebrew/bin/godot";
+#[cfg(windows)]
+const DEFAULT_GODOT_BIN: &str = "godot";
+#[cfg(not(windows))]
 const BRIDGE_LIB: &str = "libgodot_bridge.dylib";
-const LAUNCH_HOOK_LIB: &str = "libgodot_launch_hook.dylib";
+#[cfg(windows)]
+const BRIDGE_LIB: &str = "godot_bridge.dll";
+#[cfg(target_os = "macos")]
+const LAUNCH_HOOK_LIB: Option<&str> = Some("libgodot_launch_hook.dylib");
+#[cfg(not(target_os = "macos"))]
+const LAUNCH_HOOK_LIB: Option<&str> = None;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct GodotConfig {
@@ -36,7 +46,7 @@ impl GodotConfig {
             std::env::var_os(key).map(PathBuf::from).unwrap_or(fallback)
         };
         Self {
-            binary: env_path("GODOT_BIN", PathBuf::from("/opt/homebrew/bin/godot")),
+            binary: env_path("GODOT_BIN", PathBuf::from(DEFAULT_GODOT_BIN)),
             project: app.join("godot"),
             lib_dir,
             robot_glb: env_path("PWRUP_ROBOT_GLB", app.join("models/Robot-Full.glb")),
@@ -170,6 +180,11 @@ fn run_once(
     let port = listener.local_addr()?.port();
     let mut command = Command::new(&config.binary);
     command
+        .args(
+            std::env::var("GODOT_ARGS")
+                .unwrap_or_default()
+                .split_whitespace(),
+        )
         .arg("--path")
         .arg(&config.project)
         .arg("--")
@@ -179,8 +194,9 @@ fn run_once(
         .arg("--field")
         .arg(&config.field_glb)
         .args(&config.extra_args);
-    let hook = config.project.join("bin").join(LAUNCH_HOOK_LIB);
-    if hook.exists() {
+    if let Some(hook) = LAUNCH_HOOK_LIB.map(|name| config.project.join("bin").join(name))
+        && hook.exists()
+    {
         command.env("DYLD_INSERT_LIBRARIES", hook);
     }
     let child = command
@@ -264,7 +280,7 @@ fn kill(child_slot: &Mutex<Option<Child>>) -> String {
 fn prepare_project(config: &GodotConfig) -> Result<()> {
     let bin = config.project.join("bin");
     fs::create_dir_all(&bin)?;
-    for name in [BRIDGE_LIB, LAUNCH_HOOK_LIB] {
+    for name in std::iter::once(BRIDGE_LIB).chain(LAUNCH_HOOK_LIB) {
         let source = config.lib_dir.join(name);
         if !source.exists() {
             bail!(
