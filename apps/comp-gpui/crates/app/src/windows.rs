@@ -1,6 +1,12 @@
+use dash_core::settings::WindowsSettings;
+use dash_core::settings::placement::{self, Plan, WindowKey};
 use gpui_kit::*;
 
+use crate::hud::HudScreen;
+use crate::mock::MockData;
+use crate::settings;
 use crate::theme::{HUD_DESIGN, TOUCH_DESIGN};
+use crate::touch::{TouchScreen, TouchStart};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScreenKind {
@@ -22,6 +28,13 @@ impl ScreenKind {
             ScreenKind::Touch => "PWRUP Comp - Touchscreen",
         }
     }
+
+    fn key(self) -> WindowKey {
+        match self {
+            ScreenKind::Hud => WindowKey::Hud,
+            ScreenKind::Touch => WindowKey::Touch,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,10 +42,24 @@ pub enum Placement {
     Fullscreen {
         display: DisplayId,
         bounds: Bounds<Pixels>,
+        index: usize,
+        reason: String,
     },
     Windowed {
         reason: String,
     },
+}
+
+impl Placement {
+    /// "display 2 (exact size)", "windowed (single screen)".
+    pub fn describe(&self) -> String {
+        match self {
+            Placement::Fullscreen { index, reason, .. } => {
+                format!("display {} ({reason})", index + 1)
+            }
+            Placement::Windowed { reason } => format!("windowed ({reason})"),
+        }
+    }
 }
 
 pub struct DisplayInfo {
@@ -40,56 +67,43 @@ pub struct DisplayInfo {
     pub bounds: Bounds<Pixels>,
 }
 
-/// The HUD takes the display that is exactly 1920x1080 and the touchscreen
-/// the one that is exactly 1920x515 (app/window_placement.gd). Two windows on
-/// a single display both stay windowed, and a display is never given to two
-/// windows. Display bounds are logical, so a scaled display matches when its
-/// logical size times a common Windows scale factor is the design size.
-pub fn plan(displays: &[DisplayInfo], windows: &[ScreenKind]) -> Vec<(ScreenKind, Placement)> {
-    let mut claimed: Vec<usize> = Vec::new();
+/// dash_core's window placement over the live display list.
+pub fn plan(
+    displays: &[DisplayInfo],
+    windows: &[ScreenKind],
+    overrides: &WindowsSettings,
+) -> Vec<(ScreenKind, Placement)> {
+    let sizes: Vec<(f32, f32)> = displays
+        .iter()
+        .map(|d| {
+            (
+                f32::from(d.bounds.size.width),
+                f32::from(d.bounds.size.height),
+            )
+        })
+        .collect();
+    let keys: Vec<WindowKey> = windows.iter().map(|k| k.key()).collect();
+    let planned = placement::plan(&sizes, &keys, overrides);
     windows
         .iter()
-        .map(|&kind| {
-            if displays.len() <= 1 && windows.len() > 1 {
-                return (
-                    kind,
-                    Placement::Windowed {
-                        reason: "single screen".into(),
+        .filter_map(|&kind| {
+            let (_, p) = planned.iter().find(|(k, _)| *k == kind.key())?;
+            Some((
+                kind,
+                match p {
+                    Plan::Fullscreen { screen, reason } => Placement::Fullscreen {
+                        display: displays[*screen].id,
+                        bounds: displays[*screen].bounds,
+                        index: *screen,
+                        reason: reason.clone(),
                     },
-                );
-            }
-            let want = kind.design();
-            let found = displays
-                .iter()
-                .enumerate()
-                .find(|(i, d)| !claimed.contains(i) && matches_design(d.bounds.size, want));
-            match found {
-                Some((i, d)) => {
-                    claimed.push(i);
-                    (
-                        kind,
-                        Placement::Fullscreen {
-                            display: d.id,
-                            bounds: d.bounds,
-                        },
-                    )
-                }
-                None => (
-                    kind,
-                    Placement::Windowed {
-                        reason: format!("no {}x{} display", want.width, want.height),
+                    Plan::Windowed { reason } => Placement::Windowed {
+                        reason: reason.clone(),
                     },
-                ),
-            }
+                },
+            ))
         })
         .collect()
-}
-
-fn matches_design(logical: Size<Pixels>, design: Size<f32>) -> bool {
-    [1.0f32, 1.25, 1.5, 1.75, 2.0].iter().any(|k| {
-        (f32::from(logical.width) * k - design.width).abs() < 1.0
-            && (f32::from(logical.height) * k - design.height).abs() < 1.0
-    })
 }
 
 pub fn displays(cx: &App) -> Vec<DisplayInfo> {
@@ -110,7 +124,9 @@ pub fn options(
     cx: &App,
 ) -> WindowOptions {
     match placement {
-        Placement::Fullscreen { display, bounds } => WindowOptions {
+        Placement::Fullscreen {
+            display, bounds, ..
+        } => WindowOptions {
             window_bounds: Some(WindowBounds::Fullscreen(*bounds)),
             titlebar: None,
             display_id: Some(*display),
@@ -153,4 +169,182 @@ pub fn resize_to_design_pixels(kind: ScreenKind, window: &mut Window) {
     let sf = window.scale_factor().max(0.1);
     let d = kind.design();
     window.resize(size(px(d.width / sf), px(d.height / sf)));
+}
+
+gpui_kit::actions!(comp, [Retile]);
+
+thread_local! {
+    static REPLACING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// True while Re-tile closes a window it has replaced, so closing it does
+/// not quit the app as closing a window by hand does.
+pub fn closing_for_retile() -> bool {
+    REPLACING.get()
+}
+
+/// The open windows and where they went, so Re-tile (the Visual tab,
+/// Ctrl/Cmd+Shift+F) can move them. GPUI cannot move a window to another
+/// display, so a window whose placement changed is replaced by a new one.
+pub struct Tiler {
+    data: Entity<MockData>,
+    force_windowed: bool,
+    design_px: bool,
+    open: Vec<(ScreenKind, AnyWindowHandle, Placement)>,
+    display_count: usize,
+}
+
+impl Global for Tiler {}
+
+pub struct OpenOptions {
+    pub screens: Vec<ScreenKind>,
+    pub force_windowed: bool,
+    pub design_px: bool,
+    pub touch: TouchStart,
+}
+
+/// Opens the start-up windows; returns the touchscreen window, if any.
+pub fn open_all(
+    data: &Entity<MockData>,
+    opts: OpenOptions,
+    cx: &mut App,
+) -> Option<AnyWindowHandle> {
+    let displays = displays(cx);
+    let planned = plan(&displays, &opts.screens, &settings::windows(cx));
+    let mut tiler = Tiler {
+        data: data.clone(),
+        force_windowed: opts.force_windowed,
+        design_px: opts.design_px,
+        open: Vec::new(),
+        display_count: displays.len(),
+    };
+    let mut touch_window = None;
+    for (index, (kind, placement)) in planned.into_iter().enumerate() {
+        let placement = tiler.adjust(placement);
+        eprintln!("comp-gpui: {} {:?}", kind.title(), placement);
+        match tiler.open_screen(kind, &placement, index, opts.touch.clone(), cx) {
+            Ok(handle) => {
+                if kind == ScreenKind::Touch {
+                    touch_window = Some(handle);
+                }
+                tiler.open.push((kind, handle, placement));
+            }
+            Err(e) => eprintln!("comp-gpui: cannot open {}: {e:#}", kind.title()),
+        }
+    }
+    cx.set_global(tiler);
+    cx.on_action(|_: &Retile, cx| retile(TouchStart::default(), cx));
+    cx.bind_keys([
+        KeyBinding::new("cmd-shift-f", Retile, None),
+        KeyBinding::new("ctrl-shift-f", Retile, None),
+    ]);
+    touch_window
+}
+
+impl Tiler {
+    fn adjust(&self, p: Placement) -> Placement {
+        if self.force_windowed {
+            Placement::Windowed {
+                reason: "--windowed".into(),
+            }
+        } else {
+            p
+        }
+    }
+
+    fn open_screen(
+        &self,
+        kind: ScreenKind,
+        placement: &Placement,
+        index: usize,
+        touch: TouchStart,
+        cx: &mut App,
+    ) -> anyhow::Result<AnyWindowHandle> {
+        let design_px = self.design_px && matches!(placement, Placement::Windowed { .. });
+        let options = options(kind, placement, index, design_px, cx);
+        let data = self.data.clone();
+        let opened = match kind {
+            ScreenKind::Hud => {
+                gpui_kit::open_window(options, cx, move |window, cx| {
+                    if design_px {
+                        resize_to_design_pixels(kind, window);
+                    }
+                    cx.new(|cx| HudScreen::new(data, cx))
+                })?
+                .0
+            }
+            ScreenKind::Touch => {
+                gpui_kit::open_window(options, cx, move |window, cx| {
+                    if design_px {
+                        resize_to_design_pixels(kind, window);
+                    }
+                    cx.new(|cx| TouchScreen::new(data, touch, cx))
+                })?
+                .0
+            }
+        };
+        Ok(opened)
+    }
+}
+
+/// "2 display(s)" then one line per window.
+pub fn tiling_text(cx: &App) -> String {
+    let Some(t) = cx.try_global::<Tiler>() else {
+        return "Not tiled yet: windows stay where they opened".into();
+    };
+    let mut lines = vec![format!("{} display(s)", t.display_count)];
+    for (kind, _, p) in &t.open {
+        let name = match kind {
+            ScreenKind::Hud => "HUD",
+            ScreenKind::Touch => "Touch",
+        };
+        lines.push(format!("{name}: {}", p.describe()));
+    }
+    lines.join("\n")
+}
+
+/// Re-plans every open window and replaces the ones whose placement changed;
+/// a replaced touchscreen window starts at `touch`. Deferred, so the window
+/// whose button asked for it is not removed in the middle of its own event.
+pub fn retile(touch: TouchStart, cx: &mut App) {
+    cx.defer(move |cx| {
+        if !cx.has_global::<Tiler>() {
+            return;
+        }
+        let displays = displays(cx);
+        let overrides = settings::windows(cx);
+        let mut tiler = cx.remove_global::<Tiler>();
+        tiler.display_count = displays.len();
+        let kinds: Vec<ScreenKind> = tiler.open.iter().map(|(k, _, _)| *k).collect();
+        let planned = plan(&displays, &kinds, &overrides);
+        let mut open = Vec::new();
+        for (index, (kind, handle, old)) in std::mem::take(&mut tiler.open).into_iter().enumerate()
+        {
+            let new = planned
+                .iter()
+                .find(|(k, _)| *k == kind)
+                .map(|(_, p)| tiler.adjust(p.clone()))
+                .unwrap_or_else(|| old.clone());
+            if new == old {
+                open.push((kind, handle, old));
+                continue;
+            }
+            eprintln!("comp-gpui: re-tile {} {:?}", kind.title(), new);
+            match tiler.open_screen(kind, &new, index, touch.clone(), cx) {
+                Ok(replacement) => {
+                    REPLACING.set(true);
+                    let _ = handle.update(cx, |_, window, _| window.remove_window());
+                    REPLACING.set(false);
+                    open.push((kind, replacement, new));
+                }
+                Err(e) => {
+                    eprintln!("comp-gpui: cannot re-tile {}: {e:#}", kind.title());
+                    open.push((kind, handle, old));
+                }
+            }
+        }
+        tiler.open = open;
+        cx.set_global(tiler);
+        cx.refresh_windows();
+    });
 }

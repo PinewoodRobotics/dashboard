@@ -5,6 +5,7 @@
 use std::time::Instant;
 
 use dash_core::request_state::RequestTopics;
+pub use dash_core::settings::{ConnectionSettings, MapMode, MapSettings, VisualSettings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchPhase {
@@ -138,65 +139,6 @@ impl MatchState {
 pub struct LaneToast {
     pub on: bool,
     pub shown_at: Instant,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ConnectionSettings {
-    pub nt_host: String,
-    pub nt_port: String,
-    pub shared_table: String,
-    pub request_topic_base: String,
-    pub reconnect_timeout_s: f32,
-}
-
-impl Default for ConnectionSettings {
-    fn default() -> Self {
-        Self {
-            nt_host: "10.47.65.2".into(),
-            nt_port: "5810".into(),
-            shared_table: "Shared/PathPlanner".into(),
-            request_topic_base: "SelectedPath".into(),
-            reconnect_timeout_s: 2.0,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MapMode {
-    Driver,
-    Follow,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MapSettings {
-    pub mode: MapMode,
-    pub angle: f32,
-    pub zoom: f32,
-}
-
-impl Default for MapSettings {
-    fn default() -> Self {
-        Self {
-            mode: MapMode::Follow,
-            angle: 0.3,
-            zoom: 0.5,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct VisualSettings {
-    pub backdrop_blur: bool,
-    pub render_scale: f32,
-}
-
-impl Default for VisualSettings {
-    fn default() -> Self {
-        Self {
-            backdrop_blur: true,
-            render_scale: 1.0,
-        }
-    }
 }
 
 #[derive(Clone, Debug)]

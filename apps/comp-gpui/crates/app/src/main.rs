@@ -10,19 +10,21 @@ mod input;
 mod mock;
 mod placeholder;
 mod screen;
+mod settings;
 mod theme;
 mod touch;
 mod touch_test;
 mod widgets;
 mod windows;
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui_kit::*;
 
 use crate::mock::{MockData, Scenario};
-use crate::touch::{PanelId, TabId, TouchScreen, TouchStart};
-use crate::windows::{Placement, ScreenKind};
+use crate::touch::{PanelId, TabId, TouchStart};
+use crate::windows::ScreenKind;
 
 gpui_kit::actions!(comp, [Quit]);
 
@@ -34,10 +36,11 @@ struct Args {
     design_px: bool,
     mouse_as_touch: bool,
     script: Vec<dev_script::Step>,
+    settings: Option<PathBuf>,
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
-[--dock] [--nt-down] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS]";
+[--dock] [--nt-down] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS] [--settings=PATH]";
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
@@ -48,6 +51,7 @@ fn parse_args() -> anyhow::Result<Args> {
         design_px: false,
         mouse_as_touch: false,
         script: Vec::new(),
+        settings: None,
     };
     let mut nt_down = false;
     for a in std::env::args().skip(1) {
@@ -77,6 +81,7 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--design-size", None) => args.design_px = true,
             ("--mouse-as-touch", None) => args.mouse_as_touch = true,
             ("--script", Some(s)) => args.script = dev_script::parse(s)?,
+            ("--settings", Some(p)) => args.settings = Some(PathBuf::from(p)),
             _ => anyhow::bail!("unknown argument {a}\n{USAGE}"),
         }
     }
@@ -102,9 +107,19 @@ fn main() -> anyhow::Result<()> {
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("ctrl-q", Quit, None),
             ]);
-            cx.on_window_closed(|cx, _| cx.quit()).detach();
+            cx.on_window_closed(|cx, _| {
+                if !windows::closing_for_retile() {
+                    cx.quit();
+                }
+            })
+            .detach();
 
             let data = cx.new(|_| MockData::new(args.scenario));
+            settings::install(
+                &data,
+                settings::Options::new(args.settings.clone(), args.scenario != Scenario::Demo),
+                cx,
+            );
             if args.scenario == Scenario::Demo {
                 let data = data.clone();
                 cx.spawn(async move |cx| {
@@ -122,44 +137,20 @@ fn main() -> anyhow::Result<()> {
                 .detach();
             }
 
-            let displays = windows::displays(cx);
-            let mut plan = windows::plan(&displays, &args.screens);
-            if args.windowed {
-                for (_, p) in plan.iter_mut() {
-                    *p = Placement::Windowed {
-                        reason: "--windowed".into(),
-                    };
-                }
-            }
-            for (index, (kind, placement)) in plan.into_iter().enumerate() {
-                eprintln!("comp-gpui: {} {:?}", kind.title(), placement);
-                let design_px = args.design_px && matches!(placement, Placement::Windowed { .. });
-                let options = windows::options(kind, &placement, index, design_px, cx);
-                let data = data.clone();
-                let touch = args.touch.clone();
-                let opened = match kind {
-                    ScreenKind::Hud => gpui_kit::open_window(options, cx, move |window, cx| {
-                        if design_px {
-                            windows::resize_to_design_pixels(kind, window);
-                        }
-                        cx.new(|cx| hud::HudScreen::new(data, cx))
-                    })
-                    .map(|_| ()),
-                    ScreenKind::Touch => gpui_kit::open_window(options, cx, move |window, cx| {
-                        if design_px {
-                            windows::resize_to_design_pixels(kind, window);
-                        }
-                        cx.new(|cx| TouchScreen::new(data, touch, cx))
-                    })
-                    .map(|(handle, _)| {
-                        if !args.script.is_empty() {
-                            dev_script::run(handle.into(), args.script.clone(), cx);
-                        }
-                    }),
-                };
-                if let Err(e) = opened {
-                    eprintln!("comp-gpui: cannot open {}: {e:#}", kind.title());
-                }
+            let touch_window = windows::open_all(
+                &data,
+                windows::OpenOptions {
+                    screens: args.screens.clone(),
+                    force_windowed: args.windowed,
+                    design_px: args.design_px,
+                    touch: args.touch.clone(),
+                },
+                cx,
+            );
+            if let Some(handle) = touch_window
+                && !args.script.is_empty()
+            {
+                dev_script::run(handle, args.script.clone(), cx);
             }
             cx.activate(true);
         });
