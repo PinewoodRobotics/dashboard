@@ -1,8 +1,10 @@
 //! `--script="tap 42,118; wait 300; drag 1500,300 1800,300; key f3; type ab"`:
 //! scripted mouse input in design pixels and key presses, dispatched through
 //! GPUI's normal event path, for checking interactions without a person at
-//! the screen. `key` takes a GPUI key name (f3, backspace, enter, escape);
-//! `type` presses one key per character of the rest of the step.
+//! the screen. `key` takes a GPUI keystroke (f3, backspace, shift-left,
+//! cmd-a); `type` presses one key per character of the rest of the step,
+//! and a key nothing handles inserts its character into the focused text
+//! field, as the OS text input would.
 
 use std::time::Duration;
 
@@ -15,6 +17,27 @@ pub enum Step {
     Up(Point<f32>),
     Wait(u64),
     Key(Keystroke),
+}
+
+fn parse_keystroke(spec: &str) -> anyhow::Result<Keystroke> {
+    let mut parts: Vec<&str> = spec.split('-').collect();
+    let key = parts.pop().filter(|k| !k.is_empty());
+    let key = key.ok_or_else(|| anyhow::anyhow!("bad key {spec}"))?;
+    let mut modifiers = Modifiers::default();
+    for m in parts {
+        match m {
+            "cmd" | "platform" => modifiers.platform = true,
+            "ctrl" => modifiers.control = true,
+            "alt" => modifiers.alt = true,
+            "shift" => modifiers.shift = true,
+            _ => anyhow::bail!("bad modifier {m} in {spec}"),
+        }
+    }
+    Ok(Keystroke {
+        modifiers,
+        key: key.to_owned(),
+        key_char: None,
+    })
 }
 
 fn keystroke(key: &str, key_char: Option<String>, shift: bool) -> Keystroke {
@@ -55,7 +78,7 @@ pub fn parse(script: &str) -> anyhow::Result<Vec<Step>> {
             ["down", p] => out.push(Step::Down(parse_point(p)?)),
             ["move", p] => out.push(Step::Move(parse_point(p)?)),
             ["up", p] => out.push(Step::Up(parse_point(p)?)),
-            ["key", k] => out.push(Step::Key(keystroke(k, None, false))),
+            ["key", k] => out.push(Step::Key(parse_keystroke(k)?)),
             ["tap", p] => {
                 let p = parse_point(p)?;
                 out.extend([Step::Down(p), Step::Wait(50), Step::Up(p)]);
@@ -95,7 +118,8 @@ pub fn run(handle: AnyWindowHandle, steps: Vec<Step>, cx: &mut App) {
             }
             if let Step::Key(keystroke) = step {
                 let _ = handle.update(cx, |_, window, cx| {
-                    window.dispatch_event(
+                    let text = keystroke.key_char.clone();
+                    let result = window.dispatch_event(
                         PlatformInput::KeyDown(KeyDownEvent {
                             keystroke,
                             is_held: false,
@@ -103,6 +127,9 @@ pub fn run(handle: AnyWindowHandle, steps: Vec<Step>, cx: &mut App) {
                         }),
                         cx,
                     );
+                    if let Some(text) = text.filter(|_| result.propagate) {
+                        crate::widgets::type_into_focused(&text, window, cx);
+                    }
                 });
                 cx.background_executor()
                     .timer(Duration::from_millis(16))

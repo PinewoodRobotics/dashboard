@@ -1,5 +1,4 @@
 mod button;
-pub mod keyboard;
 mod pill;
 mod scroll;
 mod selector;
@@ -15,7 +14,7 @@ pub use selector::{Selector, SelectorOption, toggle};
 pub use slider::{Slider, SliderHint};
 pub use tap::{on_tap, press_state, tappable};
 pub use text::{label, tracked};
-pub use text_input::TextInput;
+pub use text_input::{TextInput, init as init_text_input, type_into_focused};
 
 use std::rc::Rc;
 
