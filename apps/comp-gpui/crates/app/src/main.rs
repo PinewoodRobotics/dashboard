@@ -7,6 +7,7 @@ mod dev_script;
 mod hud;
 mod icons;
 mod input;
+mod match_feed;
 mod mock;
 mod placeholder;
 mod screen;
@@ -110,7 +111,7 @@ fn main() -> anyhow::Result<()> {
                 cx.spawn(async move |cx| {
                     loop {
                         cx.background_executor()
-                            .timer(Duration::from_millis(100))
+                            .timer(Duration::from_millis(20))
                             .await;
                         data.update(cx, |d, cx| {
                             if d.demo_tick() {
