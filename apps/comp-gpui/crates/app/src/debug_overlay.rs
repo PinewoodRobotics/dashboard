@@ -6,6 +6,7 @@
 
 use std::collections::HashSet;
 
+use dash_core::nt::NtValue;
 use dash_core::request_state::Value;
 use gpui_kit::*;
 
@@ -150,13 +151,25 @@ pub fn topics(d: &MockData) -> Vec<TopicRow> {
             "string",
             p.deploy_hash.clone().map(Value::String),
         ),
-        row(sel.topics.request.clone(), "string", sel.request.clone().map(Value::String)),
-        row(sel.topics.state.clone(), "string", sel.state.clone().map(Value::String)),
-        row(c.intake.topics.request.clone(), "double", dbl(c.intake.request)),
-        row(c.intake.topics.state.clone(), "double", dbl(c.intake.state)),
-        row(c.aim_trim.topics.request.clone(), "double", dbl(c.aim_trim.request)),
-        row(c.aim_trim.topics.state.clone(), "double", dbl(c.aim_trim.state)),
     ]);
+    let nt = d.nt_link.as_ref().map(|l| l.borrow());
+    let request = |topic: &str, mock: Option<Value>| match &nt {
+        Some(nt) => nt.desired(topic).and_then(NtValue::to_control_value),
+        None => mock,
+    };
+    let state = |topic: &str, mock: Option<Value>| match &nt {
+        Some(nt) => nt.get(topic).and_then(NtValue::to_control_value),
+        None => mock,
+    };
+    let pairs = [
+        (&sel.topics, "string", sel.request.clone().map(Value::String), sel.state.clone().map(Value::String)),
+        (&c.intake.topics, "double", dbl(c.intake.request), dbl(c.intake.state)),
+        (&c.aim_trim.topics, "double", dbl(c.aim_trim.request), dbl(c.aim_trim.state)),
+    ];
+    for (topics, kind, req, st) in pairs {
+        out.push(row(topics.request.clone(), kind, request(&topics.request, req)));
+        out.push(row(topics.state.clone(), kind, state(&topics.state, st)));
+    }
     out.sort_by(|a, b| a.name.cmp(&b.name));
     out
 }
@@ -188,17 +201,35 @@ pub fn format_value(v: Option<&Value>) -> String {
 
 pub fn header_lines(d: &MockData, topic_count: usize) -> [String; 4] {
     let nt = &d.nt;
-    let rtt = nt
-        .rtt_ms
-        .map(|ms| format!("{ms:.2} ms"))
-        .unwrap_or_else(|| "-".into());
+    let dash = |s: &str| if s.is_empty() { "-".to_owned() } else { s.to_owned() };
+    let rtt = if nt.rtt_us >= 0 {
+        format!("{:.2} ms", nt.rtt_us as f64 / 1000.0)
+    } else {
+        "-".into()
+    };
+    let url = if nt.url.is_empty() {
+        format!("{}:{}", nt.host, nt.port)
+    } else {
+        nt.url.clone()
+    };
+    let source = if d.nt_link.is_some() { "" } else { "  (mock data)" };
     [
         "NT4  F3 to close".into(),
-        format!("{}  [{}]  protocol -", nt.server, nt.state),
-        format!("rtt {rtt}  offset - us  server time - us"),
+        format!("{url}  [{}]  protocol {}", nt.state.name(), dash(&nt.protocol)),
         format!(
-            "topics {topic_count}  reconnects {}  attempt {}  (mock data)",
-            nt.reconnects, nt.attempt
+            "rtt {rtt}  offset {} us  server time {} us",
+            nt.offset_us, nt.server_time_us
+        ),
+        format!(
+            "topics {topic_count}  values {:.0}/s ({} total)  connects {}  reconnects {}  \
+             watchdog {}/{}  last close: {}{source}",
+            nt.values_per_s,
+            nt.values_total,
+            nt.connects,
+            nt.reconnects,
+            nt.connect_watchdog_fires,
+            nt.liveness_fires,
+            dash(&nt.last_close)
         ),
     ]
 }

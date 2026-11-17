@@ -5,11 +5,13 @@
 use std::time::Instant;
 
 use dash_core::controls::Controls;
+use dash_core::nt;
 use dash_core::match_model::{Aim, Clock, Header, Hub, LANE_KEY, MatchEvent, Phase};
 use dash_core::request_state::{RequestTopics, Value};
 pub use dash_core::settings::{ConnectionSettings, MapMode, MapSettings, VisualSettings};
 
 use crate::match_feed::MatchFeed;
+use crate::nt_source::NtLink;
 
 /// `/matchhud/state/*` as the robot publishes it (MatchStatusCalculator.java),
 /// less the pose ([`RobotPose`]) and auto-align ([`AutoAlign`]) keys.
@@ -90,25 +92,27 @@ impl MatchState {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct NtDiagnostics {
-    pub state: &'static str,
-    pub server: String,
-    pub rtt_ms: Option<f32>,
-    pub reconnects: u32,
-    /// Connection attempts since the last successful connect.
-    pub attempt: u32,
+/// What the NT client reports, as a ready connection to the default robot.
+fn seed_diagnostics() -> nt::Diagnostics {
+    nt::Diagnostics {
+        state: nt::State::Ready,
+        host: "10.47.65.2".into(),
+        port: 5810,
+        rtt_us: 3_200,
+        ..Default::default()
+    }
 }
 
-impl NtDiagnostics {
-    pub fn seed() -> Self {
-        Self {
-            state: "READY",
-            server: "10.47.65.2:5810".into(),
-            rtt_ms: Some(3.2),
-            reconnects: 0,
-            attempt: 0,
-        }
+/// The client retrying after the link dropped, for the disconnected fixtures.
+pub fn lost_diagnostics(ready: &nt::Diagnostics) -> nt::Diagnostics {
+    nt::Diagnostics {
+        state: nt::State::Connecting,
+        rtt_us: -1,
+        attempt: 3,
+        attempt_age_s: 0.4,
+        reconnects: ready.reconnects + 1,
+        last_close: "liveness timeout".into(),
+        ..ready.clone()
     }
 }
 
@@ -350,7 +354,8 @@ pub struct MockData {
     pub connection: ConnectionSettings,
     pub map: MapSettings,
     pub visual: VisualSettings,
-    pub nt: NtDiagnostics,
+    /// The NT client's diagnostics (Settings tab); seeded in mock mode.
+    pub nt: nt::Diagnostics,
     pub autos: Vec<String>,
     pub pose: RobotPose,
     pub align: AutoAlign,
@@ -365,9 +370,10 @@ pub struct MockData {
     pub control: Controls,
     pub demo_started: Instant,
     pub demo: bool,
-    /// Fed by the NT client (`--nt-host` / `--nt-port`); the mock robot
-    /// must not answer requests.
-    pub live_nt: bool,
+    /// The live connection (`--nt-host` / `--nt-port`): the services talk to
+    /// the robot through it instead of the mock links, and the mock robot
+    /// does not answer requests.
+    pub nt_link: Option<NtLink>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -456,7 +462,7 @@ impl MockData {
             connection: ConnectionSettings::default(),
             map: MapSettings::default(),
             visual: VisualSettings::default(),
-            nt: NtDiagnostics::seed(),
+            nt: seed_diagnostics(),
             autos: [
                 "Center 3 Note",
                 "Amp Side 4 Piece",
@@ -478,7 +484,7 @@ impl MockData {
             control,
             demo_started: now,
             demo: scenario == Scenario::Demo,
-            live_nt: false,
+            nt_link: None,
         };
         data.apply(scenario);
         crate::mock_link::step(&mut data);
@@ -571,9 +577,7 @@ impl MockData {
             }
             Scenario::NtDisconnected => {
                 shift_active(m);
-                self.nt.state = "CONNECTING";
-                self.nt.rtt_ms = None;
-                self.nt.attempt = 3;
+                self.nt = lost_diagnostics(&self.nt);
             }
             Scenario::LaneToast => shift_active(m),
         }
@@ -595,6 +599,15 @@ impl MockData {
                 self.match_feed.step();
             }
             _ => {}
+        }
+    }
+
+    /// The Settings tab's Reconnect: drops the socket and dials again now,
+    /// resetting the backoff. The mock client only counts the press.
+    pub fn request_reconnect(&mut self) {
+        match &self.nt_link {
+            Some(nt) => nt.borrow().reconnect(),
+            None => self.nt.manual_reconnects += 1,
         }
     }
 

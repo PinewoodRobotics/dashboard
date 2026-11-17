@@ -234,7 +234,7 @@ pub fn render(
             )
             .on_tap(move |_, cx| {
                 data.update(cx, |d, cx| {
-                    d.nt.reconnects += 1;
+                    d.request_reconnect();
                     cx.notify();
                 })
             })
@@ -271,28 +271,7 @@ pub fn render(
         );
     }
 
-    let nt = &snapshot.nt;
-    let diagnostics = vec![
-        ("State", nt.state.to_owned()),
-        (
-            "Attempt",
-            if connected {
-                "Connected".to_owned()
-            } else {
-                "Connecting, attempt 1 (0.4 s)".to_owned()
-            },
-        ),
-        ("Server", nt.server.clone()),
-        (
-            "Round trip",
-            nt.rtt_ms
-                .filter(|_| connected)
-                .map(|r| format!("{r:.1} ms"))
-                .unwrap_or_else(|| "--".into()),
-        ),
-        ("Reconnects", format!("{} (manual 0)", nt.reconnects)),
-        ("Last close", "--".to_owned()),
-    ];
+    let diagnostics = snapshot.nt.rows();
 
     let state_timeout = state.clone();
     let columns = div()
