@@ -385,6 +385,8 @@ pub enum Scenario {
     LaneToast,
     NoData,
     Stale,
+    AutoAlign,
+    AutoAlignReady,
 }
 
 impl Scenario {
@@ -403,6 +405,8 @@ impl Scenario {
             "lane_toast" => Self::LaneToast,
             "no_data" => Self::NoData,
             "stale" => Self::Stale,
+            "auto_align" => Self::AutoAlign,
+            "auto_align_ready" => Self::AutoAlignReady,
             _ => return None,
         })
     }
@@ -558,6 +562,13 @@ impl MockData {
                 m.total_time_remaining_s = 21.37;
                 m.period_time_remaining_s = 21.37;
             }
+            Scenario::AutoAlign | Scenario::AutoAlignReady => {
+                shift_active(m);
+                let ready = scenario == Scenario::AutoAlignReady;
+                self.align.active = true;
+                self.align.ready = ready;
+                self.align.distance_m = if ready { 0.42 } else { 1.26 };
+            }
             Scenario::NtDisconnected => {
                 shift_active(m);
                 self.nt.state = "CONNECTING";
@@ -682,6 +693,20 @@ impl MockData {
         m.enabled = !matches!(m.phase, Phase::PreMatch | Phase::PostMatch);
         self.lane.adjusting_velocity = Some(((t / 12.0) as u32) % 2 == 1);
         self.matchs = m;
+        self.demo_drive(t);
         !self.sync_match().is_empty()
+    }
+
+    /// The demo robot laps an oval on the blue half and auto-aligns for the
+    /// last 7 s of every 25 s.
+    fn demo_drive(&mut self, t: f64) {
+        let a = std::f64::consts::TAU / 20.0 * t;
+        self.pose.x_m = 4.5 + 2.4 * a.cos();
+        self.pose.y_m = 4.03 + 2.2 * a.sin();
+        self.pose.heading_rad = (2.2 * a.cos()).atan2(-2.4 * a.sin());
+        let phase = t.rem_euclid(25.0);
+        self.align.active = phase > 18.0;
+        self.align.distance_m = ((25.0 - phase) / 7.0 * 2.0).max(0.0);
+        self.align.ready = self.align.distance_m < 0.5;
     }
 }

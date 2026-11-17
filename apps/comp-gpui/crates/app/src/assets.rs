@@ -56,6 +56,9 @@ impl AssetSource for Assets {
             "sonner/error.svg" => return Ok(Some(Cow::Borrowed(SONNER_ERROR.as_bytes()))),
             _ => {}
         }
+        if let Some(bytes) = crate::touch::howard_asset(path) {
+            return Ok(Some(Cow::Borrowed(bytes)));
+        }
         if let Some(name) = path
             .strip_prefix(LUCIDE_PREFIX)
             .and_then(|p| p.strip_suffix(".svg"))

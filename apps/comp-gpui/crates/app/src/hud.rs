@@ -106,12 +106,16 @@ fn baseline_row(runs: Vec<Run>) -> (Div, f32) {
 /// MatchHUD.tsx.
 pub struct HudScreen {
     data: Entity<MockData>,
+    minimap: minimap::Minimap,
 }
 
 impl HudScreen {
     pub fn new(data: Entity<MockData>, cx: &mut Context<Self>) -> Self {
         cx.observe(&data, |_, _, cx| cx.notify()).detach();
-        Self { data }
+        Self {
+            data,
+            minimap: minimap::Minimap::new(),
+        }
     }
 }
 
@@ -153,7 +157,7 @@ impl Render for HudScreen {
             .font_family(INTER)
             .text_color(WHITE);
 
-        root = root.child(minimap::render(data, window));
+        root = root.child(self.minimap.render(data, Instant::now(), window));
 
         if m.show_shift_indicator {
             let shift = m.shift_display(now_us);
