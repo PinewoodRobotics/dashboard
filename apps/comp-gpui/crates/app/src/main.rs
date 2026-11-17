@@ -126,6 +126,7 @@ fn main() -> anyhow::Result<()> {
         .with_assets(assets::Assets)
         .run(move |cx| {
             gpui_kit::init(cx);
+            widgets::init_text_input(cx);
             if let Err(e) = assets::register_fonts(cx) {
                 eprintln!("comp-gpui: font registration failed: {e:#}");
             }
