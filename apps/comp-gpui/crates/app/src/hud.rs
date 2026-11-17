@@ -318,3 +318,55 @@ fn lane_toast(on: bool, (shown, lift): (f32, f32), window: &Window) -> impl Into
 fn banner(kind: Banner) -> impl IntoElement {
     crate::widgets::status_pill(HUD_DESIGN, kind.text())
 }
+
+#[cfg(test)]
+mod tests {
+    use dash_core::match_model::{Header, LaneToast};
+    use dash_core::request_state::Value;
+
+    use super::{header_color, toast_motion};
+
+    #[test]
+    fn header_colors_and_visibility() {
+        let want = [
+            (0, None),
+            (1, Some(0x70cd35)),
+            (2, Some(0xffd900)),
+            (3, Some(0xa600ff)),
+            (7, None),
+        ];
+        for (v, rgb) in want {
+            let got = header_color(Header::from_value(&Value::Int(v)));
+            assert_eq!(got, rgb.map(crate::theme::hex), "header_color {v}");
+        }
+    }
+
+    #[test]
+    fn toast_enters_once_and_exits_after_its_lifetime() {
+        const S: i64 = 1_000_000;
+        let mut t = LaneToast::default();
+        assert_eq!(toast_motion(&t, 0), None);
+        t.observe(false, 0);
+        t.observe(true, 10 * S);
+        assert_eq!(toast_motion(&t, 10 * S), Some((0.0, 1.0)), "starts hidden");
+        assert_eq!(
+            toast_motion(&t, 10 * S + 600_000),
+            Some((1.0, 0.0)),
+            "entered by 0.4 s"
+        );
+        t.observe(false, 11 * S);
+        assert_eq!(
+            toast_motion(&t, 11 * S),
+            Some((1.0, 0.0)),
+            "a replacement while up does not re-enter"
+        );
+        assert_eq!(toast_motion(&t, 12 * S + 790_000), Some((1.0, 0.0)));
+        let (shown, _) = toast_motion(&t, 13 * S).unwrap();
+        assert!(shown > 0.0 && shown < 1.0, "exiting after 1.8 s: {shown}");
+        assert_eq!(
+            toast_motion(&t, 13 * S + 200_001),
+            None,
+            "gone after the exit"
+        );
+    }
+}
