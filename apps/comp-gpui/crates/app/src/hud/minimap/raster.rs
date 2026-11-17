@@ -28,7 +28,6 @@ const DIM: f32 = 0.35;
 pub struct Texture {
     pub width: usize,
     pub height: usize,
-    /// RGB, row-major.
     pub rgb: Vec<u8>,
     /// Texture pixels per meter and the world origin (field center) in
     /// texture pixels.
@@ -96,7 +95,6 @@ impl Texture {
     }
 }
 
-/// Everything one minimap image depends on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct View {
     pub width: usize,
@@ -263,7 +261,6 @@ impl Robot {
         }
     }
 
-    /// Paints the robot over `rgb` at world point `w`.
     fn over(&self, w: [f32; 2], rgb: &mut [f32; 3]) {
         let d = [w[0] - self.pos[0], w[1] - self.pos[1]];
         let reach = ROBOT_SIDE_M * 0.75;
@@ -339,7 +336,7 @@ fn render_rows(tex: &Texture, mask: &Mask, view: &View, first_row: usize, out: &
     for (r, row) in out.chunks_mut(w * 4).enumerate() {
         let y = first_row + r;
         let mut wpt = [o[0] + dy[0] * y as f32, o[1] + dy[1] * y as f32];
-        for (x, p) in row.chunks_exact_mut(4).enumerate() {
+        for (x, p) in row.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             let i = y * w + x;
             let (keep, alpha) = if same_mask {
                 (mask.keep[i], mask.alpha[i])

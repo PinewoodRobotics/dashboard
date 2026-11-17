@@ -32,9 +32,11 @@ const FRAME: raster::Frame = raster::Frame {
 /// Longest frame step fed to the smoothers, so a stall does not jump.
 const MAX_DT_S: f64 = 0.1;
 
+type Finished = Arc<Mutex<Option<(raster::View, Vec<u8>)>>>;
+
 struct Job {
     view: raster::View,
-    done: Arc<Mutex<Option<(raster::View, Vec<u8>)>>>,
+    done: Finished,
 }
 
 /// Renders views on one background thread, latest request wins.
@@ -77,7 +79,7 @@ pub struct Minimap {
     camera: MinimapCamera,
     last_frame: Option<Instant>,
     jobs: Option<Sender<Job>>,
-    done: Arc<Mutex<Option<(raster::View, Vec<u8>)>>>,
+    done: Finished,
     requested: Option<raster::View>,
     pending: bool,
     shown: Option<Arc<RenderImage>>,

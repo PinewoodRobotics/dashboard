@@ -78,7 +78,6 @@ pub struct Entry {
     pub happy_text: SharedString,
 }
 
-/// Bytes for a `howard/*.webp` asset path.
 pub fn asset(path: &str) -> Option<&'static [u8]> {
     PICTURES.iter().find(|(p, _)| *p == path).map(|(_, b)| *b)
 }
