@@ -1,0 +1,23 @@
+[package]
+name = "godot-bridge"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "godot_bridge"
+crate-type = ["cdylib"]
+
+[dependencies]
+godot = { version = "0.5.5", features = ["api-4-7"] }
+protocol = { path = "../protocol" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+libc = "0.2"
+objc2.workspace = true
+objc2-core-foundation.workspace = true
+objc2-io-surface.workspace = true
+objc2-metal = { workspace = true, features = ["block2"] }
+objc2-foundation = { version = "0.3.2", features = ["NSArray"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSRunningApplication", "libc", "NSResponder", "NSWindow"] }

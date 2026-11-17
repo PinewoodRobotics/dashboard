@@ -7,6 +7,8 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 gpui-kit.workspace = true
+async-channel = "2"
+protocol = { path = "../protocol" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-core-foundation.workspace = true

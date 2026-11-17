@@ -11,7 +11,7 @@ index 290f521..3773728 100644
      "CVImageBuffer",
      "CVPixelBuffer",
 diff --git a/gpui-pre-apple/src/metal_renderer.rs b/gpui-pre-apple/src/metal_renderer.rs
-index 9b98a23..14274ed 100644
+index 9b98a23..ee650e5 100644
 --- a/gpui-pre-apple/src/metal_renderer.rs
 +++ b/gpui-pre-apple/src/metal_renderer.rs
 @@ -8,12 +8,13 @@ use gpui::{
@@ -237,7 +237,7 @@ index 9b98a23..14274ed 100644
      };
      use objc2_metal::MTLCommandBufferStatus;
  
-@@ -2038,6 +2117,89 @@ mod tests {
+@@ -2038,6 +2117,97 @@ mod tests {
          Ok(())
      }
  
@@ -317,6 +317,14 @@ index 9b98a23..14274ed 100644
 +    }
 +
 +    #[test]
++    fn rgba_surfaces_are_opaque() {
++        let image = render_single_surface(bgra_surface_buffer([10, 20, 200, 0], true));
++        for pixel in image.pixels() {
++            assert_eq!(pixel.0, [10, 20, 200, 255]);
++        }
++    }
++
++    #[test]
 +    fn render_rgba_bytes_in_bgra_surface() {
 +        let image = render_single_surface(bgra_surface_buffer([10, 20, 200, 255], true));
 +        for pixel in image.pixels() {
@@ -328,10 +336,10 @@ index 9b98a23..14274ed 100644
      fn render_core_video_surface() {
          let surface_properties_key = unsafe { kCVPixelBufferIOSurfacePropertiesKey };
 diff --git a/gpui-pre-apple/src/shaders.metal b/gpui-pre-apple/src/shaders.metal
-index 2b52bb9..84fc9e4 100644
+index 2b52bb9..4a1a301 100644
 --- a/gpui-pre-apple/src/shaders.metal
 +++ b/gpui-pre-apple/src/shaders.metal
-@@ -899,6 +899,13 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
+@@ -899,6 +899,15 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
    return ycbcrToRGBTransform * ycbcr;
  }
  
@@ -339,7 +347,9 @@ index 2b52bb9..84fc9e4 100644
 +                                      texture2d<float> color_texture
 +                                      [[texture(SurfaceInputIndex_YTexture)]]) {
 +  constexpr sampler texture_sampler(mag_filter::linear, min_filter::linear);
-+  return color_texture.sample(texture_sampler, input.texture_position);
++  // Surfaces are opaque like the NV12 path. Godot's opaque viewports leave alpha at 0 wherever
++  // only the background was drawn, so sampled alpha must not reach the blend.
++  return float4(color_texture.sample(texture_sampler, input.texture_position).rgb, 1.0);
 +}
 +
  float4 hsla_to_rgba(Hsla hsla) {

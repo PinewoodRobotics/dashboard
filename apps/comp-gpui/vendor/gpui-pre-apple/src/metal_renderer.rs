@@ -2193,6 +2193,14 @@ mod tests {
     }
 
     #[test]
+    fn rgba_surfaces_are_opaque() {
+        let image = render_single_surface(bgra_surface_buffer([10, 20, 200, 0], true));
+        for pixel in image.pixels() {
+            assert_eq!(pixel.0, [10, 20, 200, 255]);
+        }
+    }
+
+    #[test]
     fn render_rgba_bytes_in_bgra_surface() {
         let image = render_single_surface(bgra_surface_buffer([10, 20, 200, 255], true));
         for pixel in image.pixels() {

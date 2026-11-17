@@ -12,7 +12,7 @@ func _init(view_size: Vector2i) -> void:
 
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.08, 0.09, 0.12)
+	env.background_color = Color(0.13, 0.18, 0.27)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.35, 0.35, 0.4)
 	var world_env := WorldEnvironment.new()
@@ -37,6 +37,5 @@ func _init(view_size: Vector2i) -> void:
 	add_child(cube)
 
 
-func step(delta: float) -> void:
-	cube.rotate_y(delta * 1.4)
-	cube.rotate_x(delta * 0.6)
+func set_time(seconds: float) -> void:
+	cube.rotation = Vector3(seconds * 0.6, seconds * 1.4, 0.0)

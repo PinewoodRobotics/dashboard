@@ -903,7 +903,9 @@ fragment float4 rgba_surface_fragment(SurfaceFragmentInput input [[stage_in]],
                                       texture2d<float> color_texture
                                       [[texture(SurfaceInputIndex_YTexture)]]) {
   constexpr sampler texture_sampler(mag_filter::linear, min_filter::linear);
-  return color_texture.sample(texture_sampler, input.texture_position);
+  // Surfaces are opaque like the NV12 path. Godot's opaque viewports leave alpha at 0 wherever
+  // only the background was drawn, so sampled alpha must not reach the blend.
+  return float4(color_texture.sample(texture_sampler, input.texture_position).rgb, 1.0);
 }
 
 float4 hsla_to_rgba(Hsla hsla) {

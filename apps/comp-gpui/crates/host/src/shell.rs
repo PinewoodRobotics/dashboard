@@ -25,6 +25,14 @@ impl Shell {
         }
     }
 
+    pub fn source_mut(&mut self) -> &mut ViewportSource {
+        &mut self.source
+    }
+
+    fn drawer_animating(&self) -> bool {
+        self.drawer_changed.elapsed() < Duration::from_millis(300)
+    }
+
     fn drawer_offset(&mut self) -> f32 {
         const SLIDE: f32 = 0.25;
         let progress = (self.drawer_changed.elapsed().as_secs_f32() / SLIDE).min(1.0);
@@ -59,7 +67,9 @@ const DRAWER_WIDTH: f32 = 320.0;
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.frames.tick();
-        window.request_animation_frame();
+        if self.source.wants_animation_frames() || self.drawer_animating() || self.auto_drawer {
+            window.request_animation_frame();
+        }
         if self.auto_drawer && self.drawer_changed.elapsed() > Duration::from_secs(2) {
             self.drawer_open = !self.drawer_open;
             self.drawer_changed = Instant::now();
@@ -67,7 +77,7 @@ impl Render for Shell {
         let t = self.started.elapsed().as_secs_f32();
         let offset = self.drawer_offset() * (DRAWER_WIDTH + 48.0);
 
-        let viewport = self.source.element(t, cx);
+        let viewport = self.source.element(t);
         let mut overlay_lines = vec![format!("host fps {:.0}", self.frames.fps)];
         overlay_lines.extend(self.source.stats_lines());
 
