@@ -12,7 +12,7 @@ const TITLE_PX: f32 = 36.0;
 // CSS `line-height: normal` for Inter: (ascender + descender) / em.
 const INTER_NORMAL: f32 = (1984.0 + 494.0) / 2048.0;
 
-fn title(text: impl Into<SharedString>) -> Div {
+pub(super) fn title(text: impl Into<SharedString>) -> Div {
     div()
         .font_family(INTER)
         .font_weight(touch_weight(500))

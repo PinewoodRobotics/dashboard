@@ -8,6 +8,7 @@ mod hud;
 mod icons;
 mod input;
 mod mock;
+mod mock_link;
 mod placeholder;
 mod screen;
 mod theme;

@@ -4,6 +4,7 @@
 
 use std::time::Instant;
 
+use dash_core::controls::Controls;
 use dash_core::request_state::RequestTopics;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -469,6 +470,9 @@ pub struct MockData {
     pub pathplanner: PathPlannerTopics,
     pub auto_selection: AutoSelection,
     pub controls: ControlTopics,
+    /// The intake speed and aim trim controllers over `controls`
+    /// (see `mock_link`).
+    pub control: Controls,
     pub demo_started: Instant,
     pub demo: bool,
 }
@@ -539,6 +543,8 @@ impl MatchState {
 impl MockData {
     pub fn new(scenario: Scenario) -> Self {
         let now = Instant::now();
+        let controls = ControlTopics::seed();
+        let control = Controls::with_topics(controls.intake.topics.clone(), controls.intake_stored);
         let mut data = Self {
             nt_connected: true,
             banner: LinkBanner::None,
@@ -565,11 +571,13 @@ impl MockData {
             lane: LaneSignal::seed(),
             pathplanner: PathPlannerTopics::seed(),
             auto_selection: AutoSelection::seed(),
-            controls: ControlTopics::seed(),
+            controls,
+            control,
             demo_started: now,
             demo: scenario == Scenario::Demo,
         };
         data.apply(scenario);
+        crate::mock_link::step(&mut data);
         data
     }
 
