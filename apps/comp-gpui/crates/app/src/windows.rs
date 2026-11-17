@@ -67,7 +67,6 @@ pub struct DisplayInfo {
     pub bounds: Bounds<Pixels>,
 }
 
-/// dash_core's window placement over the live display list.
 pub fn plan(
     displays: &[DisplayInfo],
     windows: &[ScreenKind],
@@ -293,7 +292,6 @@ impl Tiler {
     }
 }
 
-/// "2 display(s)" then one line per window.
 pub fn tiling_text(cx: &App) -> String {
     let Some(t) = cx.try_global::<Tiler>() else {
         return "Not tiled yet: windows stay where they opened".into();

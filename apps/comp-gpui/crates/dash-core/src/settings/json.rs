@@ -6,7 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Map, Number, Value};
 
-/// A finite JSON number (serde_json numbers always are).
 pub(crate) fn num(v: Option<&Value>) -> Option<f64> {
     v.and_then(Value::as_f64).filter(|f| f.is_finite())
 }
