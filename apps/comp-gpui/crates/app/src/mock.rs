@@ -4,63 +4,10 @@
 
 use std::time::Instant;
 
-use dash_core::request_state::RequestTopics;
+use dash_core::match_model::{Aim, Clock, Header, Hub, LANE_KEY, MatchEvent, Phase};
+use dash_core::request_state::{RequestTopics, Value};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatchPhase {
-    PreMatch,
-    Autonomous,
-    Transition,
-    Shift1,
-    Shift2,
-    Shift3,
-    Shift4,
-    Endgame,
-    PostMatch,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HubStatus {
-    None,
-    Both,
-    Active,
-    Warning,
-    Inactive,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HeaderColor {
-    Hidden,
-    Green,
-    Yellow,
-    Purple,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AimMode {
-    ShooterDisabled,
-    GpsAuto,
-    ManualAiming,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LinkBanner {
-    None,
-    Disconnected,
-    NoData,
-    Stale,
-}
-
-impl LinkBanner {
-    pub fn text(self) -> &'static str {
-        match self {
-            LinkBanner::None => "",
-            LinkBanner::Disconnected => "NT Disconnected",
-            LinkBanner::NoData => "No Robot Data",
-            LinkBanner::Stale => "Robot Data Stale",
-        }
-    }
-}
+use crate::match_feed::MatchFeed;
 
 /// `/matchhud/state/*` as the robot publishes it (MatchStatusCalculator.java),
 /// less the pose ([`RobotPose`]) and auto-align ([`AutoAlign`]) keys.
@@ -74,10 +21,10 @@ pub struct MatchState {
     pub autonomous: bool,
     pub game_specific_message: String,
     pub is_shooting: bool,
-    pub phase: MatchPhase,
-    pub hub: HubStatus,
-    pub header: HeaderColor,
-    pub aim: AimMode,
+    pub phase: Phase,
+    pub hub: Hub,
+    pub header: Header,
+    pub aim: Aim,
     pub is_red_alliance: Option<bool>,
     pub total_time_remaining_s: f64,
     pub period_time_remaining_s: f64,
@@ -86,58 +33,59 @@ pub struct MatchState {
     pub buffer_remaining_s: f64,
     pub show_shift_indicator: bool,
     pub show_buffer: bool,
-    /// When the times above were published; the HUD counts down from here.
-    pub sampled_at: Instant,
-    /// The clock is frozen (fixtures): the HUD shows the sampled times.
-    pub frozen: bool,
+    /// The robot publishes the table at all (false: the No Robot Data fixture).
+    pub published: bool,
 }
 
 impl MatchState {
-    pub fn elapsed(&self, now: Instant) -> f64 {
-        if self.frozen {
-            0.0
-        } else {
-            now.saturating_duration_since(self.sampled_at).as_secs_f64()
+    /// The `/matchhud/state` values the HUD model reads, keyed as published.
+    pub fn topics(&self) -> Vec<(&'static str, Value)> {
+        if !self.published {
+            return Vec::new();
         }
+        let mut out = vec![
+            ("seq", Value::Int(self.seq)),
+            ("robot_time_us", Value::Int(self.robot_time_us)),
+            ("connected", Value::Bool(self.robot_connected)),
+            ("enabled", Value::Bool(self.enabled)),
+            ("autonomous", Value::Bool(self.autonomous)),
+            (
+                "game_specific_message",
+                Value::String(self.game_specific_message.clone()),
+            ),
+            ("match_phase", self.phase.to_value()),
+            ("hub_status", self.hub.to_value()),
+            ("header_color", self.header.to_value()),
+            ("aim_mode", self.aim.to_value()),
+            (
+                "total_time_remaining_s",
+                Value::Double(self.total_time_remaining_s),
+            ),
+            (
+                "period_time_remaining_s",
+                Value::Double(self.period_time_remaining_s),
+            ),
+            (
+                "shift_time_remaining_s",
+                Value::Double(self.shift_time_remaining_s),
+            ),
+            (
+                "shift_time_with_buffer_s",
+                Value::Double(self.shift_time_with_buffer_s),
+            ),
+            ("buffer_remaining_s", Value::Double(self.buffer_remaining_s)),
+            ("is_shooting", Value::Bool(self.is_shooting)),
+            (
+                "show_shift_indicator",
+                Value::Bool(self.show_shift_indicator),
+            ),
+            ("show_buffer", Value::Bool(self.show_buffer)),
+        ];
+        if let Some(red) = self.is_red_alliance {
+            out.push(("is_red_alliance", Value::Bool(red)));
+        }
+        out
     }
-
-    pub fn total_display(&self, now: Instant) -> f64 {
-        (self.total_time_remaining_s - self.elapsed(now)).max(0.0)
-    }
-
-    /// ShiftIndicator.tsx: the period clock while both hubs count, zero in
-    /// the post-deactivation buffer, otherwise the shift clock; the buffer
-    /// line shows the warning buffer or the shift time with buffer.
-    pub fn shift_display(&self, now: Instant) -> (f64, Option<f64>) {
-        let e = self.elapsed(now);
-        let both = matches!(
-            self.phase,
-            MatchPhase::Endgame | MatchPhase::Autonomous | MatchPhase::Transition
-        );
-        let warning = self.hub == HubStatus::Warning;
-        let main = if warning {
-            0.0
-        } else if both {
-            (self.period_time_remaining_s - e).max(0.0)
-        } else {
-            (self.shift_time_remaining_s - e).max(0.0)
-        };
-        let buffer = self.show_buffer.then(|| {
-            let b = if warning {
-                self.buffer_remaining_s
-            } else {
-                self.shift_time_with_buffer_s
-            };
-            (b.max(0.0) - e).max(0.0)
-        });
-        (main, buffer)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct LaneToast {
-    pub on: bool,
-    pub shown_at: Instant,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -453,9 +401,9 @@ impl ControlTopics {
 #[derive(Clone, Debug)]
 pub struct MockData {
     pub nt_connected: bool,
-    pub banner: LinkBanner,
     pub matchs: MatchState,
-    pub lane_toast: Option<LaneToast>,
+    /// The HUD's match model, fed from `matchs`, `pose` and `lane`.
+    pub match_feed: MatchFeed,
     pub connection: ConnectionSettings,
     pub map: MapSettings,
     pub visual: VisualSettings,
@@ -486,6 +434,8 @@ pub enum Scenario {
     PostMatch,
     NtDisconnected,
     LaneToast,
+    NoData,
+    Stale,
 }
 
 impl Scenario {
@@ -502,6 +452,8 @@ impl Scenario {
             "post_match" => Self::PostMatch,
             "nt_disconnected" => Self::NtDisconnected,
             "lane_toast" => Self::LaneToast,
+            "no_data" => Self::NoData,
+            "stale" => Self::Stale,
             _ => return None,
         })
     }
@@ -509,7 +461,7 @@ impl Scenario {
 
 impl MatchState {
     /// hud_base.json.
-    pub fn seed(now: Instant) -> Self {
+    pub fn seed() -> Self {
         Self {
             seq: 4242,
             robot_time_us: 100_000_000,
@@ -518,10 +470,10 @@ impl MatchState {
             autonomous: false,
             game_specific_message: "B".into(),
             is_shooting: false,
-            phase: MatchPhase::PreMatch,
-            hub: HubStatus::None,
-            header: HeaderColor::Hidden,
-            aim: AimMode::ShooterDisabled,
+            phase: Phase::PreMatch,
+            hub: Hub::None,
+            header: Header::Hidden,
+            aim: Aim::ShooterDisabled,
             is_red_alliance: Some(false),
             total_time_remaining_s: 0.0,
             period_time_remaining_s: 0.0,
@@ -530,8 +482,7 @@ impl MatchState {
             buffer_remaining_s: 0.0,
             show_shift_indicator: false,
             show_buffer: false,
-            sampled_at: now,
-            frozen: true,
+            published: true,
         }
     }
 }
@@ -541,9 +492,12 @@ impl MockData {
         let now = Instant::now();
         let mut data = Self {
             nt_connected: true,
-            banner: LinkBanner::None,
-            matchs: MatchState::seed(now),
-            lane_toast: None,
+            matchs: MatchState::seed(),
+            match_feed: MatchFeed::new(if scenario == Scenario::Demo {
+                Clock::new()
+            } else {
+                Clock::frozen(10_000_000)
+            }),
             connection: ConnectionSettings::default(),
             map: MapSettings::default(),
             visual: VisualSettings::default(),
@@ -576,10 +530,10 @@ impl MockData {
     fn apply(&mut self, scenario: Scenario) {
         let m = &mut self.matchs;
         let shift_active = |m: &mut MatchState| {
-            m.phase = MatchPhase::Shift1;
-            m.hub = HubStatus::Active;
-            m.header = HeaderColor::Green;
-            m.aim = AimMode::GpsAuto;
+            m.phase = Phase::Shift1;
+            m.hub = Hub::Active;
+            m.header = Header::Green;
+            m.aim = Aim::GpsAuto;
             m.total_time_remaining_s = 110.42;
             m.period_time_remaining_s = 15.42;
             m.shift_time_remaining_s = 15.42;
@@ -589,40 +543,42 @@ impl MockData {
         match scenario {
             Scenario::Demo => {
                 self.demo_tick();
+                return;
             }
             Scenario::PreMatch | Scenario::PostMatch => {
                 m.phase = if scenario == Scenario::PreMatch {
-                    MatchPhase::PreMatch
+                    Phase::PreMatch
                 } else {
-                    MatchPhase::PostMatch
+                    Phase::PostMatch
                 };
             }
             Scenario::Autonomous => {
-                m.phase = MatchPhase::Autonomous;
-                m.hub = HubStatus::Both;
-                m.header = HeaderColor::Purple;
-                m.aim = AimMode::GpsAuto;
+                m.phase = Phase::Autonomous;
+                m.hub = Hub::Both;
+                m.header = Header::Purple;
+                m.aim = Aim::GpsAuto;
                 m.total_time_remaining_s = 147.53;
                 m.period_time_remaining_s = 7.53;
                 m.show_shift_indicator = true;
             }
             Scenario::Transition => {
-                m.phase = MatchPhase::Transition;
-                m.hub = HubStatus::Both;
-                m.header = HeaderColor::Green;
-                m.aim = AimMode::ManualAiming;
+                m.phase = Phase::Transition;
+                m.hub = Hub::Both;
+                m.header = Header::Green;
+                m.aim = Aim::ManualAiming;
                 m.total_time_remaining_s = 134.81;
                 m.period_time_remaining_s = 4.81;
                 m.shift_time_remaining_s = 4.81;
                 m.shift_time_with_buffer_s = 4.81;
                 m.show_shift_indicator = true;
             }
-            Scenario::ShiftActive => shift_active(m),
+            Scenario::ShiftActive | Scenario::Stale => shift_active(m),
+            Scenario::NoData => m.published = false,
             Scenario::ShiftWarning => {
-                m.phase = MatchPhase::Shift2;
-                m.hub = HubStatus::Warning;
-                m.header = HeaderColor::Yellow;
-                m.aim = AimMode::GpsAuto;
+                m.phase = Phase::Shift2;
+                m.hub = Hub::Warning;
+                m.header = Header::Yellow;
+                m.aim = Aim::GpsAuto;
                 m.total_time_remaining_s = 83.74;
                 m.period_time_remaining_s = 23.74;
                 m.shift_time_remaining_s = 23.74;
@@ -632,8 +588,8 @@ impl MockData {
                 m.show_buffer = true;
             }
             Scenario::ShiftInactive => {
-                m.phase = MatchPhase::Shift2;
-                m.hub = HubStatus::Inactive;
+                m.phase = Phase::Shift2;
+                m.hub = Hub::Inactive;
                 m.total_time_remaining_s = 72.05;
                 m.period_time_remaining_s = 12.05;
                 m.shift_time_remaining_s = 12.05;
@@ -641,38 +597,63 @@ impl MockData {
                 m.show_shift_indicator = true;
             }
             Scenario::Endgame => {
-                m.phase = MatchPhase::Endgame;
-                m.hub = HubStatus::Both;
-                m.header = HeaderColor::Green;
-                m.aim = AimMode::ManualAiming;
+                m.phase = Phase::Endgame;
+                m.hub = Hub::Both;
+                m.header = Header::Green;
+                m.aim = Aim::ManualAiming;
                 m.total_time_remaining_s = 21.37;
                 m.period_time_remaining_s = 21.37;
             }
             Scenario::NtDisconnected => {
                 shift_active(m);
-                self.nt_connected = false;
-                self.banner = LinkBanner::Disconnected;
                 self.nt.state = "CONNECTING";
                 self.nt.rtt_ms = None;
                 self.nt.attempt = 3;
             }
-            Scenario::LaneToast => {
-                shift_active(m);
-                m.total_time_remaining_s -= 0.1;
-                m.period_time_remaining_s -= 0.1;
-                m.shift_time_remaining_s -= 0.1;
-                self.lane_toast = Some(LaneToast {
-                    on: true,
-                    shown_at: Instant::now(),
-                });
-            }
+            Scenario::LaneToast => shift_active(m),
         }
+        self.sync_match();
+        // The Godot fixtures' nt_link / nt_steps / match.advance_s, in order.
+        match scenario {
+            Scenario::NtDisconnected => {
+                self.nt_connected = false;
+                self.sync_match();
+            }
+            Scenario::LaneToast => {
+                self.lane.adjusting_velocity = Some(true);
+                self.sync_match();
+                self.match_feed.clock.advance_s(0.6);
+                self.match_feed.step();
+            }
+            Scenario::Stale => {
+                self.match_feed.clock.advance_s(1.5);
+                self.match_feed.step();
+            }
+            _ => {}
+        }
+    }
+
+    /// Delivers the match topics to the HUD model as NT would, then steps it.
+    pub fn sync_match(&mut self) -> Vec<MatchEvent> {
+        let feed = &mut self.match_feed;
+        let mut events: Vec<MatchEvent> = feed.set_link(self.nt_connected).into_iter().collect();
+        let mut topics = self.matchs.topics();
+        if self.matchs.published {
+            topics.push(("robot_pose_valid", Value::Bool(self.pose.valid)));
+        }
+        if let Some(v) = self.lane.adjusting_velocity {
+            topics.push((LANE_KEY, Value::Bool(v)));
+        }
+        events.extend(feed.publish(topics));
+        events.extend(feed.step());
+        events
     }
 
     /// The demo match: 5 s of pre-match, then the 2026 timeline (20 s auto,
     /// 10 s transition, four 25 s shifts, 30 s endgame), looping, with the
-    /// hub alternating per shift and a lane-alignment toggle every 12 s.
-    /// Returns whether anything a screen shows changed.
+    /// hub alternating per shift and a lane-alignment toggle every 12 s,
+    /// published like the robot's 20 ms loop. Returns whether the match model
+    /// raised an event; the HUD redraws every frame regardless.
     pub fn demo_tick(&mut self) -> bool {
         if !self.demo {
             return false;
@@ -684,16 +665,16 @@ impl MockData {
         const POST: f64 = 5.0;
         let cycle = PRE + AUTO + TELEOP + POST;
         let t = now.duration_since(self.demo_started).as_secs_f64() % cycle;
-        let mut m = MatchState::seed(now);
-        m.frozen = false;
+        let mut m = MatchState::seed();
+        m.seq = self.matchs.seq + 1;
         if t < PRE {
-            m.phase = MatchPhase::PreMatch;
+            m.phase = Phase::PreMatch;
         } else if t < PRE + AUTO {
             let left = PRE + AUTO - t;
-            m.phase = MatchPhase::Autonomous;
-            m.hub = HubStatus::Both;
-            m.header = HeaderColor::Purple;
-            m.aim = AimMode::GpsAuto;
+            m.phase = Phase::Autonomous;
+            m.hub = Hub::Both;
+            m.header = Header::Purple;
+            m.aim = Aim::GpsAuto;
             m.total_time_remaining_s = left + TELEOP;
             m.period_time_remaining_s = left;
             m.show_shift_indicator = true;
@@ -703,58 +684,49 @@ impl MockData {
             m.period_time_remaining_s = left;
             m.show_shift_indicator = true;
             if left > 130.0 {
-                m.phase = MatchPhase::Transition;
-                m.hub = HubStatus::Both;
-                m.header = HeaderColor::Green;
-                m.aim = AimMode::ManualAiming;
+                m.phase = Phase::Transition;
+                m.hub = Hub::Both;
+                m.header = Header::Green;
+                m.aim = Aim::ManualAiming;
+                m.period_time_remaining_s = left - 130.0;
                 m.shift_time_remaining_s = left - 130.0;
                 m.shift_time_with_buffer_s = left - 130.0;
             } else if left > 30.0 {
                 let into = 130.0 - left;
                 let shift = (into / 25.0) as usize;
                 let shift_left = 25.0 - (into - shift as f64 * 25.0);
-                m.phase = [
-                    MatchPhase::Shift1,
-                    MatchPhase::Shift2,
-                    MatchPhase::Shift3,
-                    MatchPhase::Shift4,
-                ][shift.min(3)];
+                m.phase =
+                    [Phase::Shift1, Phase::Shift2, Phase::Shift3, Phase::Shift4][shift.min(3)];
                 let ours = shift % 2 == 0;
                 let in_buffer = !ours && shift_left > 22.0;
+                m.period_time_remaining_s = shift_left;
                 m.shift_time_remaining_s = shift_left;
-                m.aim = AimMode::GpsAuto;
+                m.aim = Aim::GpsAuto;
                 if ours {
-                    m.hub = HubStatus::Active;
-                    m.header = HeaderColor::Green;
+                    m.hub = Hub::Active;
+                    m.header = Header::Green;
                     m.shift_time_with_buffer_s = shift_left + 3.0;
                 } else if in_buffer {
-                    m.hub = HubStatus::Warning;
-                    m.header = HeaderColor::Yellow;
+                    m.hub = Hub::Warning;
+                    m.header = Header::Yellow;
                     m.show_buffer = true;
                     m.buffer_remaining_s = shift_left - 22.0;
                 } else {
-                    m.hub = HubStatus::Inactive;
-                    m.aim = AimMode::ShooterDisabled;
+                    m.hub = Hub::Inactive;
+                    m.aim = Aim::ShooterDisabled;
                 }
             } else {
-                m.phase = MatchPhase::Endgame;
-                m.hub = HubStatus::Both;
-                m.header = HeaderColor::Green;
-                m.aim = AimMode::ManualAiming;
+                m.phase = Phase::Endgame;
+                m.hub = Hub::Both;
+                m.header = Header::Green;
+                m.aim = Aim::ManualAiming;
                 m.show_shift_indicator = false;
             }
         } else {
-            m.phase = MatchPhase::PostMatch;
+            m.phase = Phase::PostMatch;
         }
-        let lane = ((t / 12.0) as u32) % 2 == 1;
-        let lane_changed = self.lane_toast.as_ref().map(|l| l.on) != Some(lane);
-        if lane_changed && t > PRE {
-            self.lane_toast = Some(LaneToast {
-                on: lane,
-                shown_at: now,
-            });
-        }
+        self.lane.adjusting_velocity = Some(((t / 12.0) as u32) % 2 == 1);
         self.matchs = m;
-        true
+        !self.sync_match().is_empty()
     }
 }
