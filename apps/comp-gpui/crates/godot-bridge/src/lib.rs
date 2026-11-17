@@ -1,6 +1,8 @@
 #[cfg(target_os = "macos")]
 mod mac;
 mod ring;
+#[cfg(windows)]
+mod win;
 
 use std::io::{BufReader, BufWriter};
 use std::net::TcpStream;
@@ -46,6 +48,8 @@ struct HostBridge {
     queue: Option<
         objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandQueue>>,
     >,
+    #[cfg(windows)]
+    win: win::WinState,
     rids: Vec<Rid>,
     generation: u32,
     seq: u64,
@@ -96,6 +100,8 @@ impl HostBridge {
     fn hide_window(&self) {
         #[cfg(target_os = "macos")]
         mac::hide_app_windows();
+        #[cfg(windows)]
+        win::hide_window();
     }
 
     #[func]
@@ -160,6 +166,50 @@ impl HostBridge {
                 ids: self.slots.iter().map(|slot| slot.id()).collect(),
             });
         }
+        // UNTESTED. Slots are named from (pid, view, generation, index), so ids carries indices.
+        #[cfg(windows)]
+        {
+            let generation = self.generation + 1;
+            let handles = unsafe {
+                self.win.create_ring(
+                    rd.get_driver_resource(DriverResource::LOGICAL_DEVICE, Rid::Invalid, 0),
+                    rd.get_driver_resource(DriverResource::COMMAND_QUEUE, Rid::Invalid, 0),
+                    0,
+                    generation,
+                    width as u32,
+                    height as u32,
+                    count as u32,
+                )
+            };
+            let Some(handles) = handles else {
+                return rids;
+            };
+            self.rids = handles
+                .into_iter()
+                .map(|handle| {
+                    rd.texture_create_from_extension(
+                        TextureType::TYPE_2D,
+                        DataFormat::R8G8B8A8_UNORM,
+                        TextureSamples::SAMPLES_1,
+                        TextureUsageBits::CAN_COPY_TO_BIT | TextureUsageBits::SAMPLING_BIT,
+                        handle,
+                        width as u64,
+                        height as u64,
+                        1,
+                        1,
+                    )
+                })
+                .collect();
+            self.generation = generation;
+            *link.ring.lock().unwrap() = RingState::new(count as usize);
+            link.send(&ToHost::Surfaces {
+                view: 0,
+                generation,
+                width: width as u32,
+                height: height as u32,
+                ids: (0..count as u32).collect(),
+            });
+        }
         for rid in &self.rids {
             rids.push(*rid);
         }
@@ -192,6 +242,21 @@ impl HostBridge {
                 return false;
             };
             return mac::notify_when_queue_drains(queue, move || {
+                let ready_us = protocol::now_us();
+                link.send(&ToHost::Frame {
+                    view: 0,
+                    generation,
+                    slot: slot as u32,
+                    seq,
+                    cpu_ms: cpu_ms as f32,
+                    gpu_ms: (ready_us.saturating_sub(render_submitted_us as u64)) as f32 / 1000.0,
+                    ready_us,
+                });
+            });
+        }
+        #[cfg(windows)]
+        {
+            return self.win.notify_when_queue_drains(move || {
                 let ready_us = protocol::now_us();
                 link.send(&ToHost::Frame {
                     view: 0,
