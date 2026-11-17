@@ -3,6 +3,7 @@ use gpui_kit::*;
 use super::{PanelId, TouchScreen, intake_panel};
 use crate::icons::sf;
 use crate::mock::{MapMode, MapSettings};
+use crate::settings;
 use crate::theme::{INTER, WHITE, ZINC_400, touch_weight, u};
 use crate::widgets::{
     Axis2, Button, ButtonStyle, Scroll, Selector, SelectorOption, Slider, SliderHint,
@@ -69,10 +70,9 @@ fn map_panel(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> Div {
     let map = ts.data.read(cx).map.clone();
     let data = ts.data.clone();
     let set = move |f: Box<dyn FnOnce(&mut MapSettings)>, cx: &mut App| {
-        data.update(cx, |d, cx| {
-            f(&mut d.map);
-            cx.notify();
-        });
+        let mut map = data.read(cx).map.clone();
+        f(&mut map);
+        settings::set_map(&map, cx);
     };
     let set = std::rc::Rc::new(set);
     let (s1, s2, s3, s4) = (set.clone(), set.clone(), set.clone(), set);

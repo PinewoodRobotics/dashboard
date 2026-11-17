@@ -14,12 +14,14 @@ const ITEM: f32 = 80.0;
 const BORDER_W: f32 = 4.0;
 const STRIDE: f32 = ITEM - BORDER_W;
 const SYMBOL_PX: f32 = 36.0;
+const TEXT_PX: f32 = 24.0;
 const DRAG_PX: f32 = 4.0;
 
 #[derive(Clone)]
 pub struct SelectorOption {
     pub symbol: u32,
     pub filled: Option<u32>,
+    pub text: Option<SharedString>,
     pub hint: Option<SharedString>,
 }
 
@@ -28,7 +30,16 @@ impl SelectorOption {
         Self {
             symbol,
             filled: None,
+            text: None,
             hint: None,
+        }
+    }
+
+    /// A text cell (Godot's pw_selector "text" option, e.g. the Displays choice).
+    pub fn text(text: impl Into<SharedString>) -> Self {
+        Self {
+            text: Some(text.into()),
+            ..Self::new(0)
         }
     }
 
@@ -98,6 +109,15 @@ pub fn toggle(id: impl Into<ElementId>, on: bool, off_hint: &str, on_hint: &str)
     )
 }
 
+fn cell_content(o: &SelectorOption, symbol: u32, color: Rgba) -> AnyElement {
+    match &o.text {
+        Some(t) => label(t.clone(), TEXT_PX, 600, color)
+            .whitespace_nowrap()
+            .into_any_element(),
+        None => sf_symbol(symbol, SYMBOL_PX, color).into_any_element(),
+    }
+}
+
 fn x_to_index(x: f32, count: usize) -> usize {
     ((x / STRIDE).round().max(0.0) as usize).min(count.saturating_sub(1))
 }
@@ -156,10 +176,10 @@ impl RenderOnce for Selector {
                 .bg(PANEL)
                 .border(u(BORDER_W))
                 .border_color(WHITE)
-                .child(sf_symbol(o.symbol, SYMBOL_PX, WHITE))
+                .child(cell_content(o, o.symbol, WHITE))
         });
         let greens = self.options.iter().enumerate().map(|(i, o)| {
-            square(i).child(sf_symbol(o.filled.unwrap_or(o.symbol), SYMBOL_PX, ACCENT))
+            square(i).child(cell_content(o, o.filled.unwrap_or(o.symbol), ACCENT))
         });
         let mask = div()
             .absolute()

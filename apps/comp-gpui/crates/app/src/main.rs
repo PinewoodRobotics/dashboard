@@ -12,19 +12,21 @@ mod mock;
 mod nt_source;
 mod placeholder;
 mod screen;
+mod settings;
 mod theme;
 mod touch;
 mod touch_test;
 mod widgets;
 mod windows;
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui_kit::*;
 
 use crate::mock::{MockData, Scenario};
-use crate::touch::{PanelId, TabId, TouchScreen, TouchStart};
-use crate::windows::{Placement, ScreenKind};
+use crate::touch::{PanelId, TabId, TouchStart};
+use crate::windows::ScreenKind;
 
 gpui_kit::actions!(comp, [Quit]);
 
@@ -38,10 +40,11 @@ struct Args {
     script: Vec<dev_script::Step>,
     nt_host: Option<String>,
     nt_port: Option<u16>,
+    settings: Option<PathBuf>,
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
-[--dock] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS]";
+[--dock] [--nt-down] [--nt-host=HOST] [--nt-port=PORT] [--windowed] [--design-size] [--mouse-as-touch] [--script=STEPS] [--settings=PATH]";
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
@@ -54,6 +57,7 @@ fn parse_args() -> anyhow::Result<Args> {
         script: Vec::new(),
         nt_host: None,
         nt_port: None,
+        settings: None,
     };
     let mut nt_down = false;
     for a in std::env::args().skip(1) {
@@ -87,6 +91,7 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--nt-port", Some(p)) => {
                 args.nt_port = Some(p.parse().map_err(|_| anyhow::anyhow!("bad --nt-port {p}"))?)
             }
+            ("--settings", Some(p)) => args.settings = Some(PathBuf::from(p)),
             _ => anyhow::bail!("unknown argument {a}\n{USAGE}"),
         }
     }
@@ -112,9 +117,19 @@ fn main() -> anyhow::Result<()> {
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("ctrl-q", Quit, None),
             ]);
-            cx.on_window_closed(|cx, _| cx.quit()).detach();
+            cx.on_window_closed(|cx, id| {
+                if !windows::closing_for_retile(id) {
+                    cx.quit();
+                }
+            })
+            .detach();
 
             let data = cx.new(|_| MockData::new(args.scenario));
+            settings::install(
+                &data,
+                settings::Options::new(args.settings.clone(), args.scenario != Scenario::Demo),
+                cx,
+            );
             if args.nt_host.is_some() || args.nt_port.is_some() {
                 let (host, port) = (args.nt_host.clone(), args.nt_port);
                 let mut source = data.update(cx, |d, _| nt_source::NtSource::start(d, host, port));
@@ -149,44 +164,20 @@ fn main() -> anyhow::Result<()> {
                 .detach();
             }
 
-            let displays = windows::displays(cx);
-            let mut plan = windows::plan(&displays, &args.screens);
-            if args.windowed {
-                for (_, p) in plan.iter_mut() {
-                    *p = Placement::Windowed {
-                        reason: "--windowed".into(),
-                    };
-                }
-            }
-            for (index, (kind, placement)) in plan.into_iter().enumerate() {
-                eprintln!("comp-gpui: {} {:?}", kind.title(), placement);
-                let design_px = args.design_px && matches!(placement, Placement::Windowed { .. });
-                let options = windows::options(kind, &placement, index, design_px, cx);
-                let data = data.clone();
-                let touch = args.touch.clone();
-                let opened = match kind {
-                    ScreenKind::Hud => gpui_kit::open_window(options, cx, move |window, cx| {
-                        if design_px {
-                            windows::resize_to_design_pixels(kind, window);
-                        }
-                        cx.new(|cx| hud::HudScreen::new(data, cx))
-                    })
-                    .map(|_| ()),
-                    ScreenKind::Touch => gpui_kit::open_window(options, cx, move |window, cx| {
-                        if design_px {
-                            windows::resize_to_design_pixels(kind, window);
-                        }
-                        cx.new(|cx| TouchScreen::new(data, touch, cx))
-                    })
-                    .map(|(handle, _)| {
-                        if !args.script.is_empty() {
-                            dev_script::run(handle.into(), args.script.clone(), cx);
-                        }
-                    }),
-                };
-                if let Err(e) = opened {
-                    eprintln!("comp-gpui: cannot open {}: {e:#}", kind.title());
-                }
+            let touch_window = windows::open_all(
+                &data,
+                windows::OpenOptions {
+                    screens: args.screens.clone(),
+                    force_windowed: args.windowed,
+                    design_px: args.design_px,
+                    touch: args.touch.clone(),
+                },
+                cx,
+            );
+            if let Some(handle) = touch_window
+                && !args.script.is_empty()
+            {
+                dev_script::run(handle, args.script.clone(), cx);
             }
             cx.activate(true);
         });

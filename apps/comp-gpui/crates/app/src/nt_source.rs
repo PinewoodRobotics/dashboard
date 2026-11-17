@@ -260,11 +260,8 @@ impl NtSource {
 
     fn sync_settings(&mut self, data: &mut MockData) {
         let c = &data.connection;
-        let host = self.host_override.clone().unwrap_or_else(|| c.nt_host.trim().to_owned());
-        let port = self
-            .port_override
-            .or_else(|| c.nt_port.trim().parse().ok())
-            .unwrap_or(5810);
+        let host = self.host_override.clone().unwrap_or_else(|| c.nt.host.trim().to_owned());
+        let port = self.port_override.unwrap_or(c.nt.port);
         let want = (host, port, f64::from(c.reconnect_timeout_s));
         if self.configured.as_ref() != Some(&want) {
             self.nt.configure(&want.0, want.1, want.2);
