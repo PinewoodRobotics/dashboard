@@ -67,6 +67,9 @@ impl AssetSource for Assets {
             "sonner/error.svg" => return Ok(Some(Cow::Borrowed(SONNER_ERROR.as_bytes()))),
             _ => {}
         }
+        if let Some(svg) = crate::icons::load(path) {
+            return Ok(Some(Cow::Owned(svg.into_bytes())));
+        }
         if let Some(bytes) = crate::touch::howard_asset(path) {
             return Ok(Some(Cow::Borrowed(bytes)));
         }

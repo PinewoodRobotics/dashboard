@@ -11,10 +11,10 @@ mod camera_overlay;
 mod minimap;
 
 use crate::autos::AutoService;
-use crate::icons::{lucide, sf, sf_symbol};
+use crate::icons::{SF_ASCENT, SF_DESCENT, SF_SPACE, lucide, sf, sf_symbol};
 use crate::mock::MockData;
 use crate::theme::{
-    ACCENT, BLACK, BLUE, CARD, ERROR, HUD_DESIGN, INTER, MONO, ORANGE, PURPLE, SF, TOAST_BG,
+    ACCENT, BLACK, BLUE, CARD, ERROR, HUD_DESIGN, INTER, MONO, ORANGE, PURPLE, TOAST_BG,
     TOAST_BORDER, WHITE, YELLOW, ZINC_300, ZINC_400, alpha, hex, tabular, u, weight,
 };
 use crate::widgets::dpx;
@@ -52,13 +52,18 @@ const INTER_M: Metrics = Metrics {
     descent: 494.0 / 2048.0,
 };
 const SF_M: Metrics = Metrics {
-    ascent: 1950.0 / 2048.0,
-    descent: 494.0 / 2048.0,
+    ascent: SF_ASCENT,
+    descent: SF_DESCENT,
 };
 
+enum Ink {
+    Text(SharedString, &'static str),
+    Symbol(u32),
+    Space,
+}
+
 struct Run {
-    text: SharedString,
-    family: &'static str,
+    ink: Ink,
     metrics: Metrics,
     size: f32,
     color: Rgba,
@@ -72,12 +77,21 @@ fn run(
     color: Rgba,
 ) -> Run {
     Run {
-        text: text.into(),
-        family,
+        ink: Ink::Text(text.into(), family),
         metrics,
         size,
         color,
     }
+}
+
+/// An SF Symbol and the SF Pro space after it, inline in a text row.
+fn symbol_runs(code: u32, size: f32, color: Rgba) -> [Run; 2] {
+    [Ink::Symbol(code), Ink::Space].map(|ink| Run {
+        ink,
+        metrics: SF_M,
+        size,
+        color,
+    })
 }
 
 /// Inline runs of mixed fonts on one baseline, the way the web's inline spans
@@ -95,16 +109,26 @@ fn baseline_row(runs: Vec<Run>) -> (Div, f32) {
         .items_start()
         .children(runs.into_iter().map(move |r| {
             let line = (r.metrics.ascent + r.metrics.descent) * r.size;
-            div()
-                .flex_none()
-                .mt(u(max_ascent - r.metrics.ascent * r.size))
-                .font_family(r.family)
-                .font_weight(weight(400))
-                .text_size(u(r.size))
-                .line_height(u(line))
-                .text_color(r.color)
-                .whitespace_nowrap()
-                .child(r.text)
+            let mt = u(max_ascent - r.metrics.ascent * r.size);
+            match r.ink {
+                Ink::Text(text, family) => div()
+                    .flex_none()
+                    .mt(mt)
+                    .font_family(family)
+                    .font_weight(weight(400))
+                    .text_size(u(r.size))
+                    .line_height(u(line))
+                    .text_color(r.color)
+                    .whitespace_nowrap()
+                    .child(text)
+                    .into_any_element(),
+                Ink::Symbol(code) => div()
+                    .flex_none()
+                    .mt(mt)
+                    .child(sf_symbol(code, r.size, r.color).line_height(line))
+                    .into_any_element(),
+                Ink::Space => div().flex_none().w(u(SF_SPACE * r.size)).into_any_element(),
+            }
         }));
     (row, max_ascent)
 }
@@ -197,12 +221,10 @@ impl Render for HudScreen {
             let (icon, color) = aim_icon(m.aim);
             let (int, dec) = nn_dd(shift.main);
             let space_line = (SF_M.ascent + SF_M.descent) * SHIFT_ICON_PX;
-            let (row, _) = baseline_row(vec![
-                run(sf::glyph(icon), SF, SF_M, SHIFT_ICON_PX, color),
-                run(" ", SF, SF_M, SHIFT_ICON_PX, color),
-                run(int, MONO, MONO_M, FONT_TIMER_LARGE, text),
-                run(dec, MONO, MONO_M, FONT_TIMER_SMALL, text),
-            ]);
+            let mut runs = Vec::from(symbol_runs(icon, SHIFT_ICON_PX, color));
+            runs.push(run(int, MONO, MONO_M, FONT_TIMER_LARGE, text));
+            runs.push(run(dec, MONO, MONO_M, FONT_TIMER_SMALL, text));
+            let (row, _) = baseline_row(runs);
             let top = SHIFT_CENTER_Y - space_line / 2.0;
             root = root.child(
                 div()
@@ -463,7 +485,7 @@ fn lane_toast(on: bool, (shown, lift): (f32, f32), window: &Window) -> impl Into
                 .flex()
                 .items_center()
                 .gap(u(8.))
-                .child(sf_symbol(sf::LANE_ALIGNMENT, 16.8, color).line_height(u(16.8)))
+                .child(sf_symbol(sf::LANE_ALIGNMENT, 16.8, color))
                 .child(
                     div()
                         .font_weight(weight(500))

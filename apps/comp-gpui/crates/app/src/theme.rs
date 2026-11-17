@@ -79,10 +79,11 @@ pub fn u(x: f32) -> Rems {
 
 /// Electron declares Inter as a single 400 `@font-face`, so Chromium draws CSS
 /// weights below 600 as Regular and 600 and up as Regular with synthetic bold.
-/// GPUI has no synthetic bold; the real SemiBold cut stands in for it.
+/// GPUI has no synthetic bold; the real Bold cut stands in for it, matching its
+/// ink within about 1.5% now that glyphs are not dilated (SemiBold is 10% light).
 pub fn touch_weight(css_weight: u16) -> FontWeight {
     if css_weight >= 600 {
-        FontWeight::SEMIBOLD
+        FontWeight::BOLD
     } else {
         FontWeight::NORMAL
     }
