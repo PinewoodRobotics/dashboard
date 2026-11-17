@@ -1,3 +1,5 @@
+pub mod shared_texture;
+
 use std::io::{self, BufRead, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 

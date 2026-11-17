@@ -5250,6 +5250,8 @@ dependencies = [
  "objc2-core-video",
  "objc2-io-surface",
  "objc2-metal 0.3.2",
+ "protocol",
+ "windows 0.62.2",
 ]
 
 [[package]]
