@@ -4,6 +4,7 @@
 //! and the ten shooter readouts, all in the drawer's vertical scroll.
 
 use dash_core::controls::{AimTrim, Controls};
+use dash_core::request_state::ControlLink;
 use gpui_kit::*;
 
 use super::{TouchScreen, panels};
@@ -89,7 +90,7 @@ pub fn render(
         readouts: c.readouts(link),
     });
     let data = ts.data.clone();
-    let act = move |f: fn(&mut Controls, &mut mock_link::MockLink, f64)| {
+    let act = move |f: fn(&mut Controls, &mut dyn ControlLink, f64)| {
         let data = data.clone();
         move |v: f64, cx: &mut App| mock_link::act(&data, cx, move |c, l| f(c, l, v))
     };

@@ -103,8 +103,15 @@ fn mirror(cx: &mut App, sections: &[Section]) {
         for section in sections {
             match section {
                 Section::Connection => {
-                    d.nt.server = conn.server();
+                    if d.nt_link.is_none() {
+                        d.nt.host = conn.nt.host.clone();
+                        d.nt.port = conn.nt.port;
+                    }
+                    let table_moved = d.connection.nt.shared_table != conn.nt.shared_table;
                     d.connection = conn.clone();
+                    if table_moved {
+                        crate::mock_link::set_shared_table(d, &conn.nt.shared_table);
+                    }
                 }
                 Section::Map => d.map = app.map.clone(),
                 Section::Visual => d.visual = app.visual.clone(),

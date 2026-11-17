@@ -119,6 +119,46 @@ pub struct Diagnostics {
     pub last_close: String,
 }
 
+impl Diagnostics {
+    /// The settings tab's attempt line (settings_tab.gd status_text):
+    /// "Connected", or what the client is doing, such as
+    /// "Connecting, attempt 3 (0.4 s)".
+    pub fn status_text(&self) -> String {
+        let attempt = self.attempt;
+        match self.state {
+            State::Ready => "Connected".into(),
+            State::Connecting => {
+                format!("Connecting, attempt {attempt} ({:.1} s)", self.attempt_age_s.max(0.0))
+            }
+            State::Syncing => format!("Syncing, attempt {attempt}"),
+            State::Backoff if attempt == 0 => {
+                format!("Link lost, retrying in {:.1} s", self.backoff_left_s)
+            }
+            State::Backoff => {
+                format!("Attempt {attempt} failed, retrying in {:.1} s", self.backoff_left_s)
+            }
+            State::Idle => "Disconnected".into(),
+        }
+    }
+
+    pub fn rtt_ms(&self) -> Option<f64> {
+        (self.state == State::Ready && self.rtt_us >= 0).then(|| self.rtt_us as f64 / 1000.0)
+    }
+
+    /// The settings tab's Diagnostics box, in order.
+    pub fn rows(&self) -> Vec<(&'static str, String)> {
+        let dash = |s: String| if s.is_empty() { "--".into() } else { s };
+        vec![
+            ("State", self.state.name().into()),
+            ("Attempt", self.status_text()),
+            ("Server", format!("{}:{}", self.host, self.port)),
+            ("Round trip", self.rtt_ms().map_or_else(|| "--".into(), |r| format!("{r:.1} ms"))),
+            ("Reconnects", format!("{} (manual {})", self.reconnects, self.manual_reconnects)),
+            ("Last close", dash(self.last_close.clone())),
+        ]
+    }
+}
+
 /// Called once per attempt with the connect timeout in seconds.
 pub type TransportFactory = Box<dyn FnMut(f64) -> Box<dyn Transport>>;
 
@@ -1261,6 +1301,56 @@ mod tests {
             h.poll();
             assert!((h.diag().backoff_left_s - 0.1).abs() < 0.001, "{name}: backoff restarts from the first step");
         }
+    }
+
+    #[test]
+    fn settings_status_text() {
+        let d = |state, attempt, attempt_age_s, backoff_left_s| Diagnostics {
+            state,
+            attempt,
+            attempt_age_s,
+            backoff_left_s,
+            ..Default::default()
+        };
+        assert_eq!(d(State::Ready, 0, -1.0, 0.0).status_text(), "Connected");
+        assert_eq!(d(State::Connecting, 3, 0.42, 0.0).status_text(), "Connecting, attempt 3 (0.4 s)");
+        assert_eq!(d(State::Syncing, 1, 0.1, 0.0).status_text(), "Syncing, attempt 1");
+        assert_eq!(d(State::Backoff, 4, 1.0, 0.5).status_text(), "Attempt 4 failed, retrying in 0.5 s");
+        assert_eq!(d(State::Backoff, 0, -1.0, 0.1).status_text(), "Link lost, retrying in 0.1 s");
+        assert_eq!(d(State::Idle, 0, -1.0, 0.0).status_text(), "Disconnected");
+    }
+
+    #[test]
+    fn settings_diagnostics_rows() {
+        let mut d = Diagnostics {
+            state: State::Ready,
+            host: "10.47.65.2".into(),
+            port: 5810,
+            rtt_us: 1_540,
+            reconnects: 2,
+            manual_reconnects: 1,
+            ..Default::default()
+        };
+        let rows = |d: &Diagnostics| d.rows().into_iter().map(|(_, v)| v).collect::<Vec<_>>();
+        assert_eq!(
+            rows(&d),
+            ["READY", "Connected", "10.47.65.2:5810", "1.5 ms", "2 (manual 1)", "--"]
+        );
+        d.state = State::Backoff;
+        d.attempt = 2;
+        d.backoff_left_s = 0.25;
+        d.last_close = "server closed".into();
+        assert_eq!(
+            rows(&d),
+            [
+                "BACKOFF",
+                "Attempt 2 failed, retrying in 0.2 s",
+                "10.47.65.2:5810",
+                "--",
+                "2 (manual 1)",
+                "server closed"
+            ]
+        );
     }
 
     #[test]

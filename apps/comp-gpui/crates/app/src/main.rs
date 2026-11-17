@@ -164,7 +164,6 @@ fn main() -> anyhow::Result<()> {
                 settings::Options::new(args.settings.clone(), args.scenario != Scenario::Demo),
                 cx,
             );
-            autos::init(data.clone(), args.auto_fixture.clone(), cx);
             if args.nt_host.is_some() || args.nt_port.is_some() {
                 let (host, port) = (args.nt_host.clone(), args.nt_port);
                 let mut source = data.update(cx, |d, _| nt_source::NtSource::start(d, host, port));
@@ -201,6 +200,7 @@ fn main() -> anyhow::Result<()> {
                 .detach();
             }
 
+            autos::init(data.clone(), args.auto_fixture.clone(), cx);
             let opened = windows::open_all(
                 &data,
                 windows::OpenOptions {

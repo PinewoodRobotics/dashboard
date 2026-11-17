@@ -1,10 +1,11 @@
-//! A [`ControlLink`] over the mock data until the NT client lands: the
+//! The controls' link to the robot: the live [`NtLink`] when connected to
+//! NetworkTables, else [`MockLink`] over the mock data, where the
 //! Request/State pairs in [`ControlTopics`] and the shooter readouts stand in
-//! for the robot's topics, and [`echo`] plays the robot applying a request.
+//! for the robot's topics and [`echo`] plays the robot applying a request.
 
 use std::time::Duration;
 
-use dash_core::controls::{Controls, READOUT_ROWS};
+use dash_core::controls::{Controls, READOUT_ROWS, intake_speed_topics};
 use dash_core::request_state::{ControlLink, Value};
 use gpui_kit::*;
 
@@ -84,33 +85,58 @@ impl ControlLink for MockLink<'_> {
     }
 }
 
-/// Runs `f` on the controllers with the mock link, then steps them and
+/// Runs `f` on the controllers with the robot link, then steps them and
 /// persists the intake override, as ControlsService does each frame.
-pub fn with_controls<R>(d: &mut MockData, f: impl FnOnce(&mut Controls, &mut MockLink) -> R) -> R {
+pub fn with_controls<R>(
+    d: &mut MockData,
+    f: impl FnOnce(&mut Controls, &mut dyn ControlLink) -> R,
+) -> R {
     let MockData {
         control,
         controls,
         readouts,
         nt_connected,
+        nt_link,
         ..
     } = d;
-    let mut link = MockLink {
-        up: *nt_connected,
-        topics: controls,
-        readouts,
+    let run = |link: &mut dyn ControlLink| {
+        let r = f(control, link);
+        control.step(link);
+        r
     };
-    let r = f(control, &mut link);
-    control.step(&mut link);
-    link.topics.intake_stored = control.intake.requested();
+    let r = match nt_link {
+        Some(nt) => run(&mut *nt.borrow_mut()),
+        None => run(&mut MockLink {
+            up: *nt_connected,
+            topics: controls,
+            readouts,
+        }),
+    };
+    controls.intake_stored = control.intake.requested();
     r
+}
+
+/// ControlsService._on_settings_changed: the intake Request/State pair
+/// follows the shared table (the aim trim topics are fixed). The held
+/// override is released on the old Request and published on the new one.
+pub fn set_shared_table(d: &mut MockData, shared_table: &str) {
+    let topics = intake_speed_topics(shared_table);
+    if d.controls.intake.topics != topics {
+        d.controls.intake.topics = topics;
+        d.controls.intake.request = None;
+    }
+    with_controls(d, |c, l| c.set_shared_table(l, shared_table));
 }
 
 pub fn step(d: &mut MockData) {
     with_controls(d, |_, _| {});
 }
 
-/// Reads the controllers without changing the mock robot.
-pub fn view<R>(d: &MockData, f: impl FnOnce(&Controls, &MockLink) -> R) -> R {
+/// Reads the controllers without changing the robot.
+pub fn view<R>(d: &MockData, f: impl FnOnce(&Controls, &dyn ControlLink) -> R) -> R {
+    if let Some(nt) = &d.nt_link {
+        return f(&d.control, &*nt.borrow());
+    }
     let mut topics = d.controls.clone();
     let link = MockLink {
         up: d.nt_connected,
@@ -123,7 +149,7 @@ pub fn view<R>(d: &MockData, f: impl FnOnce(&Controls, &MockLink) -> R) -> R {
 /// The mock robot applies the current requests: the intake speed (the
 /// compiled constant on the -1 sentinel) and the aim trim.
 pub fn echo(d: &mut MockData) {
-    if !d.nt_connected || d.live_nt {
+    if !d.nt_connected || d.nt_link.is_some() {
         return;
     }
     let c = &mut d.controls;
@@ -140,7 +166,7 @@ pub fn echo(d: &mut MockData) {
 pub fn act(
     data: &Entity<MockData>,
     cx: &mut App,
-    f: impl FnOnce(&mut Controls, &mut MockLink) + 'static,
+    f: impl FnOnce(&mut Controls, &mut dyn ControlLink) + 'static,
 ) {
     data.update(cx, |d, cx| {
         with_controls(d, f);
@@ -159,7 +185,7 @@ pub fn act(
 
 #[cfg(test)]
 mod tests {
-    use super::{COMPILED_SPEED, echo, view, with_controls};
+    use super::{COMPILED_SPEED, echo, set_shared_table, view, with_controls};
     use crate::mock::{MockData, Scenario};
     use dash_core::controls::{AimTrim, IntakeSpeed};
 
@@ -207,6 +233,20 @@ mod tests {
         view(&d, |c, l| {
             assert_eq!(c.intake.slider_value(l), COMPILED_SPEED)
         });
+    }
+
+    #[test]
+    fn the_override_follows_the_shared_table() {
+        let mut d = MockData::new(Scenario::PreMatch);
+        with_controls(&mut d, |c, l| {
+            c.intake.set_speed(l, 0.6);
+        });
+        set_shared_table(&mut d, "Other");
+        assert_eq!(d.controls.intake.topics.request, "/Other/Intake/Speed/Request");
+        assert_eq!(d.control.intake.req.topics, d.controls.intake.topics);
+        assert_eq!(d.controls.intake.request, Some(0.6), "republished on the new topic");
+        echo(&mut d);
+        assert_eq!(statuses(&d).0, IntakeSpeed::STATUS_CONFIRMED);
     }
 
     #[test]

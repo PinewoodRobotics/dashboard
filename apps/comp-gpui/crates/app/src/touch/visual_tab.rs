@@ -91,9 +91,9 @@ fn renderer_rows(data: &MockData, window: &Window, cx: &App) -> Vec<(&'static st
         None => format!("unknown of {}", displays.len()),
     };
     let nt = if data.nt_connected {
-        match data.nt.rtt_ms {
-            Some(r) => format!("{} ({r:.1} ms)", data.nt.state),
-            None => data.nt.state.to_owned(),
+        match data.nt.rtt_ms() {
+            Some(r) => format!("{} ({r:.1} ms)", data.nt.state.name()),
+            None => data.nt.state.name().to_owned(),
         }
     } else {
         "DISCONNECTED".to_owned()

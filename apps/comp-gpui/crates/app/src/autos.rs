@@ -1,8 +1,9 @@
 //! The app's auto stack, one per process like Godot's `/root/Autos` and
 //! `Controls.sync`: the auto library and shared preview clock
 //! ([`AutosModel`]) and the robot selection handshake
-//! ([`AutoSelectionSync`]), driven against the mock robot in [`MockData`]
-//! until the NT client replaces [`MockLink`]. The Auto tab, its preview and
+//! ([`AutoSelectionSync`]), driven against the live NT link
+//! (`MockData::nt_link`) or else the mock robot in [`MockData`]
+//! ([`MockLink`]). The Auto tab, its preview and
 //! the Settings tab's export box read it through [`service`]; the HUD can
 //! read `model.hud()` the same way.
 
@@ -236,6 +237,9 @@ impl Fixture {
         d.matchs.enabled = self.enabled;
         d.matchs.is_red_alliance = Some(false);
         d.nt_connected = !self.nt_down;
+        if self.nt_down {
+            d.nt = crate::mock::lost_diagnostics(&d.nt);
+        }
         match self.pose {
             Some((x, y, h)) => {
                 d.pose.x_m = x;
@@ -335,8 +339,9 @@ impl AutoService {
             .into_iter()
             .map(String::from)
             .collect();
-        data.update(cx, |d, _| {
-            sync.set_library(&MockLink { data: d }, names, 0);
+        data.update(cx, |d, _| match d.nt_link.clone() {
+            Some(nt) => sync.set_library(&*nt.borrow(), names, 0),
+            None => sync.set_library(&MockLink { data: d }, names, 0),
         });
         if fixture.as_ref().is_some_and(|f| f.conflict) {
             sync.force_conflict();
@@ -391,13 +396,16 @@ impl AutoService {
     pub fn with_link<R>(
         &mut self,
         cx: &mut Context<Self>,
-        f: impl FnOnce(&mut AutoSelectionSync, &mut MockLink, i64) -> R,
+        f: impl FnOnce(&mut AutoSelectionSync, &mut dyn ControlLink, i64) -> R,
     ) -> R {
         let now = self.now_us();
         let sync = &mut self.sync;
         let data = self.data.clone();
         let out = data.update(cx, |d, cx| {
-            let r = f(sync, &mut MockLink { data: d }, now);
+            let r = match d.nt_link.clone() {
+                Some(nt) => f(sync, &mut *nt.borrow_mut(), now),
+                None => f(sync, &mut MockLink { data: d }, now),
+            };
             cx.notify();
             r
         });
@@ -405,13 +413,17 @@ impl AutoService {
         out
     }
 
-    /// Reads the sync against the current mock robot state.
+    /// Reads the sync against the current robot state.
     pub fn read_link<R>(
         &self,
         cx: &App,
         f: impl FnOnce(&AutoSelectionSync, &dyn ControlLink) -> R,
     ) -> R {
-        f(&self.sync, &MockView(self.data.read(cx)))
+        let d = self.data.read(cx);
+        match &d.nt_link {
+            Some(nt) => f(&self.sync, &*nt.borrow()),
+            None => f(&self.sync, &MockView(d)),
+        }
     }
 
     fn persist_events(&mut self, cx: &mut Context<Self>) {
@@ -484,10 +496,19 @@ impl AutoService {
                 d.auto_selection.link.clone(),
                 d.pathplanner.current_selected_auto.clone(),
             );
-            let mut link = MockLink { data: d };
-            sync.set_topics(&mut link, topics, now);
-            sync.update(&mut link, now);
-            if echo && d.nt_connected && !d.live_nt {
+            match d.nt_link.clone() {
+                Some(nt) => {
+                    let link = &mut *nt.borrow_mut();
+                    sync.set_topics(link, topics, now);
+                    sync.update(link, now);
+                }
+                None => {
+                    let link = &mut MockLink { data: d };
+                    sync.set_topics(link, topics, now);
+                    sync.update(link, now);
+                }
+            }
+            if echo && d.nt_connected && d.nt_link.is_none() {
                 let req = d.auto_selection.link.request.clone();
                 let differs = req.is_some() && req != d.auto_selection.link.state;
                 match (differs, req, echo_since.as_ref()) {

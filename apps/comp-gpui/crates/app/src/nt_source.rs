@@ -1,12 +1,16 @@
 //! Live robot data: fills the `MockData` groups from NetworkTables instead of
 //! the demo (`--nt-host` / `--nt-port`). Screens keep reading `MockData`.
 //!
-//! Optional fields follow Godot's readers: joints, readouts, alliance, the
-//! PathPlanner topics and the Request/State echoes are `None` unless live on
-//! the current connection; the deploy hash and the pose keep their last value.
-//! Screens that write a `RequestEcho::request` get it published as a
-//! desired-state value (`None` stops re-sending it).
+//! Optional fields follow Godot's readers: joints, readouts, alliance and the
+//! PathPlanner topics are `None` unless live on the current connection; the
+//! deploy hash and the pose keep their last value. The Request/State pairs
+//! are not mirrored: the auto selection sync and the controls publish and
+//! read them through [`NtLink`] directly.
 
+use std::cell::{Ref, RefCell, RefMut};
+use std::rc::Rc;
+
+use dash_core::controls::intake_speed_topics;
 use dash_core::match_model::{self, Aim, Header, Hub, LANE_KEY, Phase};
 use dash_core::nt::protocol::NtValue;
 use dash_core::nt::{self, Clock, NtService, topics};
@@ -131,18 +135,11 @@ fn refresh(data: &mut MockData, v: &impl TopicView) {
             .and_then(NtValue::as_str)
             .map(str::to_owned),
     };
-    let auto = &mut data.auto_selection.link;
-    auto.state = v.live_string(&auto.topics.state);
-    let intake = &mut data.controls.intake;
-    intake.state = v.live_f64(&intake.topics.state);
-    let trim = &mut data.controls.aim_trim;
-    trim.state = v.live_f64(&trim.topics.state);
 }
 
 /// The topic-backed fields as they are before anything arrives.
 fn blank(data: &mut MockData) {
     data.demo = false;
-    data.live_nt = true;
     data.nt_connected = false;
     data.match_feed = MatchFeed::new(match_model::Clock::new());
     data.matchs = MatchState {
@@ -193,113 +190,104 @@ fn blank(data: &mut MockData) {
     data.controls.intake.request = None;
     data.controls.aim_trim.state = None;
     data.controls.aim_trim.request = None;
-    data.nt.state = "IDLE";
-    data.nt.rtt_ms = None;
-    data.nt.attempt = 0;
-    data.nt.reconnects = 0;
+    data.nt = nt::Diagnostics::default();
 }
 
-/// One Request topic the screens drive through `RequestEcho::request`.
-#[derive(Default)]
-struct Outgoing {
-    topic: String,
-    value: Option<NtValue>,
+/// The live connection, shared by the services that talk to the robot: the
+/// auto selection sync and the controls use it as their [`ControlLink`]
+/// (`MockData::nt_link`), [`NtSource`] pumps it.
+///
+/// [`ControlLink`]: dash_core::request_state::ControlLink
+#[derive(Clone)]
+pub struct NtLink(Rc<RefCell<NtService>>);
+
+impl NtLink {
+    pub fn new(nt: NtService) -> Self {
+        Self(Rc::new(RefCell::new(nt)))
+    }
+
+    pub fn borrow(&self) -> Ref<'_, NtService> {
+        self.0.borrow()
+    }
+
+    pub fn borrow_mut(&self) -> RefMut<'_, NtService> {
+        self.0.borrow_mut()
+    }
 }
 
-impl Outgoing {
-    fn sync(&mut self, nt: &mut NtService, topic: &str, type_str: &str, value: Option<NtValue>) {
-        if topic != self.topic {
-            if !self.topic.is_empty() {
-                dash_core::request_state::ControlLink::release(nt, &self.topic);
-            }
-            self.topic = topic.into();
-            self.value = None;
-        }
-        if value == self.value {
-            return;
-        }
-        match &value {
-            Some(v) => {
-                nt.publish_value(topic, type_str, v.clone());
-            }
-            None => dash_core::request_state::ControlLink::forget(nt, topic),
-        }
-        self.value = value;
+impl std::fmt::Debug for NtLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NtLink")
     }
 }
 
 pub struct NtSource {
-    nt: NtService,
+    nt: NtLink,
     clock: Clock,
     host_override: Option<String>,
     port_override: Option<u16>,
     configured: Option<(String, u16, f64)>,
     subscribed: Option<(String, String)>,
-    reconnects_shown: u32,
-    requests: [Outgoing; 3],
 }
 
 impl NtSource {
     /// Clears the demo values and starts connecting. Overrides win over the
     /// saved connection settings, as Godot's `--nt-host` / `--nt-port` do.
     pub fn start(data: &mut MockData, host_override: Option<String>, port_override: Option<u16>) -> Self {
+        Self::start_with(data, nt::spawn(Clock::real()), host_override, port_override)
+    }
+
+    fn start_with(
+        data: &mut MockData,
+        nt: NtService,
+        host_override: Option<String>,
+        port_override: Option<u16>,
+    ) -> Self {
         blank(data);
+        let nt = NtLink::new(nt);
+        data.nt_link = Some(nt.clone());
         let mut src = Self {
-            nt: nt::spawn(Clock::real()),
+            nt,
             clock: Clock::real(),
             host_override,
             port_override,
             configured: None,
             subscribed: None,
-            reconnects_shown: 0,
-            requests: Default::default(),
         };
         src.sync_settings(data);
-        src.nt.start();
+        if let Some((host, port, _)) = &src.configured {
+            data.nt.host = host.clone();
+            data.nt.port = *port;
+        }
+        src.nt.borrow().start();
         src
     }
 
-    fn sync_settings(&mut self, data: &mut MockData) {
+    fn sync_settings(&mut self, data: &MockData) {
         let c = &data.connection;
         let host = self.host_override.clone().unwrap_or_else(|| c.nt.host.trim().to_owned());
         let port = self.port_override.unwrap_or(c.nt.port);
         let want = (host, port, f64::from(c.reconnect_timeout_s));
+        let nt = self.nt.borrow();
         if self.configured.as_ref() != Some(&want) {
-            self.nt.configure(&want.0, want.1, want.2);
+            nt.configure(&want.0, want.1, want.2);
             self.configured = Some(want);
         }
         let subs = (
-            data.auto_selection.link.topics.state.clone(),
-            data.controls.intake.topics.state.clone(),
+            c.selected_path_topics().state,
+            intake_speed_topics(&c.nt.shared_table).state,
         );
         if self.subscribed.as_ref() != Some(&subs) {
-            self.nt.set_subscriptions(topics::subscription_groups(&subs.0, &subs.1));
+            nt.set_subscriptions(topics::subscription_groups(&subs.0, &subs.1));
             self.subscribed = Some(subs);
         }
-        // The Settings tab's Reconnect button bumps the shown count; any
-        // difference from what was last written here is a manual press.
-        if data.nt.reconnects != self.reconnects_shown {
-            self.nt.reconnect();
-            data.nt.reconnects = self.reconnects_shown;
-        }
-    }
-
-    fn sync_requests(&mut self, data: &MockData) {
-        let a = &data.auto_selection.link;
-        let i = &data.controls.intake;
-        let t = &data.controls.aim_trim;
-        let [ra, ri, rt] = &mut self.requests;
-        ra.sync(&mut self.nt, &a.topics.request, "string", a.request.clone().map(NtValue::String));
-        ri.sync(&mut self.nt, &i.topics.request, "double", i.request.map(NtValue::Double));
-        rt.sync(&mut self.nt, &t.topics.request, "double", t.request.map(NtValue::Double));
     }
 
     /// Applies what arrived since the last call. Returns whether a screen
     /// needs to redraw.
     pub fn tick(&mut self, data: &mut MockData) -> bool {
         self.sync_settings(data);
-        self.sync_requests(data);
-        let pumped = self.nt.pump(self.clock.now_us());
+        let pumped = self.nt.borrow_mut().pump(self.clock.now_us());
         let feed = &mut data.match_feed;
         let model_now = feed.now_us();
         let mut changed = !pumped.is_empty();
@@ -317,41 +305,40 @@ impl NtSource {
             }
         }
         changed |= feed.model.step(model_now).is_some();
+        let nt = self.nt.borrow();
         if !pumped.is_empty() {
-            refresh(data, &self.nt);
+            refresh(data, &*nt);
         }
-        let nt_connected = self.nt.is_ready();
+        let nt_connected = nt.is_ready();
         if nt_connected != data.nt_connected {
             data.nt_connected = nt_connected;
             changed = true;
         }
-        changed |= self.write_diagnostics(data);
+        changed |= write_diagnostics(data, nt.diagnostics());
         changed
     }
+}
 
-    fn write_diagnostics(&mut self, data: &mut MockData) -> bool {
-        let d = self.nt.diagnostics();
-        let n = &mut data.nt;
-        let server = format!("{}:{}", d.host, d.port);
-        let rtt_ms = (d.state == nt::State::Ready && d.rtt_us >= 0).then(|| d.rtt_us as f32 / 1000.0);
-        let changed = n.state != d.state.name()
-            || n.server != server
-            || n.rtt_ms != rtt_ms
-            || n.reconnects != d.reconnects
-            || n.attempt != d.attempt;
-        n.state = d.state.name();
-        n.server = server;
-        n.rtt_ms = rtt_ms;
-        n.reconnects = d.reconnects;
-        n.attempt = d.attempt;
-        self.reconnects_shown = d.reconnects;
-        changed
+/// Copies the client's diagnostics; true when what the Settings tab shows
+/// changed. Until the client thread first reports, the configured server
+/// set by [`NtSource::start`] stays.
+fn write_diagnostics(data: &mut MockData, d: &nt::Diagnostics) -> bool {
+    if d.host.is_empty() {
+        return false;
     }
+    let changed = data.nt.rows() != d.rows();
+    data.nt = d.clone();
+    changed
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::mpsc::{self, Receiver, Sender};
+
+    use dash_core::nt::client::ClientEvent;
+    use dash_core::nt::runner::{Command, Event};
+    use dash_core::nt::{Diagnostics, State};
 
     use super::*;
 
@@ -370,37 +357,155 @@ mod tests {
         }
     }
 
+    struct Live {
+        data: MockData,
+        src: NtSource,
+        cmds: Receiver<Command>,
+        events: Sender<Vec<Event>>,
+    }
+
+    impl Live {
+        fn new() -> Self {
+            let (tx, cmds) = mpsc::channel();
+            let (events, ev_rx) = mpsc::channel();
+            let mut data = MockData::new(crate::mock::Scenario::PreMatch);
+            let src = NtSource::start_with(&mut data, NtService::new(tx, ev_rx), None, None);
+            crate::mock_link::step(&mut data);
+            Self { data, src, cmds, events }
+        }
+
+        fn sent(&self) -> Vec<Command> {
+            self.cmds.try_iter().collect()
+        }
+
+        fn deliver(&mut self, events: Vec<Event>) -> bool {
+            self.events.send(events).unwrap();
+            self.src.tick(&mut self.data)
+        }
+
+        fn set_state(&mut self, state: State) {
+            let previous = self.src.nt.borrow().state();
+            self.deliver(vec![Event::Client(ClientEvent::State { state, previous })]);
+        }
+    }
+
+    fn publish(topic: &str, value: f64) -> Command {
+        Command::Publish {
+            topic: topic.into(),
+            type_str: "double".into(),
+            value: NtValue::Double(value),
+        }
+    }
+
+    fn requests(sent: Vec<Command>) -> Vec<Command> {
+        sent.into_iter()
+            .filter(|c| matches!(c, Command::Publish { .. } | Command::Forget { .. } | Command::Release { .. }))
+            .collect()
+    }
+
     #[test]
-    fn request_writes_become_desired_state_publishes() {
-        use dash_core::nt::runner::Command;
-        let (tx, rx) = std::sync::mpsc::channel();
-        let (_ev_tx, ev_rx) = std::sync::mpsc::channel();
-        let mut nt = NtService::new(tx, ev_rx);
-        let mut out = Outgoing::default();
-        out.sync(&mut nt, "/a/Request", "double", None);
-        out.sync(&mut nt, "/a/Request", "double", Some(NtValue::Double(0.4)));
-        out.sync(&mut nt, "/a/Request", "double", Some(NtValue::Double(0.4)));
-        out.sync(&mut nt, "/a/Request", "double", None);
-        out.sync(&mut nt, "/b/Request", "double", Some(NtValue::Double(0.6)));
-        let sent: Vec<Command> = rx.try_iter().collect();
+    fn live_controls_publish_through_the_nt_link() {
+        let mut l = Live::new();
+        l.sent();
+        crate::mock_link::with_controls(&mut l.data, |c, link| {
+            c.intake.set_speed(link, 0.42);
+        });
+        assert_eq!(requests(l.sent()), [publish("/Shared/Intake/Speed/Request", 0.42)]);
+        assert_eq!(l.data.controls.intake.request, None, "the mock robot is not involved");
+        assert_eq!(l.data.controls.intake_stored, Some(0.42));
+        crate::mock_link::echo(&mut l.data);
+        assert_eq!(l.data.controls.intake.state, None, "no mock echo in live mode");
+
+        let sent = crate::mock_link::with_controls(&mut l.data, |c, link| c.trim.set_trim(link, 1.5));
+        assert!(!sent, "the trim needs a connection");
+        l.set_state(State::Ready);
+        let sent = crate::mock_link::with_controls(&mut l.data, |c, link| c.trim.set_trim(link, 1.5));
+        assert!(sent);
         assert_eq!(
-            sent,
-            vec![
-                Command::Publish {
-                    topic: "/a/Request".into(),
-                    type_str: "double".into(),
-                    value: NtValue::Double(0.4)
-                },
-                Command::Forget { topic: "/a/Request".into() },
-                Command::Release { topic: "/a/Request".into() },
-                Command::Publish {
-                    topic: "/b/Request".into(),
-                    type_str: "double".into(),
-                    value: NtValue::Double(0.6)
-                },
-            ]
+            requests(l.sent()),
+            [
+                publish(dash_core::controls::AIM_TRIM_PUBLISH, 1.5),
+                publish("/Shared/Intake/Speed/Request", 0.42),
+            ],
+            "the trim, then the held intake override again on the new connection"
         );
     }
+
+    #[test]
+    fn shared_table_moves_the_intake_topics_and_subscription() {
+        let mut l = Live::new();
+        crate::mock_link::with_controls(&mut l.data, |c, link| {
+            c.intake.set_speed(link, 0.3);
+        });
+        l.sent();
+        l.data.connection.nt.shared_table = "Other".into();
+        crate::mock_link::set_shared_table(&mut l.data, "Other");
+        assert_eq!(
+            requests(l.sent()),
+            [
+                Command::Release { topic: "/Shared/Intake/Speed/Request".into() },
+                publish("/Other/Intake/Speed/Request", 0.3),
+            ]
+        );
+        assert_eq!(l.data.controls.intake.topics.state, "/Other/Intake/Speed/State");
+        l.src.tick(&mut l.data);
+        let subscribed: Vec<String> = l
+            .sent()
+            .into_iter()
+            .filter_map(|c| match c {
+                Command::Subscribe(groups) => Some(groups),
+                _ => None,
+            })
+            .flatten()
+            .flat_map(|g| g.topics)
+            .collect();
+        assert!(subscribed.contains(&"/Other/Intake/Speed/State".to_string()));
+        assert!(subscribed.contains(&"/Other/PathPlanner/SelectedPath/State".to_string()));
+        assert!(!subscribed.iter().any(|t| t.starts_with("/Shared/")));
+    }
+
+    #[test]
+    fn reconnect_is_an_explicit_request() {
+        let mut l = Live::new();
+        l.sent();
+        l.data.request_reconnect();
+        assert_eq!(l.sent(), [Command::Reconnect]);
+        l.src.tick(&mut l.data);
+        assert!(!l.sent().contains(&Command::Reconnect), "sent once, not on later ticks");
+    }
+
+    #[test]
+    fn diagnostics_follow_the_client() {
+        let mut l = Live::new();
+        assert_eq!(l.data.nt.rows()[2], ("Server", "10.47.65.2:5810".to_string()), "configured server before any report");
+        let d = Diagnostics {
+            state: State::Backoff,
+            host: "127.0.0.1".into(),
+            port: 5821,
+            attempt: 2,
+            backoff_left_s: 0.3,
+            rtt_us: -1,
+            reconnects: 1,
+            manual_reconnects: 1,
+            last_close: "server closed".into(),
+            ..Default::default()
+        };
+        assert!(l.deliver(vec![Event::Diagnostics(Box::new(d.clone()))]));
+        assert_eq!(
+            l.data.nt.rows().into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
+            [
+                "BACKOFF",
+                "Attempt 2 failed, retrying in 0.3 s",
+                "127.0.0.1:5821",
+                "--",
+                "1 (manual 1)",
+                "server closed"
+            ]
+        );
+        let busier = Diagnostics { values_total: 99, ..d };
+        assert!(!l.deliver(vec![Event::Diagnostics(Box::new(busier))]), "no redraw for unshown fields");
+    }
+
 
     #[test]
     fn refresh_maps_topics_and_gates_on_liveness() {
@@ -423,8 +528,6 @@ mod tests {
         put(topics::READOUT_SPUN_UP, NtValue::Bool(true));
         put(topics::PP_VALID_AUTOS, NtValue::StringArray(vec!["A".into()]));
         put(topics::PP_DEPLOY_HASH, NtValue::String("abc".into()));
-        put("/Shared/PathPlanner/SelectedPath/State", NtValue::String("A".into()));
-        put("/Shared/Intake/Speed/State", NtValue::Double(0.5));
         refresh(&mut data, &v);
         assert_eq!(data.matchs.seq, 42);
         assert_eq!(data.matchs.phase, Phase::Shift2);
@@ -439,15 +542,11 @@ mod tests {
         assert_eq!(data.joints.climber_height_m, None);
         assert_eq!(data.readouts.is_spun_up, Some(true));
         assert_eq!(data.pathplanner.valid_autos, Some(vec!["A".to_string()]));
-        assert_eq!(data.auto_selection.link.state.as_deref(), Some("A"));
-        assert_eq!(data.controls.intake.state, Some(0.5));
-        assert_eq!(data.controls.aim_trim.state, None);
 
         v.live = false;
         refresh(&mut data, &v);
         assert_eq!(data.joints.wrist, None, "joints fall back to manual when not live");
         assert_eq!(data.matchs.is_red_alliance, None);
-        assert_eq!(data.auto_selection.link.state, None);
         assert_eq!(data.pathplanner.deploy_hash.as_deref(), Some("abc"), "deploy hash kept while stale");
         assert_eq!(data.pose.x_m, 5.0, "pose kept while stale");
         assert_eq!(data.matchs.seq, 42);
