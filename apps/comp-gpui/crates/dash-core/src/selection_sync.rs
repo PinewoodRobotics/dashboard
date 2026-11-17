@@ -540,7 +540,9 @@ mod tests {
         }
 
         fn last(&self) -> Option<String> {
-            self.link.last(REQ).and_then(|v| v.as_str().map(str::to_owned))
+            self.link
+                .last(REQ)
+                .and_then(|v| v.as_str().map(str::to_owned))
         }
 
         fn count(&self) -> usize {
@@ -641,7 +643,11 @@ mod tests {
         let base = w.count();
         w.state("Stay And Shoot");
         w.tick(&mut s, 0.68);
-        assert_eq!(w.count() - base, 0, "throttled inside 700 ms of the connect publish");
+        assert_eq!(
+            w.count() - base,
+            0,
+            "throttled inside 700 ms of the connect publish"
+        );
         w.tick(&mut s, 0.04);
         assert_eq!(w.count() - base, 1, "republished once 700 ms passed");
         w.tick(&mut s, 0.66);
@@ -649,7 +655,10 @@ mod tests {
         w.tick(&mut s, 0.06);
         assert_eq!(w.count() - base, 2);
         w.tick(&mut s, 7.0);
-        assert!(w.count() - base <= 2 + 10, "at most one per 700 ms over 7 s");
+        assert!(
+            w.count() - base <= 2 + 10,
+            "at most one per 700 ms over 7 s"
+        );
         assert_eq!(w.last().as_deref(), Some("Ball Shooter Left"));
     }
 
@@ -681,7 +690,11 @@ mod tests {
         assert_eq!(w.count(), n, "empty State is NONE");
         w.state("Stay And Shoot");
         w.tick(&mut s, 0.6);
-        assert_eq!(w.count(), n + 1, "republished when the robot runs something");
+        assert_eq!(
+            w.count(),
+            n + 1,
+            "republished when the robot runs something"
+        );
         assert_eq!(s.active_name(&w.link), "NONE");
     }
 
@@ -738,7 +751,10 @@ mod tests {
         w.tick(&mut s, 3.0);
         assert_eq!(w.count(), n, "no enforcement while locked");
         assert!(s.locked(&w.link));
-        assert!(!s.select(&mut w.link, "Ball Shooter Right", w.now), "select refused");
+        assert!(
+            !s.select(&mut w.link, "Ball Shooter Right", w.now),
+            "select refused"
+        );
         assert_eq!(s.selected, "Ball Shooter Left");
         assert!(!s.resync(&mut w.link, w.now), "resync refused");
         assert_eq!(
@@ -804,19 +820,29 @@ mod tests {
         let mut s = w.sync("Ball Shooter Left");
         w.link.up = true;
         w.flip(&mut s, 20, 1.2);
-        assert!(!s.conflict, "one mismatch per 1.2 s stays under 10 per 10 s");
+        assert!(
+            !s.conflict,
+            "one mismatch per 1.2 s stays under 10 per 10 s"
+        );
     }
 
     #[test]
     fn library_clears_unknown_and_fixes_case() {
         let mut w = World::new();
         let mut s = w.sync("Gone Auto");
-        assert_eq!(s.selected, "Gone Auto", "kept until the robot's list can confirm it");
+        assert_eq!(
+            s.selected, "Gone Auto",
+            "kept until the robot's list can confirm it"
+        );
         assert!(!s.enforceable(), "an unconfirmed choice is never published");
         w.link.up = true;
         w.state("Stay And Shoot");
         w.tick(&mut s, 1.0);
-        assert_eq!(w.count(), 0, "nothing published while the robot's list is missing");
+        assert_eq!(
+            w.count(),
+            0,
+            "nothing published while the robot's list is missing"
+        );
         w.robot_list(&NAMES);
         w.update(&mut s);
         assert_eq!(s.selected, "");
@@ -873,12 +899,18 @@ mod tests {
         );
         w.link.up = true;
         w.robot_list(&["Ball Shooter Right"]);
-        assert_eq!(s.validity(&w.link, "Ball Shooter Left"), Validity::NotOnRobot);
+        assert_eq!(
+            s.validity(&w.link, "Ball Shooter Left"),
+            Validity::NotOnRobot
+        );
         assert_eq!(s.validity(&w.link, "ball shooter right"), Validity::Ok);
         w.robot_list(&["Ball Shooter Left", "Ball Shooter Right"]);
         w.state("Ball Shooter Left");
         w.link.set(PP_SELECTED_AUTO_VALID, Value::Bool(false));
-        assert_eq!(s.validity(&w.link, "Ball Shooter Left"), Validity::LoadFailed);
+        assert_eq!(
+            s.validity(&w.link, "Ball Shooter Left"),
+            Validity::LoadFailed
+        );
         assert_eq!(
             s.validity(&w.link, "Ball Shooter Right"),
             Validity::Ok,
@@ -887,7 +919,10 @@ mod tests {
         w.link.set(PP_SELECTED_AUTO_VALID, Value::Bool(true));
         assert_eq!(s.validity(&w.link, "Ball Shooter Left"), Validity::Ok);
         assert_eq!(s.validity(&w.link, "NONE"), Validity::Ok);
-        assert_eq!(Validity::LoadFailed.text(), "Robot failed to load this auto");
+        assert_eq!(
+            Validity::LoadFailed.text(),
+            "Robot failed to load this auto"
+        );
     }
 
     #[test]
@@ -916,7 +951,13 @@ mod tests {
         let mut s = w.sync("");
         w.link.up = true;
         w.state("Stay And Shoot");
-        w.robot_list(&["Ball Shooter Left", "New Auto", "ball shooter right", "none", " "]);
+        w.robot_list(&[
+            "Ball Shooter Left",
+            "New Auto",
+            "ball shooter right",
+            "none",
+            " ",
+        ]);
         w.update(&mut s);
         assert_eq!(
             s.robot_only_names(),
@@ -933,7 +974,10 @@ mod tests {
         assert_eq!(s.button_for(&w.link, "New Auto").text, "Selecting...");
         w.state("New Auto");
         w.tick(&mut s, 0.1);
-        assert_eq!(s.button_for(&w.link, "New Auto"), btn("Selected", true, true));
+        assert_eq!(
+            s.button_for(&w.link, "New Auto"),
+            btn("Selected", true, true)
+        );
         w.state("Stay And Shoot");
         let before = w.count();
         w.tick(&mut s, 1.0);
@@ -993,8 +1037,14 @@ mod tests {
         assert!(same_auto("", "NONE"));
         assert!(same_auto(" ball SHOOTER left", "Ball Shooter Left"));
         let list = ["Ball Shooter Left", "ball shooter left"];
-        assert_eq!(find_match("ball shooter left", &list), Some("ball shooter left"));
-        assert_eq!(find_match("BALL SHOOTER LEFT ", &list), Some("Ball Shooter Left"));
+        assert_eq!(
+            find_match("ball shooter left", &list),
+            Some("ball shooter left")
+        );
+        assert_eq!(
+            find_match("BALL SHOOTER LEFT ", &list),
+            Some("Ball Shooter Left")
+        );
         assert_eq!(find_match(" ", &list), None);
     }
 }

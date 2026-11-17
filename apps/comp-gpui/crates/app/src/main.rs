@@ -2,6 +2,7 @@
 
 mod anim;
 mod assets;
+mod autos;
 mod debug_overlay;
 mod dev_script;
 mod hud;
@@ -34,6 +35,7 @@ struct Args {
     design_px: bool,
     mouse_as_touch: bool,
     script: Vec<dev_script::Step>,
+    auto_fixture: Option<autos::Fixture>,
 }
 
 const USAGE: &str = "usage: comp-gpui [--screen=both|hud|touch] [--fixture=NAME] [--tab=ID] [--panel=map|intake] \
@@ -48,6 +50,7 @@ fn parse_args() -> anyhow::Result<Args> {
         design_px: false,
         mouse_as_touch: false,
         script: Vec::new(),
+        auto_fixture: None,
     };
     let mut nt_down = false;
     for a in std::env::args().skip(1) {
@@ -60,8 +63,14 @@ fn parse_args() -> anyhow::Result<Args> {
             ("--screen", Some("hud")) => args.screens = vec![ScreenKind::Hud],
             ("--screen", Some("touch")) => args.screens = vec![ScreenKind::Touch],
             ("--fixture", Some(name)) => {
-                args.scenario = Scenario::parse(name)
-                    .ok_or_else(|| anyhow::anyhow!("unknown fixture {name}"))?
+                if let Some(fx) = autos::Fixture::parse(name) {
+                    args.scenario = Scenario::PreMatch;
+                    args.touch.tab.get_or_insert(TabId::Auto);
+                    args.auto_fixture = Some(fx);
+                } else {
+                    args.scenario = Scenario::parse(name)
+                        .ok_or_else(|| anyhow::anyhow!("unknown fixture {name}"))?
+                }
             }
             ("--tab", Some(id)) => {
                 args.touch.tab =
@@ -105,6 +114,7 @@ fn main() -> anyhow::Result<()> {
             cx.on_window_closed(|cx, _| cx.quit()).detach();
 
             let data = cx.new(|_| MockData::new(args.scenario));
+            autos::init(data.clone(), args.auto_fixture.clone(), cx);
             if args.scenario == Scenario::Demo {
                 let data = data.clone();
                 cx.spawn(async move |cx| {

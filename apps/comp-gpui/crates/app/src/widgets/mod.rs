@@ -10,7 +10,7 @@ mod text_input;
 
 pub use button::{Button, ButtonStyle};
 pub use pill::status_pill;
-pub use scroll::{Axis2, Scroll};
+pub use scroll::{Axis2, Scroll, reveal_in_scroll};
 pub use selector::{Selector, SelectorOption, toggle};
 pub use slider::{Slider, SliderHint};
 pub use tap::{on_tap, press_state, tappable};

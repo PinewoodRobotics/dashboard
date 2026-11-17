@@ -107,6 +107,53 @@ fn set_offset(axis: Axis2, h: &ScrollHandle, value_px: f32) {
     });
 }
 
+/// Scrolls the [`Scroll`] with this id so content between `start` and `end`
+/// (design pixels along its axis) is fully visible (PwScroll.reveal).
+/// Call it while prepainting a sibling of the scroller, so the element id
+/// stack matches the one the scroller's state was created under. Returns
+/// false until the scroller has been laid out.
+pub fn reveal_in_scroll(
+    id: impl Into<ElementId>,
+    axis: Axis2,
+    start: f32,
+    end: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> bool {
+    // A stateless component renders under its type name (GPUI's
+    // request_layout_component), so its keyed state lives there too.
+    let component = ElementId::from(std::any::type_name::<Scroll>());
+    let state = window.with_id(component, |window| {
+        window.use_keyed_state(id, cx, |_, _| ScrollState {
+            handle: ScrollHandle::new(),
+            dragging: false,
+            start: 0.0,
+            start_offset: 0.0,
+            samples: Vec::new(),
+            fling: None,
+        })
+    });
+    let handle = state.read(cx).handle.clone();
+    let rem = f32::from(window.rem_size()).max(0.0001);
+    let view = f32::from(match axis {
+        Axis2::Vertical => handle.bounds().size.height,
+        Axis2::Horizontal => handle.bounds().size.width,
+    }) / rem;
+    if view <= 0.0 {
+        return false;
+    }
+    let offset = get_offset(axis, &handle) / rem;
+    let to = if start < offset {
+        start
+    } else if end > offset + view {
+        end - view
+    } else {
+        return true;
+    };
+    set_offset(axis, &handle, to * rem);
+    true
+}
+
 impl RenderOnce for Scroll {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let axis = self.axis;

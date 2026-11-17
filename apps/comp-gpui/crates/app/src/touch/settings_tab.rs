@@ -4,7 +4,7 @@ use gpui_kit::*;
 use super::TouchScreen;
 use crate::mock::{ConnectionSettings, MockData};
 use crate::theme::{
-    ACCENT, ERROR, HAIRLINE, MONO, PANEL, WHITE, ZINC_100, ZINC_400, ZINC_500, touch_weight, u,
+    ACCENT, ERROR, HAIRLINE, MONO, PANEL, WHITE, ZINC_100, ZINC_500, touch_weight, u,
 };
 use crate::widgets::{Axis2, Button, ButtonStyle, Scroll, Slider, TextInput, label, tracked};
 
@@ -425,28 +425,7 @@ pub fn render(
             ("settings-col-autos", key),
             "Autos",
             false,
-            vec![
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(u(8.))
-                    .child(
-                        div()
-                            .text_size(u(14.))
-                            .line_height(u(20.))
-                            .text_color(ZINC_400)
-                            .child(format!(
-                                "{} autos \u{b7} built-in\nexported 2026-11-14 18:02 UTC",
-                                snapshot.autos.len()
-                            )),
-                    )
-                    .child(Button::new(
-                        ("settings-reload-autos", key),
-                        "Reload Autos",
-                        ButtonStyle::Outline,
-                    ))
-                    .into_any_element(),
-            ],
+            vec![super::auto_tab::export_box(key, cx).into_any_element()],
         ));
 
     let status = (

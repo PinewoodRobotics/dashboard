@@ -746,6 +746,7 @@ impl MockData {
         } else {
             m.phase = MatchPhase::PostMatch;
         }
+        m.enabled = !matches!(m.phase, MatchPhase::PreMatch | MatchPhase::PostMatch);
         let lane = ((t / 12.0) as u32) % 2 == 1;
         let lane_changed = self.lane_toast.as_ref().map(|l| l.on) != Some(lane);
         if lane_changed && t > PRE {
