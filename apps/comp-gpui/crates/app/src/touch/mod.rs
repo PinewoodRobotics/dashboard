@@ -383,7 +383,7 @@ impl Render for TouchScreen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::screen::fit(window, TOUCH_DESIGN);
         let moving = self.step();
-        if self.dnd_step(window) || moving {
+        if self.dnd_step() || moving {
             window.request_animation_frame();
         }
 
@@ -442,7 +442,7 @@ impl Render for TouchScreen {
             .child(chrome::left_rail(self, window, cx))
             .child(chrome::right_drawer(self, window, cx))
             .when(self.dock_visible(), |d| {
-                d.child(chrome::dock(self, window, cx))
+                d.child(chrome::dock(self, cx))
             })
             .children(dnd::ghost(self))
             .when(!self.data.read(cx).nt_connected, |d| {

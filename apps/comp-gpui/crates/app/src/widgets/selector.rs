@@ -114,7 +114,9 @@ fn cell_content(o: &SelectorOption, symbol: u32, color: Rgba) -> AnyElement {
         Some(t) => label(t.clone(), TEXT_PX, 600, color)
             .whitespace_nowrap()
             .into_any_element(),
-        None => sf_symbol(symbol, SYMBOL_PX, color).into_any_element(),
+        None => sf_symbol(symbol, SYMBOL_PX, color)
+            .centered()
+            .into_any_element(),
     }
 }
 

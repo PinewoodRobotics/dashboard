@@ -127,7 +127,7 @@ impl TouchScreen {
     }
 
     /// Item boxes in window coordinates, unshifted (rail buttons, dock spans).
-    fn slots(&self, zone: Zone, window: &Window) -> Vec<(TabId, Bounds<f32>)> {
+    fn slots(&self, zone: Zone) -> Vec<(TabId, Bounds<f32>)> {
         match zone {
             Zone::Rail => self
                 .state
@@ -137,7 +137,7 @@ impl TouchScreen {
                 .map(|(i, t)| (*t, chrome::rail_slot(i)))
                 .collect(),
             Zone::Dock => {
-                let (items, height) = chrome::dock_layout(&self.state, window);
+                let (items, height) = chrome::dock_layout(&self.state);
                 let o = chrome::dock_origin(self, height);
                 items
                     .into_iter()
@@ -152,8 +152,8 @@ impl TouchScreen {
         }
     }
 
-    fn slot_rect(&self, key: Key, window: &Window) -> Option<Bounds<f32>> {
-        self.slots(key.0, window)
+    fn slot_rect(&self, key: Key) -> Option<Bounds<f32>> {
+        self.slots(key.0)
             .into_iter()
             .find(|(t, _)| *t == key.1)
             .map(|(_, b)| b)
@@ -165,17 +165,17 @@ impl TouchScreen {
         self.dnd.gate.begin(pt(p.pos), ms(p.at), p.is_touch());
     }
 
-    pub(super) fn dnd_pointer(&mut self, p: &Pointer, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn dnd_pointer(&mut self, p: &Pointer, cx: &mut Context<Self>) {
         match p.phase {
             Phase::Down => {}
-            Phase::Move => self.dnd_move(p, window),
-            Phase::Up => self.dnd_release(p, window, cx),
+            Phase::Move => self.dnd_move(p),
+            Phase::Up => self.dnd_release(p, cx),
             Phase::Cancel => self.dnd_cancel(),
         }
         cx.notify();
     }
 
-    fn dnd_move(&mut self, p: &Pointer, window: &Window) {
+    fn dnd_move(&mut self, p: &Pointer) {
         if self.dnd.source.is_none() {
             return;
         }
@@ -188,20 +188,20 @@ impl TouchScreen {
         let was = self.dnd.gate.is_dragging();
         self.dnd.gate.moved(pt(p.pos), ms(p.at));
         if self.dnd.gate.is_dragging() && !was {
-            self.start_drag(window);
+            self.start_drag();
         }
         if self.dnd.gate.is_dragging() {
-            self.track(p.pos, window);
+            self.track(p.pos);
         }
     }
 
-    fn dnd_release(&mut self, p: &Pointer, window: &Window, cx: &mut App) {
+    fn dnd_release(&mut self, p: &Pointer, cx: &mut App) {
         let Some(key) = self.dnd.source else {
             return;
         };
         let s = self.dnd.gate.end();
         if s == GateState::Dragging {
-            self.track(p.pos, window);
+            self.track(p.pos);
         }
         self.dnd.source = None;
         match s {
@@ -209,7 +209,7 @@ impl TouchScreen {
                 let target = self.dnd.last_target.take();
                 self.dnd.shifts.clear();
                 self.drop_on(key, target.as_ref(), cx);
-                self.land(key, window);
+                self.land(key);
             }
             GateState::Pending => {
                 self.state.switch_tab(key.1);
@@ -230,11 +230,11 @@ impl TouchScreen {
     }
 
     /// The touch hold has no moves to drive it, so frames do.
-    pub(super) fn dnd_step(&mut self, window: &Window) -> bool {
+    pub(super) fn dnd_step(&mut self) -> bool {
         if self.dnd.source.is_some() && !self.dnd.tap_only && self.dnd.gate.awaiting_hold() {
             self.dnd.gate.tick(ms(Instant::now()));
             if self.dnd.gate.is_dragging() {
-                self.start_drag(window);
+                self.start_drag();
             }
         }
         if self.dnd.ghost.visible && self.dnd.ghost.t.is_some() && !self.dnd.ghost.dropping() {
@@ -248,13 +248,13 @@ impl TouchScreen {
         self.dnd.running()
     }
 
-    fn start_drag(&mut self, window: &Window) {
+    fn start_drag(&mut self) {
         let Some(key) = self.dnd.source else {
             return;
         };
         self.dnd.landing = None;
         self.dnd.source_rect = self
-            .slot_rect(key, window)
+            .slot_rect(key)
             .unwrap_or_else(|| Bounds::new(point(0.0, 0.0), size(0.0, 0.0)));
         self.dnd.ghost = Ghost {
             visible: true,
@@ -277,7 +277,7 @@ impl TouchScreen {
         )
     }
 
-    fn track(&mut self, pos: Point<f32>, window: &Window) {
+    fn track(&mut self, pos: Point<f32>) {
         let Some((zone, tab)) = self.dnd.source else {
             return;
         };
@@ -285,19 +285,19 @@ impl TouchScreen {
         if !self.dnd.ghost.dropping() {
             self.dnd.ghost.rect = r;
         }
-        let target = self.target_at(center(&r), window);
+        let target = self.target_at(center(&r));
         let over = target
             .as_ref()
             .filter(|t| t.zone == zone)
             .and_then(|t| t.over);
         self.dnd.last_target = target;
-        self.preview_order(zone, tab, over, window);
+        self.preview_order(zone, tab, over);
     }
 
     /// The sortable strategies: while `active` is over `over`, each item of
     /// the list moves to the slot it would take in the reordered list.
-    fn preview_order(&mut self, zone: Zone, active: TabId, over: Option<TabId>, window: &Window) {
-        let slots = self.slots(zone, window);
+    fn preview_order(&mut self, zone: Zone, active: TabId, over: Option<TabId>) {
+        let slots = self.slots(zone);
         let list = self.list(zone);
         let from = list.iter().position(|t| *t == active);
         let to = over.and_then(|o| list.iter().position(|t| *t == o));
@@ -320,15 +320,15 @@ impl TouchScreen {
 
     /// Rail items while the dock is open (edit mode), dock items while it is
     /// shown.
-    fn target_at(&self, at: Point<f32>, window: &Window) -> Option<Target<TabId>> {
+    fn target_at(&self, at: Point<f32>) -> Option<Target<TabId>> {
         let mut items: Vec<(Key, rules::Pt)> = Vec::new();
         if self.state.can_drag() {
-            for (t, b) in self.slots(Zone::Rail, window) {
+            for (t, b) in self.slots(Zone::Rail) {
                 items.push(((Zone::Rail, t), pt(center(&b))));
             }
         }
         if self.dock_visible() {
-            for (t, b) in self.slots(Zone::Dock, window) {
+            for (t, b) in self.slots(Zone::Dock) {
                 items.push(((Zone::Dock, t), pt(center(&b))));
             }
         }
@@ -351,8 +351,8 @@ impl TouchScreen {
         }
     }
 
-    fn land(&mut self, key: Key, window: &Window) {
-        let Some(home) = self.slot_rect(key, window) else {
+    fn land(&mut self, key: Key) {
+        let Some(home) = self.slot_rect(key) else {
             self.dnd.ghost.visible = false;
             return;
         };
@@ -394,25 +394,23 @@ pub(super) fn sortable_icon(
         Zone::Dock => "dock",
     };
     let entity = cx.entity();
+    let rect = Bounds::new(point(bx.origin.x + shift.x, bx.origin.y + shift.y), bx.size);
     div()
         .id(SharedString::from(format!("{prefix}-{}", tab.key())))
         .absolute()
-        .left(u(bx.origin.x + shift.x))
-        .top(u(bx.origin.y + shift.y))
-        .w(u(bx.size.width))
-        .h(u(bx.size.height))
-        .flex()
-        .items_center()
-        .when(zone == Zone::Rail, |d| d.justify_center())
+        .left(u(rect.origin.x))
+        .top(u(rect.origin.y))
+        .w(u(rect.size.width))
+        .h(u(rect.size.height))
         .when(!ts.dnd.landing_hidden(zone, tab), |d| {
-            d.child(sf_symbol(symbol, ICON, color))
+            d.child(sf_symbol(symbol, ICON, color).centered_in(rect))
         })
         .on_mouse_down(MouseButton::Left, move |e, window, cx| {
             let p = input::pointer(Phase::Down, e.position, window);
             entity.update(cx, |this, _| this.dnd_press(zone, tab, &p));
             let e = entity.clone();
-            input::capture(window, move |p, window, cx| {
-                e.update(cx, |this, cx| this.dnd_pointer(p, window, cx))
+            input::capture(window, move |p, _, cx| {
+                e.update(cx, |this, cx| this.dnd_pointer(p, cx))
             });
         })
 }
@@ -424,17 +422,14 @@ pub(super) fn ghost(ts: &TouchScreen) -> Option<Div> {
     if !g.visible {
         return None;
     }
-    let o = g.origin();
+    let rect = Bounds::new(g.origin(), g.rect.size);
     Some(
         div()
             .absolute()
-            .left(u(o.x))
-            .top(u(o.y))
-            .w(u(g.rect.size.width))
-            .h(u(g.rect.size.height))
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(sf_symbol(g.symbol, ICON, alpha(WHITE, 0.8))),
+            .left(u(rect.origin.x))
+            .top(u(rect.origin.y))
+            .w(u(rect.size.width))
+            .h(u(rect.size.height))
+            .child(sf_symbol(g.symbol, ICON, alpha(WHITE, 0.8)).centered_in(rect)),
     )
 }

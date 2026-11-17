@@ -4,7 +4,7 @@ use gpui_kit::*;
 use dash_core::dnd::Zone;
 
 use super::{LayoutState, PanelId, TabId, TouchScreen, dnd, panels};
-use crate::icons::{sf, sf_symbol};
+use crate::icons::{sf, sf_advance, sf_symbol};
 use crate::theme::{
     ACCENT, BLACK, BORDER, DOCK_GAP, DOCK_PAD, DOCK_W, DRAWER_GAP, DRAWER_ICON_COL, DRAWER_PAD,
     DRAWER_W, ICON, RAIL_W, SCRIM, TOUCH_DESIGN, WHITE, alpha, u,
@@ -30,17 +30,18 @@ fn tab_icon(
 ) -> Stateful<Div> {
     let id = id.into();
     let state = press_state(id.clone(), window, cx);
+    let rect = Bounds::new(
+        point(center.x - BUTTON_W * 0.5, center.y - ICON * 0.5),
+        size(BUTTON_W, ICON),
+    );
     let el = div()
         .id(id)
         .absolute()
-        .left(u(center.x - BUTTON_W * 0.5))
-        .top(u(center.y - ICON * 0.5))
-        .w(u(BUTTON_W))
-        .h(u(ICON))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(sf_symbol(symbol, ICON, if active { ACCENT } else { WHITE }));
+        .left(u(rect.origin.x))
+        .top(u(rect.origin.y))
+        .w(u(rect.size.width))
+        .h(u(rect.size.height))
+        .child(sf_symbol(symbol, ICON, if active { ACCENT } else { WHITE }).centered_in(rect));
     tappable(el, state, false, on_tap(f))
 }
 
@@ -189,24 +190,8 @@ pub fn right_drawer(
         .child(row.child(body))
 }
 
-fn sf_advance(window: &Window, code: u32, size_px: f32) -> f32 {
-    let text = sf::glyph(code);
-    let run = TextRun {
-        len: text.len(),
-        font: font(crate::theme::SF),
-        color: Hsla::white(),
-        background_color: None,
-        underline: None,
-        strikethrough: None,
-    };
-    let line = window
-        .text_system()
-        .layout_line(&text, px(size_px), &[run], None);
-    f32::from(line.width)
-}
-
 /// Item spans in dock panel coordinates (border box), and the panel height.
-pub fn dock_layout(state: &LayoutState, window: &Window) -> (Vec<(TabId, Bounds<f32>)>, f32) {
+pub fn dock_layout(state: &LayoutState) -> (Vec<(TabId, Bounds<f32>)>, f32) {
     let inner = DOCK_W - 2.0 * (BORDER + DOCK_PAD);
     let origin = point(BORDER + DOCK_PAD, BORDER + DOCK_PAD);
     let mut out = Vec::new();
@@ -218,7 +203,7 @@ pub fn dock_layout(state: &LayoutState, window: &Window) -> (Vec<(TabId, Bounds<
         } else {
             info.symbol
         };
-        let w = sf_advance(window, symbol, ICON);
+        let w = sf_advance(symbol) * ICON;
         if x > 0.0 && x + w > inner {
             x = 0.0;
             row += 1;
@@ -250,12 +235,8 @@ pub fn dock_origin(ts: &TouchScreen, height: f32) -> Point<f32> {
 }
 
 /// DockDrawer.tsx.
-pub fn dock(
-    ts: &TouchScreen,
-    window: &mut Window,
-    cx: &mut Context<TouchScreen>,
-) -> impl IntoElement {
-    let (items, height) = dock_layout(&ts.state, window);
+pub fn dock(ts: &TouchScreen, cx: &mut Context<TouchScreen>) -> impl IntoElement {
+    let (items, height) = dock_layout(&ts.state);
     ts.dock_height.set(height);
     let rect = dock_rect(ts);
     let blur = ts.data.read(cx).visual.backdrop_blur;

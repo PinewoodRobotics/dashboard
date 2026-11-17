@@ -6,6 +6,12 @@ process inside GPUI through shared GPU textures: IOSurfaces on macOS, named D3D1
 Windows (untested, see [Windows](#windows-untested)). Integrating the 3D element into
 `crates/app` is a later step.
 
+SF Symbols are drawn from SVG outlines (`crates/app/assets/sf`), not as SF Pro text, so they
+rasterize the same on macOS and Windows. `uv run tools/sf-symbols/export.py` regenerates them and
+`crates/app/src/icons/glyphs.rs` from the bundled `SF-Pro-400.ttf` after a code point is added to
+the `sf` module in `crates/app/src/icons.rs`. SF Pro stays bundled as a text font for the
+placeholder screen.
+
 ## 3D bridge
 
 | Path | What it is |
@@ -17,7 +23,7 @@ Windows (untested, see [Windows](#windows-untested)). Integrating the 3D element
 | `crates/probes` | Phase 1 IOSurface probe, `win_share_probe` for D3D12 to D3D11 sharing |
 | `godot/` | Godot 4.7 project: producer loop, views, copies of comp-godot's orbit, CAD lighting and material scripts |
 | `tools/models` | Decodes the Draco-compressed `Robot-Full.glb` for Godot |
-| `vendor/gpui-pre-apple` | gpui-pre-apple 0.3.12 with `vendor/patches/gpui-pre-apple.diff` applied |
+| `vendor/gpui-pre-apple` | gpui-pre-apple 0.3.12 with `vendor/patches/gpui-pre-apple.diff` applied; the diff also drops macOS font-smoothing dilation, so text rasterizes like Chrome with `-webkit-font-smoothing: antialiased` |
 | `vendor/gpui-pre`, `vendor/gpui-pre-windows` | 0.3.12 with `vendor/patches/gpui-pre.diff` and `gpui-pre-windows.diff`: `surface()` draws named shared textures on Windows |
 
 ### Running
