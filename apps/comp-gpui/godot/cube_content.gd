@@ -1,15 +1,13 @@
-class_name CubeView
-extends SubViewport
+class_name CubeContent
+extends ViewContent
+
+## Phase 1's spinning cube: a scene with no assets, for bring-up and probes.
 
 var cube: MeshInstance3D
+var _t := 0.0
 
 
-func _init(view_size: Vector2i) -> void:
-	size = view_size
-	own_world_3d = true
-	render_target_update_mode = SubViewport.UPDATE_DISABLED
-	render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
-
+func _ready() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.13, 0.18, 0.27)
@@ -19,10 +17,9 @@ func _init(view_size: Vector2i) -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	var camera := Camera3D.new()
-	camera.position = Vector3(0, 1.6, 3.2)
+	camera = Camera3D.new()
 	add_child(camera)
-	camera.look_at_from_position(camera.position, Vector3.ZERO)
+	camera.look_at_from_position(Vector3(0, 1.6, 3.2), Vector3.ZERO)
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-50, 30, 0)
@@ -37,5 +34,10 @@ func _init(view_size: Vector2i) -> void:
 	add_child(cube)
 
 
+func step(dt: float, _visible: bool) -> void:
+	set_time(_t + dt)
+
+
 func set_time(seconds: float) -> void:
+	_t = seconds
 	cube.rotation = Vector3(seconds * 0.6, seconds * 1.4, 0.0)

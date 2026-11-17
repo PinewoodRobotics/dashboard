@@ -1,8 +1,7 @@
 diff --git a/gpui-pre-apple/Cargo.toml b/gpui-pre-apple/Cargo.toml
-index 290f521..3773728 100644
 --- a/gpui-pre-apple/Cargo.toml
 +++ b/gpui-pre-apple/Cargo.toml
-@@ -173,6 +173,7 @@ default-features = false
+@@ -173,6 +173,7 @@
  [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.objc2-core-video]
  version = "0.3.2"
  features = [
@@ -10,11 +9,18 @@ index 290f521..3773728 100644
      "CVBuffer",
      "CVImageBuffer",
      "CVPixelBuffer",
+@@ -239,6 +240,7 @@
+     "MTLResource",
+     "MTLTexture",
+     "MTLTypes",
++    "objc2-core-foundation",
+ ]
+ default-features = false
+ 
 diff --git a/gpui-pre-apple/src/metal_renderer.rs b/gpui-pre-apple/src/metal_renderer.rs
-index 9b98a23..ee650e5 100644
 --- a/gpui-pre-apple/src/metal_renderer.rs
 +++ b/gpui-pre-apple/src/metal_renderer.rs
-@@ -8,12 +8,13 @@ use gpui::{
+@@ -8,12 +8,13 @@
  #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
  use image::RgbaImage;
  use objc2::{Message, rc::Retained, runtime::ProtocolObject};
@@ -32,7 +38,57 @@ index 9b98a23..ee650e5 100644
  };
  use objc2_foundation::{NSRange, NSString};
  #[cfg(target_os = "macos")]
-@@ -143,6 +144,7 @@ pub struct MetalRenderer {
+@@ -31,7 +32,48 @@
+ use objc2_quartz_core::{CAMetalDrawable, CAMetalLayer};
+ use parking_lot::Mutex;
+ 
+-use std::{cell::Cell, mem, mem::MaybeUninit, ops::Range, ptr, slice, sync::Arc};
++use std::{
++    cell::Cell,
++    mem,
++    mem::MaybeUninit,
++    ops::Range,
++    ptr, slice,
++    sync::{Arc, OnceLock},
++};
++
++/// Called on a Metal thread when a frame that drew surfaces reaches the display, with the
++/// addresses of those surfaces' CVPixelBuffers and the drawable's `presentedTime` (seconds on
++/// the CACurrentMediaTime clock).
++pub type SurfacePresentObserver = dyn Fn(&[usize], f64) + Send + Sync;
++
++static SURFACE_PRESENT_OBSERVER: OnceLock<Box<SurfacePresentObserver>> = OnceLock::new();
++
++/// Installs the process-wide observer of surface presentation; only the first call takes effect.
++pub fn set_surface_present_observer(observer: impl Fn(&[usize], f64) + Send + Sync + 'static) {
++    let _ = SURFACE_PRESENT_OBSERVER.set(Box::new(observer));
++}
++
++fn observe_surface_presentation(scene: &Scene, drawable: &ProtocolObject<dyn CAMetalDrawable>) {
++    let Some(observer) = SURFACE_PRESENT_OBSERVER.get() else {
++        return;
++    };
++    if scene.surfaces.is_empty() {
++        return;
++    }
++    let buffers: Vec<usize> = scene
++        .surfaces
++        .iter()
++        .map(|surface| CFRetained::as_ptr(&surface.image_buffer).as_ptr() as usize)
++        .collect();
++    let block = RcBlock::new(move |drawable: ptr::NonNull<ProtocolObject<dyn MTLDrawable>>| {
++        let presented = unsafe { drawable.as_ref() }.presentedTime();
++        if presented > 0.0 {
++            observer(&buffers, presented);
++        }
++    });
++    // SAFETY: Metal copies the block and calls it once, when the drawable is presented or dropped.
++    unsafe { drawable.addPresentedHandler(RcBlock::as_ptr(&block)) };
++}
+ 
+ // Exported to metal
+ pub(crate) type PointF = gpui::Point<f32>;
+@@ -143,6 +185,7 @@
      monochrome_sprites_pipeline_state: Retained<ProtocolObject<dyn MTLRenderPipelineState>>,
      polychrome_sprites_pipeline_state: Retained<ProtocolObject<dyn MTLRenderPipelineState>>,
      surfaces_pipeline_state: Retained<ProtocolObject<dyn MTLRenderPipelineState>>,
@@ -40,7 +96,7 @@ index 9b98a23..ee650e5 100644
      unit_vertices: Retained<ProtocolObject<dyn MTLBuffer>>,
      instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>,
      sprite_atlas: Arc<MetalAtlas>,
-@@ -393,6 +395,14 @@ impl MetalRenderer {
+@@ -393,6 +436,14 @@
              "surface_fragment",
              MTLPixelFormat::BGRA8Unorm,
          )?;
@@ -55,7 +111,7 @@ index 9b98a23..ee650e5 100644
  
          let command_queue = device.newCommandQueue().context("creating command queue")?;
          let supports_shared_storage = cfg!(target_os = "ios") || is_apple_gpu;
-@@ -431,6 +441,7 @@ impl MetalRenderer {
+@@ -431,6 +482,7 @@
              monochrome_sprites_pipeline_state,
              polychrome_sprites_pipeline_state,
              surfaces_pipeline_state,
@@ -63,7 +119,15 @@ index 9b98a23..ee650e5 100644
              unit_vertices,
              instance_buffer_pool,
              sprite_atlas,
-@@ -1367,6 +1378,47 @@ impl MetalRenderer {
+@@ -636,6 +688,7 @@
+             }
+         };
+ 
++        observe_surface_presentation(scene, &drawable);
+         if self.presents_with_transaction {
+             command_buffer.commit();
+             command_buffer.waitUntilScheduled();
+@@ -1367,6 +1420,47 @@
          }
      }
  
@@ -111,7 +175,7 @@ index 9b98a23..ee650e5 100644
      fn draw_surfaces(
          &mut self,
          surfaces: &[PaintSurface],
-@@ -1380,7 +1432,6 @@ impl MetalRenderer {
+@@ -1380,7 +1474,6 @@
              return Ok(());
          }
  
@@ -119,7 +183,7 @@ index 9b98a23..ee650e5 100644
          // SAFETY: The unit vertices, SurfaceBounds instances, and copied viewport match the shader layouts and slots.
          // Metal retains the buffers, and writer.finish publishes CPU writes before submission.
          unsafe {
-@@ -1409,40 +1460,53 @@ impl MetalRenderer {
+@@ -1409,40 +1502,53 @@
              );
  
              let pixel_format = CVPixelBufferGetPixelFormatType(image_buffer);
@@ -164,8 +228,7 @@ index 9b98a23..ee650e5 100644
                  pixel_format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
                  "unsupported surface pixel format: {pixel_format:#x}"
              );
-+            command_encoder.setRenderPipelineState(&self.surfaces_pipeline_state);
- 
+-
 -            let plane_texture = |plane, format| -> Result<CFRetained<CVMetalTexture>> {
 -                let width = CVPixelBufferGetWidthOfPlane(image_buffer, plane);
 -                let height = CVPixelBufferGetHeightOfPlane(image_buffer, plane);
@@ -195,6 +258,8 @@ index 9b98a23..ee650e5 100644
 -            };
 -            let y_texture = plane_texture(0, MTLPixelFormat::R8Unorm)?;
 -            let cb_cr_texture = plane_texture(1, MTLPixelFormat::RG8Unorm)?;
++            command_encoder.setRenderPipelineState(&self.surfaces_pipeline_state);
++
 +            let y_texture =
 +                self.core_video_plane_texture(image_buffer, 0, MTLPixelFormat::R8Unorm)?;
 +            let cb_cr_texture =
@@ -202,10 +267,12 @@ index 9b98a23..ee650e5 100644
              let y_metal_texture =
                  CVMetalTextureGetTexture(&y_texture).context("retrieving luma Metal texture")?;
              let cb_cr_metal_texture = CVMetalTextureGetTexture(&cb_cr_texture)
-@@ -1482,6 +1546,20 @@ impl MetalRenderer {
+@@ -1480,6 +1586,20 @@
+         }
+         Ok(())
      }
- }
- 
++}
++
 +/// CVBuffer attachment key marking a `kCVPixelFormatType_32BGRA` buffer whose bytes are actually
 +/// in R, G, B, A order. CoreVideo refuses IOSurfaces tagged `'RGBA'`, so producers that can only
 +/// write RGBA8 (Godot's viewport textures) tag the surface `'BGRA'` and set this attachment.
@@ -218,12 +285,10 @@ index 9b98a23..ee650e5 100644
 +    value
 +        .and_then(|value| value.downcast::<CFBoolean>().ok())
 +        .is_some_and(|value| value.as_bool())
-+}
-+
+ }
+ 
  fn new_command_encoder_for_texture(
-     command_buffer: &ProtocolObject<dyn MTLCommandBuffer>,
-     texture: &ProtocolObject<dyn MTLTexture>,
-@@ -1923,9 +2001,10 @@ mod tests {
+@@ -1923,9 +2043,10 @@
      use super::*;
      use objc2_core_foundation::{CFDictionary, CFType};
      use objc2_core_video::{
@@ -237,10 +302,12 @@ index 9b98a23..ee650e5 100644
      };
      use objc2_metal::MTLCommandBufferStatus;
  
-@@ -2038,6 +2117,97 @@ mod tests {
+@@ -2036,6 +2157,97 @@
+             DisplayLinkMode::Detached
+         ));
          Ok(())
-     }
- 
++    }
++
 +    fn bgra_surface_buffer(bytes: [u8; 4], bytes_are_rgba: bool) -> CFRetained<CVPixelBuffer> {
 +        let surface_properties_key = unsafe { kCVPixelBufferIOSurfacePropertiesKey };
 +        let attributes = CFDictionary::from_slices(
@@ -330,16 +397,13 @@ index 9b98a23..ee650e5 100644
 +        for pixel in image.pixels() {
 +            assert_eq!(pixel.0, [10, 20, 200, 255]);
 +        }
-+    }
-+
+     }
+ 
      #[test]
-     fn render_core_video_surface() {
-         let surface_properties_key = unsafe { kCVPixelBufferIOSurfacePropertiesKey };
 diff --git a/gpui-pre-apple/src/shaders.metal b/gpui-pre-apple/src/shaders.metal
-index 2b52bb9..4a1a301 100644
 --- a/gpui-pre-apple/src/shaders.metal
 +++ b/gpui-pre-apple/src/shaders.metal
-@@ -899,6 +899,15 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
+@@ -899,6 +899,15 @@
    return ycbcrToRGBTransform * ycbcr;
  }
  

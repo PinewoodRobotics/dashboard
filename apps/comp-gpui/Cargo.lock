@@ -2231,6 +2231,7 @@ dependencies = [
  "objc2-io-surface",
  "objc2-metal 0.3.2",
  "protocol",
+ "serde_json",
 ]
 
 [[package]]
@@ -2274,6 +2275,13 @@ dependencies = [
  "godot-bindings",
  "godot-codegen",
  "libc",
+]
+
+[[package]]
+name = "godot-launch-hook"
+version = "0.1.0"
+dependencies = [
+ "objc2 0.6.5",
 ]
 
 [[package]]
@@ -3104,6 +3112,8 @@ dependencies = [
  "anyhow",
  "async-channel",
  "gpui-kit",
+ "gpui-pre-apple",
+ "libc",
  "objc2-core-foundation",
  "objc2-core-video",
  "objc2-io-surface",

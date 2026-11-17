@@ -1,0 +1,15 @@
+{
+  "name": "comp-gpui-model-tools",
+  "private": true,
+  "type": "module",
+  "description": "Decodes the Draco-compressed robot CAD export into a GLB that Godot's GLTFDocument can read at runtime",
+  "scripts": {
+    "decode": "node decode.mjs"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "draco3dgltf": "1.5.7"
+  }
+}

@@ -11,6 +11,8 @@ async-channel = "2"
 protocol = { path = "../protocol" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+gpui-pre-apple = "0.3.12"
+libc = "0.2"
 objc2-core-foundation.workspace = true
 objc2-io-surface.workspace = true
 objc2-core-video.workspace = true

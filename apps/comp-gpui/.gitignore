@@ -1,2 +1,4 @@
 target/
 .godot/
+/models/
+/godot/bin/

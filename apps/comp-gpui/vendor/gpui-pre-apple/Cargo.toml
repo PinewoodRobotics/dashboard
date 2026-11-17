@@ -240,6 +240,7 @@ features = [
     "MTLResource",
     "MTLTexture",
     "MTLTypes",
+    "objc2-core-foundation",
 ]
 default-features = false
 

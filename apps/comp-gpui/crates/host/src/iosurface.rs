@@ -15,7 +15,7 @@ pub const FOURCC_BGRA: u32 = u32::from_be_bytes(*b"BGRA");
 // Must match SURFACE_BYTES_ARE_RGBA_ATTACHMENT in vendor/gpui-pre-apple.
 const BYTES_ARE_RGBA_ATTACHMENT: &str = "GPUISurfaceBytesAreRGBA";
 
-pub fn create_bgra_surface(width: usize, height: usize) -> Result<CFRetained<IOSurfaceRef>> {
+pub(crate) fn create_bgra_surface(width: usize, height: usize) -> Result<CFRetained<IOSurfaceRef>> {
     let width = CFNumber::new_i32(width as i32);
     let height = CFNumber::new_i32(height as i32);
     let bytes_per_element = CFNumber::new_i32(4);
@@ -33,11 +33,11 @@ pub fn create_bgra_surface(width: usize, height: usize) -> Result<CFRetained<IOS
     unsafe { IOSurfaceRef::new(properties.as_opaque()) }.context("IOSurfaceCreate failed")
 }
 
-pub fn lookup_surface(id: u32) -> Result<CFRetained<IOSurfaceRef>> {
+pub(crate) fn lookup_surface(id: u32) -> Result<CFRetained<IOSurfaceRef>> {
     IOSurfaceRef::lookup(id).with_context(|| format!("IOSurfaceLookup({id}) failed"))
 }
 
-pub fn pixel_buffer(
+pub(crate) fn pixel_buffer(
     surface: &IOSurfaceRef,
     bytes_are_rgba: bool,
 ) -> Result<CFRetained<CVPixelBuffer>> {
@@ -63,7 +63,7 @@ pub fn pixel_buffer(
     Ok(buffer)
 }
 
-pub fn write_bgra(surface: &IOSurfaceRef, mut fill: impl FnMut(usize, usize) -> [u8; 4]) {
+pub(crate) fn write_bgra(surface: &IOSurfaceRef, mut fill: impl FnMut(usize, usize) -> [u8; 4]) {
     unsafe {
         surface.lock(IOSurfaceLockOptions::empty(), ptr::null_mut());
         let base = surface.base_address().as_ptr().cast::<u8>();
