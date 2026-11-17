@@ -16,6 +16,7 @@ use std::rc::Rc;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
+pub use howard_tab::asset as howard_asset;
 pub use state::{LayoutState, PanelId, TabId};
 
 use crate::anim::Tween;
