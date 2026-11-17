@@ -11,7 +11,7 @@ pub mod shared_store;
 
 pub use app::{
     AppSettings, ControlsSettings, LayoutSettings, MapMode, MapSettings, RENDER_SCALES,
-    VisualSettings, WindowsSettings, default_app_settings_path,
+    VisualSettings, WindowsSettings, default_app_settings_path, legacy_layout_path,
 };
 pub use connection::{ConnectionSettings, NtSettings};
 pub use service::{Section, SettingsService};
