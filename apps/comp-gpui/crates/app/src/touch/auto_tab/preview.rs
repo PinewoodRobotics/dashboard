@@ -355,7 +355,7 @@ pub fn render(
                 cx.notify();
             })
         });
-    let top_right = |d: Div, right: f32| d.absolute().top(u(8.)).right(u(right));
+    let top_right = |d: Div, right: f32| d.absolute().top(u(8.)).right(u(right)).occlude();
 
     let notes_col = div()
         .absolute()

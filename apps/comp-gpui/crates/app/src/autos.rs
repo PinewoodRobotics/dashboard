@@ -463,6 +463,15 @@ impl AutoService {
         let echo_since = &mut self.echo_since;
         let sync = &mut self.sync;
         let data = self.data.clone();
+        let shown = |s: &AutoSelectionSync| {
+            (
+                s.pending().to_owned(),
+                s.conflict,
+                s.selected.clone(),
+                s.robot_names.clone(),
+            )
+        };
+        let shown_before = shown(sync);
         let mut changed = false;
         data.update(cx, |d, cx| {
             if d.auto_selection.link.topics != topics {
@@ -500,6 +509,7 @@ impl AutoService {
                 cx.notify();
             }
         });
+        changed |= shown(&self.sync) != shown_before;
         self.persist_events(cx);
 
         let confirmed = self.read_link(cx, |s, link| {
