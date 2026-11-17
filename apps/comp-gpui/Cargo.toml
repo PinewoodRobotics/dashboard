@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/probes", "crates/host", "vendor/gpui-pre-apple"]
+members = ["crates/*", "vendor/gpui-pre-apple"]
 resolver = "3"
 
 [workspace.package]
@@ -8,6 +8,7 @@ publish = false
 
 [workspace.dependencies]
 anyhow = "1"
+gpui-kit = "0.9.1"
 objc2 = "0.6"
 objc2-core-foundation = { version = "0.3.2", features = ["CFDictionary", "CFNumber", "CFString"] }
 objc2-io-surface = "0.3.2"
