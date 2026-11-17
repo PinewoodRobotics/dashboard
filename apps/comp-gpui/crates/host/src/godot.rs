@@ -296,11 +296,20 @@ fn prepare_project(config: &GodotConfig) -> Result<()> {
     let needs_import = !config.project.join(".godot/extension_list.cfg").exists()
         || newest_source_mtime(&config.project)? > mtime(&cache).unwrap_or(SystemTime::UNIX_EPOCH);
     if needs_import {
-        let status = Command::new(&config.binary)
-            .args(["--headless", "--import", "--path"])
-            .arg(&config.project)
-            .status()
-            .context("running the Godot import pass")?;
+        let import = || {
+            Command::new(&config.binary)
+                .args(["--headless", "--import", "--path"])
+                .arg(&config.project)
+                .status()
+                .context("running the Godot import pass")
+        };
+        // Godot 4.7.2 crashes (SIGSEGV while loading the editor layout) on the first import of a
+        // project without a .godot directory; the second pass completes.
+        let mut status = import()?;
+        if !status.success() {
+            eprintln!("host: Godot import pass failed ({status}); retrying once");
+            status = import()?;
+        }
         if !status.success() {
             bail!("Godot import pass failed: {status}");
         }
