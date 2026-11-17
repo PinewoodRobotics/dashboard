@@ -1,10 +1,13 @@
 //! CPU rendering of the interim 2D minimap: the top-down field picture seen
-//! along the minimap camera's azimuth, the robot, and MiniMap3D.tsx's frame
+//! along the minimap camera's azimuth, the auto overlay, the robot, and
+//! MiniMap3D.tsx's frame
 //! (elliptical top corners and inset vignette, as Godot's
 //! minimap_frame.gdshader evaluates it). GPUI cannot rotate raster images, so
 //! each view is resampled into one BGRA image.
 
 use dash_core::field::frame::{FIELD_LENGTH_M, FIELD_WIDTH_M};
+
+use super::path::{PathLayer, aim_over};
 
 /// `assets/field/field-2026.png`: `public/match/field-2026.png` (7992 x 3240)
 /// scaled to 2886 px wide.
@@ -95,6 +98,14 @@ impl Texture {
     }
 }
 
+/// Which auto path the view draws (its [`PathLayer`] travels with the job)
+/// and how much of it is travelled.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PathView {
+    pub id: usize,
+    pub progress: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct View {
     pub width: usize,
@@ -112,6 +123,9 @@ pub struct View {
     pub heading: f32,
     pub alliance_red: Option<bool>,
     pub dimmed: bool,
+    pub path: Option<PathView>,
+    /// Aim line world (X, Z) from and to.
+    pub aim: Option<[f32; 4]>,
 }
 
 impl View {
@@ -136,6 +150,15 @@ impl View {
             && self.height == o.height
             && self.alliance_red == o.alliance_red
             && self.dimmed == o.dimmed
+            && self.path.map(|p| p.id) == o.path.map(|p| p.id)
+            && match (self.path, o.path) {
+                (Some(a), Some(b)) => (a.progress - b.progress).abs() < 1e-3,
+                _ => true,
+            }
+            && match (self.aim, o.aim) {
+                (Some(a), Some(b)) => a.iter().zip(b).all(|(x, y)| (x - y).abs() < px),
+                (a, b) => a.is_none() && b.is_none(),
+            }
             && (self.scale - o.scale).abs() < 1e-4
             && (self.ppm - o.ppm).abs() * span / self.ppm < 0.25
             && (self.target[0] - o.target[0]).abs() < px
@@ -301,7 +324,7 @@ fn arrow_sd(along: f32, side: f32) -> f32 {
 
 /// The BGRA image of `view`, straight alpha, rendered in row bands across
 /// the available cores.
-pub fn render(tex: &Texture, mask: &Mask, view: &View) -> Vec<u8> {
+pub fn render(tex: &Texture, mask: &Mask, view: &View, path: Option<&PathLayer>) -> Vec<u8> {
     let (w, h) = (view.width, view.height);
     let mut out = vec![0u8; w * h * 4];
     if w == 0 || h == 0 {
@@ -314,15 +337,23 @@ pub fn render(tex: &Texture, mask: &Mask, view: &View) -> Vec<u8> {
     let rows_per = h.div_ceil(threads);
     std::thread::scope(|scope| {
         for (band, chunk) in out.chunks_mut(rows_per * w * 4).enumerate() {
-            scope.spawn(move || render_rows(tex, mask, view, band * rows_per, chunk));
+            scope.spawn(move || render_rows(tex, mask, view, path, band * rows_per, chunk));
         }
     });
     out
 }
 
-fn render_rows(tex: &Texture, mask: &Mask, view: &View, first_row: usize, out: &mut [u8]) {
+fn render_rows(
+    tex: &Texture,
+    mask: &Mask,
+    view: &View,
+    path: Option<&PathLayer>,
+    first_row: usize,
+    out: &mut [u8],
+) {
     let w = view.width;
     let robot = Robot::new(view);
+    let path = path.zip(view.path);
     let o = view.world_at(0.5, 0.5);
     let dx = {
         let p = view.world_at(1.5, 0.5);
@@ -346,6 +377,12 @@ fn render_rows(tex: &Texture, mask: &Mask, view: &View, first_row: usize, out: &
             if alpha > 0 {
                 let t = tex.texel(wpt[0], wpt[1]);
                 let mut rgb = tex.sample(t[0], t[1]);
+                if let Some((layer, pv)) = path {
+                    layer.over(wpt, robot.px, pv.progress, &mut rgb);
+                }
+                if let Some(aim) = view.aim {
+                    aim_over(aim, wpt, robot.px, &mut rgb);
+                }
                 robot.over(wpt, &mut rgb);
                 p[0] = (rgb[2] * keep).round().clamp(0.0, 255.0) as u8;
                 p[1] = (rgb[1] * keep).round().clamp(0.0, 255.0) as u8;
@@ -376,6 +413,8 @@ mod tests {
             heading: 0.0,
             alliance_red: Some(false),
             dimmed: false,
+            path: None,
+            aim: None,
         }
     }
 
@@ -474,7 +513,7 @@ mod tests {
             keep: Vec::new(),
             alpha: Vec::new(),
         };
-        let img = render(&tex, &mask, &v);
+        let img = render(&tex, &mask, &v, None);
         let px = |x: usize, y: usize| {
             let i = (y * 120 + x) * 4;
             [img[i + 2], img[i + 1], img[i]]

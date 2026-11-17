@@ -1,15 +1,19 @@
 //! Interim 2D HUD minimap standing in for MiniMap3D.tsx until the 3D views
 //! land: the top-down field picture framed by the minimap camera (target,
-//! azimuth, distance), the robot at its smoothed pose with alliance bumpers,
-//! inside MiniMap3D's rounded, vignetted frame. Self-contained: the HUD holds
-//! one [`Minimap`] and places its element.
+//! azimuth, distance), the HUD's auto path, and the robot at its smoothed
+//! pose with alliance bumpers, inside MiniMap3D's rounded, vignetted frame.
+//! While the HUD mirrors the touchscreen preview, the robot and camera follow
+//! the preview frame instead (Godot's MinimapView). Self-contained: the HUD
+//! holds one [`Minimap`] and places its element.
 
+mod path;
 mod raster;
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use dash_core::autos::{HudOverlay, PathOverlay};
 use dash_core::field::{CameraMode, MapView, MinimapCamera, PoseSmoother, frame};
 use gpui_kit::*;
 
@@ -36,6 +40,7 @@ type Finished = Arc<Mutex<Option<(raster::View, Vec<u8>)>>>;
 
 struct Job {
     view: raster::View,
+    path: Option<Arc<PathOverlay>>,
     done: Finished,
 }
 
@@ -55,6 +60,7 @@ fn worker(rx: Receiver<Job>) {
         return;
     };
     let mut mask: Option<raster::Mask> = None;
+    let mut layer: Option<(Arc<PathOverlay>, path::PathLayer)> = None;
     while let Ok(mut job) = rx.recv() {
         while let Ok(newer) = rx.try_recv() {
             job = newer;
@@ -67,7 +73,14 @@ fn worker(rx: Receiver<Job>) {
             mask = Some(raster::Mask::new(&FRAME, v.width, v.height));
         }
         let Some(m) = mask.as_ref() else { continue };
-        let bgra = raster::render(&tex, m, &v);
+        match &job.path {
+            Some(p) if !layer.as_ref().is_some_and(|(q, _)| Arc::ptr_eq(p, q)) => {
+                layer = Some((p.clone(), path::PathLayer::new(p)));
+            }
+            _ => {}
+        }
+        let drawn = job.path.as_ref().and(layer.as_ref()).map(|(_, l)| l);
+        let bgra = raster::render(&tex, m, &v, drawn);
         if let Ok(mut slot) = job.done.lock() {
             *slot = Some((v, bgra));
         }
@@ -81,6 +94,8 @@ pub struct Minimap {
     jobs: Option<Sender<Job>>,
     done: Finished,
     requested: Option<raster::View>,
+    /// Keeps the requested path alive so its address stays its id.
+    requested_path: Option<Arc<PathOverlay>>,
     pending: bool,
     shown: Option<Arc<RenderImage>>,
     retired: Vec<Arc<RenderImage>>,
@@ -101,13 +116,21 @@ impl Minimap {
             jobs: None,
             done: Arc::new(Mutex::new(None)),
             requested: None,
+            requested_path: None,
             pending: false,
             shown: None,
             retired: Vec::new(),
         }
     }
 
-    fn step(&mut self, data: &MockData, now: Instant) -> (f64, f64, f64) {
+    /// The robot pose to draw and its alliance: the smoothed NT pose, or the
+    /// preview frame's while mirroring.
+    fn step(
+        &mut self,
+        data: &MockData,
+        auto: Option<&HudOverlay>,
+        now: Instant,
+    ) -> ((f64, f64, f64), Option<bool>) {
         let dt = self
             .last_frame
             .map(|t| now.saturating_duration_since(t).as_secs_f64().min(MAX_DT_S))
@@ -115,7 +138,17 @@ impl Minimap {
         self.last_frame = Some(now);
         let p = &data.pose;
         self.smoother.step(p.x_m, p.y_m, p.heading_rad, dt);
-        let s = &self.smoother;
+        let mirror = auto.and_then(|a| a.mirror.as_ref());
+        let (pose, alliance) = match mirror {
+            Some(f) => (
+                (f.state.pose.x, f.state.pose.y, f.state.pose.heading),
+                Some(f.alliance.is_red()),
+            ),
+            None => {
+                let s = &self.smoother;
+                ((s.x, s.y, s.heading), data.matchs.is_red_alliance)
+            }
+        };
         let view = MapView {
             mode: match data.map.mode {
                 MapMode::Follow => CameraMode::Follow,
@@ -124,25 +157,27 @@ impl Minimap {
             angle: data.map.angle as f64,
             zoom: data.map.zoom as f64,
         };
-        self.camera.step(
-            dt,
-            frame::to_world(s.x, s.y),
-            s.heading,
-            view,
-            data.matchs.is_red_alliance,
-        );
-        (s.x, s.y, s.heading)
+        self.camera
+            .step(dt, frame::to_world(pose.0, pose.1), pose.2, view, alliance);
+        (pose, alliance)
     }
 
     /// The raster view for this frame. The camera's distance is turned into a
     /// scale by the height its 50 degree field of view covers at the target.
-    fn view(&self, data: &MockData, pose: (f64, f64, f64), scale: f32) -> raster::View {
+    fn view(
+        &self,
+        data: &MockData,
+        auto: Option<&HudOverlay>,
+        (pose, alliance_red): ((f64, f64, f64), Option<bool>),
+        scale: f32,
+    ) -> raster::View {
         let width = (MINIMAP.size.width * scale).round().max(1.0) as usize;
         let height = (MINIMAP.size.height * scale).round().max(1.0) as usize;
         let half_fov = (MinimapCamera::FOV_DEG / 2.0).to_radians();
         let visible_m = 2.0 * self.camera.dist * half_fov.tan();
         let robot = frame::to_world(pose.0, pose.1);
-        let trusted = data.match_feed.model.pose_trusted();
+        let mirroring = auto.is_some_and(|a| a.mirror.is_some());
+        let trusted = mirroring || data.match_feed.model.pose_trusted();
         raster::View {
             width,
             height,
@@ -152,8 +187,15 @@ impl Minimap {
             ppm: (height as f64 / visible_m) as f32,
             robot: [robot.x as f32, robot.z as f32],
             heading: pose.2 as f32,
-            alliance_red: data.matchs.is_red_alliance,
+            alliance_red,
             dimmed: !trusted,
+            path: auto.map(|a| raster::PathView {
+                id: Arc::as_ptr(&a.path) as usize,
+                progress: a.progress as f32,
+            }),
+            aim: auto
+                .and_then(|a| a.aim)
+                .map(|(from, to)| [from.x as f32, from.z as f32, to.x as f32, to.z as f32]),
         }
     }
 
@@ -175,25 +217,29 @@ impl Minimap {
     pub fn render(
         &mut self,
         data: &MockData,
+        auto: Option<&HudOverlay>,
         now: Instant,
         window: &mut Window,
     ) -> impl IntoElement {
-        let pose = self.step(data, now);
+        let pose = self.step(data, auto, now);
         self.take_finished();
         // Rendering above one output pixel per design pixel only costs time:
         // the field picture has ~128 px/m.
         let scale = (window.rem_size() / px(1.0) * window.scale_factor()).min(1.0);
-        let view = self.view(data, pose, scale);
+        let view = self.view(data, auto, pose, scale);
+        let path = auto.map(|a| a.path.clone());
         if !self.requested.is_some_and(|r| r.close_to(&view)) {
             let jobs = self.jobs.get_or_insert_with(spawn_worker);
             let sent = jobs
                 .send(Job {
                     view,
+                    path: path.clone(),
                     done: self.done.clone(),
                 })
                 .is_ok();
             if sent {
                 self.requested = Some(view);
+                self.requested_path = path;
                 self.pending = true;
             }
         }

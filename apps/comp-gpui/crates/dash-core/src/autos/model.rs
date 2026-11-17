@@ -10,9 +10,10 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use super::commands::AutoCommands;
-use super::field::Pose;
+use super::field::{Pose, to_world};
 use super::freshness::{self, Freshness};
 use super::library::{AutoLibrary, ExportSource, meta_from_value};
+use super::overlay::{self, PathOverlay};
 use crate::playback::{
     Alliance, AutoClock, AutoMechanisms, AutoPlayback, MechanismState, StartPoseCheck,
 };
@@ -91,6 +92,20 @@ impl HudAuto {
     }
 }
 
+/// What the HUD minimap draws for [`HudAuto`]: the auto's path, how much
+/// of it is travelled, and while mirroring the preview, the robot pose and
+/// aim line to show instead of the live robot. Port of Godot's
+/// `MinimapView._update_auto_overlay`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HudOverlay {
+    pub path: Arc<PathOverlay>,
+    /// Path points at or before this playback time are travelled.
+    pub progress: f64,
+    /// The preview frame's robot while the HUD mirrors the preview.
+    pub mirror: Option<PreviewFrame>,
+    pub aim: Option<(super::field::WorldPoint, super::field::WorldPoint)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct AutosModel {
     /// Searched by `reload`, newest valid export wins.
@@ -107,6 +122,7 @@ pub struct AutosModel {
     preview_name: String,
     frame: Option<PreviewFrame>,
     hud: HudAuto,
+    hud_overlay: Option<HudOverlay>,
     mechanisms: HashMap<String, Arc<AutoMechanisms>>,
 }
 
@@ -128,6 +144,7 @@ impl AutosModel {
             preview_name: String::new(),
             frame: None,
             hud: HudAuto::default(),
+            hud_overlay: None,
             mechanisms: HashMap::new(),
         };
         m.reload();
@@ -142,6 +159,7 @@ impl AutosModel {
 
     pub fn reload(&mut self) {
         self.library = AutoLibrary::load_best(&self.sources);
+        self.hud_overlay = None;
         self.mechanisms = self
             .library
             .names()
@@ -211,6 +229,11 @@ impl AutosModel {
         &self.hud
     }
 
+    /// None while the HUD shows no auto or the library does not have it.
+    pub fn hud_overlay(&self) -> Option<&HudOverlay> {
+        self.hud_overlay.as_ref()
+    }
+
     pub fn frame_at(m: &AutoMechanisms, t: f64, alliance: Alliance) -> PreviewFrame {
         PreviewFrame {
             auto: m.playback.name.clone(),
@@ -253,6 +276,41 @@ impl AutosModel {
             red: self.alliance_red(),
             start,
         };
+        self.hud_overlay = self.build_hud_overlay();
+    }
+
+    fn build_hud_overlay(&self) -> Option<HudOverlay> {
+        let m = self.mechanisms(&self.hud.auto)?;
+        let mirror = if self.hud.mirror {
+            self.frame.clone()
+        } else {
+            None
+        };
+        let alliance = mirror
+            .as_ref()
+            .map_or(Alliance::from_red(self.hud.red), |f| f.alliance);
+        let path = match &self.hud_overlay {
+            Some(o) if o.path.auto == self.hud.auto && o.path.alliance == alliance => {
+                o.path.clone()
+            }
+            _ => Arc::new(PathOverlay::build(m, alliance)),
+        };
+        let progress = mirror.as_ref().map_or(path.end_time(), |f| f.state.t);
+        let aim = mirror.as_ref().and_then(|f| {
+            let p = f.state.pose;
+            let target = f.state.aim_target;
+            overlay::aim_line(
+                to_world(p.x, p.y),
+                to_world(target.x, target.y),
+                f.state.aim,
+            )
+        });
+        Some(HudOverlay {
+            path,
+            progress,
+            mirror,
+            aim,
+        })
     }
 
     /// The loaded export against the robot's deploy hash; None with no export.

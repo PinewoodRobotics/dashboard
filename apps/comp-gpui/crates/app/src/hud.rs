@@ -1,18 +1,21 @@
 use std::time::Instant;
 
+use dash_core::autos::AutosModel;
 use dash_core::match_model::time_format::{mm_ss_cc, nn_dd};
 use dash_core::match_model::{Aim, Banner, Header, LaneToast, TOAST_DURATION_S};
+use dash_core::playback::{StartPoseCheck, StartPoseLevel};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 mod camera_overlay;
 mod minimap;
 
-use crate::icons::{sf, sf_symbol};
+use crate::autos::AutoService;
+use crate::icons::{lucide, sf, sf_symbol};
 use crate::mock::MockData;
 use crate::theme::{
     ACCENT, BLACK, BLUE, CARD, ERROR, HUD_DESIGN, INTER, MONO, ORANGE, PURPLE, SF, TOAST_BG,
-    TOAST_BORDER, WHITE, YELLOW, alpha, u, weight,
+    TOAST_BORDER, WHITE, YELLOW, ZINC_300, ZINC_400, alpha, hex, tabular, u, weight,
 };
 use crate::widgets::dpx;
 use crate::windows::ScreenKind;
@@ -28,6 +31,9 @@ const TOAST_W: f32 = 356.0;
 const TOAST_ANIM_S: f64 = 0.4;
 /// Godot's Tokens.TEXT_DIM: the timers while the robot link is down or stale.
 const TEXT_DIM: Rgba = alpha(WHITE, 0.45);
+/// HudLayout.MINIMAP's top edge: the auto label sits just inside it.
+const AUTO_LABEL_TOP: f32 = 480.0 + 14.0;
+const START_AMBER: Rgba = hex(0xfbbf24);
 
 /// hhea ascender and descender per em, which set CSS `line-height: normal`
 /// and where a baseline sits in its line box.
@@ -103,17 +109,23 @@ fn baseline_row(runs: Vec<Run>) -> (Div, f32) {
     (row, max_ascent)
 }
 
-/// MatchHUD.tsx.
+/// MatchHUD.tsx, plus Godot's pre-match auto label and start pose chip.
 pub struct HudScreen {
     data: Entity<MockData>,
+    autos: Option<Entity<AutoService>>,
     minimap: minimap::Minimap,
 }
 
 impl HudScreen {
     pub fn new(data: Entity<MockData>, cx: &mut Context<Self>) -> Self {
         cx.observe(&data, |_, _, cx| cx.notify()).detach();
+        let autos = crate::autos::try_service(cx);
+        if let Some(a) = &autos {
+            cx.observe(a, |_, _, cx| cx.notify()).detach();
+        }
         Self {
             data,
+            autos,
             minimap: minimap::Minimap::new(),
         }
     }
@@ -147,6 +159,9 @@ impl Render for HudScreen {
             window.request_animation_frame();
         }
         let text = if m.link_ok() { WHITE } else { TEXT_DIM };
+        let auto_model = self.autos.as_ref().map(|a| &a.read(cx).model);
+        let overlay = auto_model.and_then(|a| a.hud_overlay().cloned());
+        let label = auto_model.and_then(AutoLabel::of);
 
         let mut root = div()
             .relative()
@@ -157,7 +172,10 @@ impl Render for HudScreen {
             .font_family(INTER)
             .text_color(WHITE);
 
-        root = root.child(self.minimap.render(data, Instant::now(), window));
+        root = root.child(
+            self.minimap
+                .render(data, overlay.as_ref(), Instant::now(), window),
+        );
 
         if m.show_shift_indicator {
             let shift = m.shift_display(now_us);
@@ -225,6 +243,10 @@ impl Render for HudScreen {
                 ),
         );
 
+        if let Some(label) = label {
+            root = root.child(label.render());
+        }
+
         if let Some(overlay) = camera_overlay::render(data, Instant::now(), window) {
             root = root.child(overlay);
         }
@@ -244,6 +266,131 @@ impl Render for HudScreen {
             .child(crate::debug_overlay::layer(&data, window, cx));
 
         div().size_full().bg(BLACK).child(root)
+    }
+}
+
+/// Godot's HUD AutoLabel and StartChip over the top of the minimap: the
+/// pre-match auto (or "Preview" with the playback time while the HUD mirrors
+/// the touchscreen preview), and below it the start pose check.
+#[derive(Clone, Debug, PartialEq)]
+struct AutoLabel {
+    mirror: bool,
+    title: String,
+    time: Option<String>,
+    start: Option<StartPoseCheck>,
+}
+
+impl AutoLabel {
+    fn of(m: &AutosModel) -> Option<AutoLabel> {
+        let hud = m.hud();
+        if hud.auto.is_empty() {
+            return None;
+        }
+        let time = if hud.mirror {
+            Some(format!("{:05.2} s", m.clock.t))
+        } else if m.library.get_auto(&hud.auto).is_none() {
+            Some("no preview".to_owned())
+        } else {
+            None
+        };
+        Some(AutoLabel {
+            mirror: hud.mirror,
+            title: m.library.display_name(&hud.auto).to_owned(),
+            time,
+            start: hud.start,
+        })
+    }
+
+    /// Godot's PwIcon centers the icon in the row's height, and the smaller
+    /// labels share the title's baseline.
+    fn render(self) -> impl IntoElement {
+        let line = |size: f32| (INTER_M.ascent + INTER_M.descent) * size;
+        let text = |s: String, size: f32, w: u16, color: Rgba| {
+            div()
+                .flex_none()
+                .font_weight(weight(w))
+                .text_size(u(size))
+                .line_height(u(line(size)))
+                .text_color(color)
+                .whitespace_nowrap()
+                .child(s)
+        };
+        let icon = |name: &str, size: f32, row: f32, color: Rgba| {
+            div()
+                .flex_none()
+                .h(u(line(row)))
+                .flex()
+                .items_center()
+                .child(lucide(name, size, color))
+        };
+        let below_title = u((30. - 26.) * INTER_M.ascent);
+        let label = div()
+            .flex()
+            .flex_row()
+            .items_start()
+            .gap(u(12.))
+            .pl(u(18.))
+            .pr(u(20.))
+            .py(u(6.))
+            .rounded(u(12.))
+            .bg(alpha(BLACK, 0.72))
+            .child(icon("route", 30., 30., ACCENT))
+            .child(
+                text(
+                    (if self.mirror { "PREVIEW" } else { "AUTO" }).into(),
+                    26.,
+                    600,
+                    ACCENT,
+                )
+                .mt(below_title),
+            )
+            .child(text(self.title, 30., 600, WHITE))
+            .children(self.time.map(|t| {
+                text(t, 26., 500, ZINC_300)
+                    .mt(below_title)
+                    .font_features(tabular())
+            }));
+        let chip = self.start.map(|c| {
+            let col = start_color(c.level);
+            let icon_name = if c.level == StartPoseLevel::Ok {
+                "circle-check"
+            } else {
+                "crosshair"
+            };
+            div()
+                .flex()
+                .flex_row()
+                .items_start()
+                .gap(u(10.))
+                .pl(u(14.))
+                .pr(u(16.))
+                .py(u(4.))
+                .rounded(u(10.))
+                .border(u(2.))
+                .border_color(alpha(col, 0.7))
+                .bg(alpha(BLACK, 0.72))
+                .child(icon(icon_name, 24., 24., col))
+                .child(text(c.text(), 24., 600, col).font_features(tabular()))
+        });
+        div()
+            .absolute()
+            .left_0()
+            .top(u(AUTO_LABEL_TOP))
+            .w(u(HUD_DESIGN.width))
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(u(8.))
+            .child(label)
+            .children(chip)
+    }
+}
+
+fn start_color(level: StartPoseLevel) -> Rgba {
+    match level {
+        StartPoseLevel::Ok => ACCENT,
+        StartPoseLevel::Off => START_AMBER,
+        StartPoseLevel::Invalid => ZINC_400,
     }
 }
 

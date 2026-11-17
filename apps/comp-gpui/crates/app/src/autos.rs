@@ -4,8 +4,8 @@
 //! ([`AutoSelectionSync`]), driven against the live NT link
 //! (`MockData::nt_link`) or else the mock robot in [`MockData`]
 //! ([`MockLink`]). The Auto tab, its preview and
-//! the Settings tab's export box read it through [`service`]; the HUD can
-//! read `model.hud()` the same way.
+//! the Settings tab's export box read it through [`service`]; the HUD reads
+//! `model.hud()` and `model.hud_overlay()` the same way.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,7 +24,8 @@ use crate::mock::MockData;
 
 const TICK: Duration = Duration::from_millis(20);
 /// The preview pauses once the Auto tab has not drawn for this long (Godot
-/// pauses it when the panel leaves the tree).
+/// pauses it when the panel leaves the tree). A preview started while the
+/// tab never drew (a HUD-only fixture) keeps playing, as Godot's does.
 const HIDDEN_AFTER: Duration = Duration::from_millis(250);
 /// How long the mock robot takes to echo a Request on State.
 const ECHO_DELAY: Duration = Duration::from_millis(250);
@@ -111,8 +112,8 @@ impl ControlLink for MockLink<'_> {
     }
 }
 
-/// Godot's touch_auto_* fixtures (data/fixtures), applied over the
-/// touch_m6_base robot state.
+/// Godot's touch_auto_* and hud_auto_* fixtures (data/fixtures), applied
+/// over the touch_m6_base robot state.
 #[derive(Clone, Debug, Default)]
 pub struct Fixture {
     pub name: String,
@@ -133,6 +134,8 @@ pub struct Fixture {
     pub nt_down: bool,
     /// None: the robot's pose is not live, so there is no start check.
     pub pose: Option<(f64, f64, f64)>,
+    /// The match is in its autonomous period instead of pre-match.
+    pub autonomous: bool,
 }
 
 fn base_valid_autos() -> Vec<String> {
@@ -218,6 +221,22 @@ impl Fixture {
             "touch_auto_live" => {
                 f.echo = true;
             }
+            "hud_auto_path" | "hud_auto_start_off" | "hud_auto_mirror" | "hud_auto_gone" => {
+                f.state = s("Move Forward And Shoot Center");
+                f.stored = s("Move Forward And Shoot Center");
+                f.pose = Some(if name == "hud_auto_start_off" {
+                    (1.5, 3.3, 1.8)
+                } else {
+                    (3.37, 4.03, 2.36)
+                });
+                if matches!(name, "hud_auto_mirror" | "hud_auto_gone") {
+                    f.view_auto = s("Ball Shooter Left");
+                    f.preview_t = Some(9.0);
+                    f.playing = true;
+                }
+                f.autonomous = name == "hud_auto_gone";
+                f.enabled = f.autonomous;
+            }
             _ => return None,
         }
         Some(f)
@@ -226,6 +245,11 @@ impl Fixture {
     fn apply(&self, d: &mut MockData) {
         d.matchs.phase = Phase::PreMatch;
         d.matchs.enabled = self.enabled;
+        if self.autonomous {
+            d.matchs.phase = Phase::Autonomous;
+            d.matchs.autonomous = true;
+            d.matchs.total_time_remaining_s = 150.0;
+        }
         d.matchs.is_red_alliance = Some(false);
         d.nt_connected = !self.nt_down;
         if self.nt_down {
@@ -282,6 +306,10 @@ impl Global for ServiceHandle {}
 
 pub fn service(cx: &App) -> Entity<AutoService> {
     cx.global::<ServiceHandle>().0.clone()
+}
+
+pub fn try_service(cx: &App) -> Option<Entity<AutoService>> {
+    cx.try_global::<ServiceHandle>().map(|h| h.0.clone())
 }
 
 /// Creates the service and starts its update loop. Call once at startup.
@@ -553,7 +581,7 @@ impl AutoService {
             changed = true;
         }
 
-        let hidden = self.tab_seen.is_none_or(|t| t.elapsed() > HIDDEN_AFTER);
+        let hidden = self.tab_seen.is_some_and(|t| t.elapsed() > HIDDEN_AFTER);
         if hidden && self.model.clock.active() {
             self.model.clock.pause();
             self.model.clock.end_scrub();

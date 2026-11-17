@@ -1468,3 +1468,138 @@ fn fixture_sets_preview_alliance_and_meta() {
         "a reload keeps a preview that still loads"
     );
 }
+
+#[test]
+fn overlay_marks_start_end_and_stacks_pins() {
+    let lib = builtin();
+    let config = AutoCommands::builtin();
+    for name in ["Ball Shooter Left", "Climber Right Left"] {
+        let m = AutoMechanisms::new(auto(&lib, name), &config);
+        for side in Alliance::BOTH {
+            let o = PathOverlay::build(&m, side);
+            let s = m.pose_at(0.0, side);
+            let w = to_world(s.x, s.y);
+            near(o.start.x, w.x, 1e-12, "start x");
+            near(o.start.z, w.z, 1e-12, "start z");
+            let (fx, fz) = o.start_forward;
+            near(fx, -s.heading.cos(), 1e-12, "forward x");
+            near(fz, s.heading.sin(), 1e-12, "forward z");
+            let e = m.pose_at(m.duration, side);
+            let end = o.end.expect("a path has an end marker");
+            near(end.x, to_world(e.x, e.y).x, 1e-12, "end x");
+            assert_eq!(o.line.points.len(), o.line.times.len());
+            near(o.end_time(), *o.line.times.last().unwrap(), 0.0, "end time");
+            assert_eq!(o.pins.len(), m.items.len(), "{name}: a pin per item");
+            let slot = |t0: f64| {
+                let p = m.pose_at(t0, side);
+                let b = to_world(p.x, p.y);
+                ((b.x * 100.0).round() as i64, (b.z * 100.0).round() as i64)
+            };
+            for (i, (pin, it)) in o.pins.iter().zip(&m.items).enumerate() {
+                let p = m.pose_at(it.t0, side);
+                let at = to_world(p.x, p.y);
+                let earlier = m.items[..i]
+                    .iter()
+                    .filter(|e| slot(e.t0) == slot(it.t0))
+                    .count();
+                near(
+                    pin.base.x,
+                    at.x + overlay::PIN_STACK_STEP * earlier as f64,
+                    1e-9,
+                    "stacked pin",
+                );
+                near(pin.base.z, at.z, 1e-12, "pin z");
+                assert_eq!(pin.color()[3], overlay::PIN_ALPHA);
+            }
+        }
+    }
+    let stay = AutoMechanisms::new(auto(&lib, "Stay And Shoot"), &config);
+    let o = PathOverlay::build(&stay, BLUE);
+    assert!(
+        o.line.points.is_empty() && o.end.is_none(),
+        "no path, no ribbon or end"
+    );
+    let w = to_world(
+        AutoMechanisms::NO_PATH_POSE_BLUE.x,
+        AutoMechanisms::NO_PATH_POSE_BLUE.y,
+    );
+    near(o.start.x, w.x, 1e-12, "no-path start marker");
+}
+
+#[test]
+fn overlay_kind_colors_and_aim_line() {
+    assert_eq!(
+        overlay::kind_color(ItemKind::Shooter, true),
+        [1.0, 157.0 / 255.0, 0.0, 1.0]
+    );
+    assert_eq!(
+        overlay::kind_color(ItemKind::Aim, false),
+        overlay::kind_color(ItemKind::Noop, true),
+        "a command that does not run is grey"
+    );
+    let a = to_world(2.0, 2.0);
+    let b = to_world(2.0, 2.04);
+    assert!(overlay::aim_line(a, b, true).is_none(), "too short");
+    let c = to_world(5.0, 2.0);
+    assert!(overlay::aim_line(a, c, false).is_none(), "not aiming");
+    let (from, to) = overlay::aim_line(a, c, true).unwrap();
+    near(from.x, a.x, 0.0, "from");
+    near(to.x, c.x, 0.0, "to");
+    assert_eq!(from.y, overlay::AIM_LIFT);
+}
+
+#[test]
+fn hud_overlay_follows_the_hud_auto() {
+    let mut h = Harness::new();
+    assert!(h.model.hud_overlay().is_none(), "no auto, no overlay");
+    h.model.inputs.alliance_red = Some(false);
+    h.model.inputs.confirmed_auto = "Ball Shooter Left".into();
+    h.model.refresh();
+    let o = h.model.hud_overlay().unwrap().clone();
+    assert_eq!(o.path.auto, "Ball Shooter Left");
+    assert_eq!(o.path.alliance, BLUE);
+    assert_eq!(
+        o.progress,
+        o.path.end_time(),
+        "pre-match shows the whole path"
+    );
+    assert!(o.mirror.is_none() && o.aim.is_none());
+    h.model.refresh();
+    assert!(
+        Arc::ptr_eq(&o.path, &h.model.hud_overlay().unwrap().path),
+        "the path is built once per auto and alliance"
+    );
+
+    h.model.clock.tick(h.now_us);
+    h.model.set_preview("Ball Shooter Left");
+    h.model.clock.seek(9.0);
+    h.model.clock.play();
+    h.step();
+    h.advance_s(0.25);
+    h.step();
+    let o = h.model.hud_overlay().unwrap();
+    let frame = h.model.frame().unwrap();
+    assert_eq!(o.mirror.as_ref(), Some(frame), "mirrors the preview frame");
+    near(
+        o.progress,
+        h.model.clock.t,
+        0.0,
+        "travelled up to the preview time",
+    );
+    assert!(o.progress > 9.0);
+    match o.aim {
+        Some((from, _)) => {
+            assert!(frame.state.aim);
+            let p = to_world(frame.state.pose.x, frame.state.pose.y);
+            near(from.x, p.x, 1e-12, "aim from the robot");
+        }
+        None => assert!(!frame.state.aim),
+    }
+
+    h.model.inputs.pre_match = false;
+    h.model.refresh();
+    assert!(
+        h.model.hud_overlay().is_none(),
+        "gone once the match starts"
+    );
+}
