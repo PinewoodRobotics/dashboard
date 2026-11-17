@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/probes"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+objc2 = "0.6"
+objc2-core-foundation = { version = "0.3.2", features = ["CFDictionary", "CFNumber", "CFString"] }
+objc2-io-surface = "0.3.2"
+objc2-metal = { version = "0.3.2", features = ["objc2-io-surface"] }
+objc2-core-video = { version = "0.3.2", features = ["objc2-io-surface", "objc2-metal", "CVPixelBufferIOSurface"] }
