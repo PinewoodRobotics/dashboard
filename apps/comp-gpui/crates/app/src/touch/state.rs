@@ -1,4 +1,4 @@
-use dash_core::layout_store::Tabs;
+use dash_core::settings::LayoutSettings;
 
 use crate::icons::sf;
 
@@ -109,15 +109,12 @@ impl PanelId {
     }
 }
 
-/// The rail and dock ids layoutStorage.ts accepts: the dock tabs, never the
-/// dev-only gallery.
-pub fn layout_tabs() -> Tabs<'static> {
-    const ALL: [&str; 6] = ["auto", "settings", "effects", "howard", "robot3d", "visual"];
-    const RAIL: [&str; 2] = ["auto", "settings"];
-    Tabs {
-        all: &ALL,
-        default_rail: &RAIL,
-    }
+fn keys(ids: &[TabId]) -> Vec<String> {
+    ids.iter().map(|t| t.key().to_string()).collect()
+}
+
+fn tabs(keys: &[String]) -> Vec<TabId> {
+    keys.iter().filter_map(|s| TabId::parse(s)).collect()
 }
 
 /// useTouchscreenLayoutState.ts. `None` active tab is the driver base,
@@ -251,12 +248,25 @@ impl LayoutState {
     }
 
     /// Sanitized like a stored layout; false when nothing changed.
+    pub fn layout(&self) -> LayoutSettings {
+        LayoutSettings {
+            rail: keys(&self.rail),
+            dock: keys(&self.dock),
+        }
+    }
+
     pub fn set_lists(&mut self, rail: &[TabId], dock: &[TabId]) -> bool {
-        let tabs = layout_tabs();
-        let keys = |l: &[TabId]| l.iter().map(|t| t.key()).collect::<Vec<_>>();
-        let parse = |l: Vec<String>| l.iter().filter_map(|s| TabId::parse(s)).collect::<Vec<_>>();
-        let rail = parse(tabs.sanitize(&keys(rail)));
-        let dock = parse(tabs.normalize_dock(&keys(dock)));
+        self.set_layout(&LayoutSettings {
+            rail: keys(rail),
+            dock: keys(dock),
+        })
+    }
+
+    /// Normalized as the settings section is: the dock tabs only (never the
+    /// dev-only gallery), first occurrence kept, the dock completed.
+    pub fn set_layout(&mut self, layout: &LayoutSettings) -> bool {
+        let layout = layout.normalized();
+        let (rail, dock) = (tabs(&layout.rail), tabs(&layout.dock));
         if rail == self.rail && dock == self.dock {
             return false;
         }

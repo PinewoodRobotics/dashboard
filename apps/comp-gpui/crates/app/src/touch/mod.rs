@@ -11,7 +11,6 @@ mod tabs;
 mod visual_tab;
 
 use std::cell::Cell;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use gpui_kit::prelude::FluentBuilder;
@@ -58,12 +57,7 @@ pub struct TouchStart {
     pub tab: Option<TabId>,
     pub panel: Option<PanelId>,
     pub dock: bool,
-    /// Where the rail and dock lists are loaded from and saved to; `None`
-    /// keeps them in memory.
-    pub layout_path: Option<PathBuf>,
 }
-
-pub use dnd::default_layout_path;
 
 /// TouchscreenDashboard.tsx.
 pub struct TouchScreen {
@@ -112,11 +106,7 @@ impl TouchScreen {
             dock_height: Cell::new(BORDER + DOCK_PAD * 2.0 + ICON),
             dnd: dnd::Dnd::default(),
         };
-        if let Some(path) = start.layout_path {
-            let (rail, dock) = dnd::load_layout(&path);
-            this.state.set_lists(&rail, &dock);
-            this.dnd.layout_path = Some(path);
-        }
+        this.state.set_layout(&crate::settings::layout(cx));
         if let Some(tab) = start.tab {
             this.state.switch_tab(tab);
         }

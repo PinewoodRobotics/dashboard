@@ -5,7 +5,9 @@
 //! due save and polls the shared file for edits by the other apps.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use serde_json::Value;
 
 use super::app::{
     AppSettings, ControlsSettings, LayoutSettings, MapSettings, VisualSettings, WindowsSettings,
@@ -18,6 +20,7 @@ use super::shared_store::SharedSettingsStore;
 
 pub const SAVE_DELAY_MS: u64 = 250;
 pub const MIGRATION_CONNECT_TIMEOUT: &str = "connect_timeout_2s";
+pub const MIGRATION_LAYOUT_FILE: &str = "layout_json";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Section {
@@ -101,6 +104,26 @@ impl SettingsService {
             migrated = true;
         }
         self.data.add_migration(MIGRATION_CONNECT_TIMEOUT);
+        self.save_now();
+        migrated
+    }
+
+    /// Once per install: a rail and dock arranged while they were kept in
+    /// their own file (`legacy`) become the layout section. The old file is
+    /// left where it is and never read again.
+    pub fn migrate_layout_file(&mut self, legacy: &Path) -> bool {
+        if self.path.is_none() || self.data.has_migration(MIGRATION_LAYOUT_FILE) {
+            return false;
+        }
+        let raw = fs::read_to_string(legacy)
+            .ok()
+            .and_then(|text| parse(&text))
+            .filter(Value::is_object);
+        let migrated = raw.is_some();
+        if migrated {
+            self.data.layout = LayoutSettings::normalize(raw.as_ref());
+        }
+        self.data.add_migration(MIGRATION_LAYOUT_FILE);
         self.save_now();
         migrated
     }
@@ -275,6 +298,49 @@ mod tests {
         assert!(s.set_connection(&ConnectionSettings::default()).is_ok());
         assert!(!s.migrate_connect_timeout());
         assert!(dir.files().is_empty());
+    }
+
+    #[test]
+    fn layout_file_migrates_once_into_the_layout_section() {
+        let dir = TestDir::new("svc-layout-migrate");
+        let legacy = dir.path().join("layout.json");
+        fs::write(&legacy, json!({"rail": ["visual", "record"], "dock": ["howard", "visual"]}).to_string()).unwrap();
+        let mut s = service(&dir, "settings.json");
+        assert!(s.migrate_layout_file(&legacy));
+        assert_eq!(s.data.layout.rail, ["visual"]);
+        assert_eq!(s.data.layout.dock, ["howard", "visual", "auto", "settings", "effects", "robot3d"]);
+        assert!(!s.save_pending(), "written at once");
+        assert!(legacy.exists(), "the old file is left alone");
+
+        let mut s2 = service(&dir, "settings.json");
+        assert_eq!(s2.data.layout, s.data.layout, "persisted");
+        let moved = LayoutSettings { rail: vec!["auto".into()], dock: s.data.layout.dock.clone() };
+        assert!(s2.set_layout(&moved, 0));
+        assert!(s2.save_now());
+        let mut s3 = service(&dir, "settings.json");
+        assert!(!s3.migrate_layout_file(&legacy), "never imported twice");
+        assert_eq!(s3.data.layout.rail, ["auto"], "a later arrangement wins over the old file");
+    }
+
+    #[test]
+    fn missing_or_corrupt_layout_file_keeps_the_section() {
+        let dir = TestDir::new("svc-layout-missing");
+        let mut s = service(&dir, "a.json");
+        assert!(!s.migrate_layout_file(&dir.path().join("none.json")));
+        assert_eq!(s.data.layout, LayoutSettings::default());
+        assert!(s.data.has_migration(MIGRATION_LAYOUT_FILE), "recorded either way");
+
+        let corrupt = dir.path().join("layout.json");
+        fs::write(&corrupt, "{not json").unwrap();
+        let mut s = service(&dir, "b.json");
+        assert!(!s.migrate_layout_file(&corrupt));
+        assert_eq!(s.data.layout, LayoutSettings::default());
+
+        let valid = dir.path().join("valid.json");
+        fs::write(&valid, json!({"rail": []}).to_string()).unwrap();
+        let mut memory = SettingsService::open(None, SharedSettingsStore::new(dir.file(), true));
+        assert!(!memory.migrate_layout_file(&valid), "offline runs never import");
+        assert_eq!(memory.data.layout, LayoutSettings::default());
     }
 
     fn with_shared(dir: &TestDir, timeout: u32, settings_name: &str) -> SettingsService {

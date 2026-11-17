@@ -7,8 +7,9 @@ use std::time::{Duration, Instant};
 
 use dash_core::settings::connection::ENV_PATH;
 use dash_core::settings::{
-    ConnectionSettings, MapSettings, Section, SettingsService, SharedSettingsStore,
-    VisualSettings, WindowsSettings, default_app_settings_path,
+    ConnectionSettings, LayoutSettings, MapSettings, Section, SettingsService,
+    SharedSettingsStore, VisualSettings, WindowsSettings, default_app_settings_path,
+    legacy_layout_path,
 };
 use gpui_kit::*;
 
@@ -19,6 +20,9 @@ const TICK: Duration = Duration::from_millis(250);
 pub struct Options {
     pub path: Option<PathBuf>,
     pub shared_memory_only: bool,
+    /// The old standalone layout file to import once; only the default
+    /// settings file imports it.
+    pub legacy_layout: Option<PathBuf>,
 }
 
 impl Options {
@@ -28,9 +32,11 @@ impl Options {
     /// never rewrites the real files.
     pub fn new(settings_path: Option<PathBuf>, fixture: bool) -> Self {
         let env_shared = std::env::var(ENV_PATH).is_ok_and(|v| !v.trim().is_empty());
+        let default = settings_path.is_none() && !fixture;
         Self {
-            path: settings_path.or_else(|| (!fixture).then(default_app_settings_path).flatten()),
+            path: settings_path.or_else(|| default.then(default_app_settings_path).flatten()),
             shared_memory_only: fixture && !env_shared,
+            legacy_layout: default.then(legacy_layout_path).flatten(),
         }
     }
 }
@@ -54,6 +60,11 @@ pub fn install(data: &Entity<MockData>, opts: Options, cx: &mut App) {
     let mut service = SettingsService::open(opts.path, store);
     if service.migrate_connect_timeout() {
         eprintln!("comp-gpui: settings: connect timeout 10 s -> 2 s (old default)");
+    }
+    if let Some(legacy) = &opts.legacy_layout
+        && service.migrate_layout_file(legacy)
+    {
+        eprintln!("comp-gpui: settings: layout imported from {}", legacy.display());
     }
     eprintln!(
         "comp-gpui: settings {} | shared {}",
@@ -158,6 +169,18 @@ pub fn windows(cx: &App) -> WindowsSettings {
 
 pub fn set_windows(w: &WindowsSettings, cx: &mut App) {
     update(cx, Section::Windows, |s, now| s.set_windows(w, now));
+}
+
+/// The rail and dock lists; the touchscreen reads them when it opens, so a
+/// re-tiled window keeps them.
+pub fn layout(cx: &App) -> LayoutSettings {
+    cx.try_global::<Settings>()
+        .map(|s| s.service.data.layout.clone())
+        .unwrap_or_default()
+}
+
+pub fn set_layout(layout: &LayoutSettings, cx: &mut App) {
+    update(cx, Section::Layout, |s, now| s.set_layout(layout, now));
 }
 
 pub fn last_error(cx: &App) -> String {

@@ -9,12 +9,10 @@
 //! pixels of the touch window.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Instant;
 
 use dash_core::dnd::{self as rules, DragGate, GateState, Target, Zone};
-use dash_core::layout_store;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
@@ -69,7 +67,6 @@ pub struct Dnd {
     shifts: HashMap<Key, (Tween, Tween)>,
     ghost: Ghost,
     landing: Option<Key>,
-    pub layout_path: Option<PathBuf>,
 }
 
 impl Dnd {
@@ -119,37 +116,6 @@ fn center(b: &Bounds<f32>) -> Point<f32> {
         b.origin.x + b.size.width * 0.5,
         b.origin.y + b.size.height * 0.5,
     )
-}
-
-/// Every place a layout is kept between runs: `%APPDATA%`, Application
-/// Support or the XDG config directory, under `comp-gpui/layout.json`.
-pub fn default_layout_path() -> Option<PathBuf> {
-    let env = |k: &str| {
-        std::env::var_os(k)
-            .filter(|v| !v.is_empty())
-            .map(PathBuf::from)
-    };
-    let base = if cfg!(target_os = "windows") {
-        env("APPDATA")?
-    } else if cfg!(target_os = "macos") {
-        env("HOME")?.join("Library/Application Support")
-    } else {
-        env("XDG_CONFIG_HOME").or_else(|| env("HOME").map(|h| h.join(".config")))?
-    };
-    Some(base.join("comp-gpui").join("layout.json"))
-}
-
-pub fn load_layout(path: &Path) -> (Vec<TabId>, Vec<TabId>) {
-    let l = super::state::layout_tabs().load(path);
-    (parse(&l.rail), parse(&l.dock))
-}
-
-fn parse(ids: &[String]) -> Vec<TabId> {
-    ids.iter().filter_map(|s| TabId::parse(s)).collect()
-}
-
-fn keys(ids: &[TabId]) -> Vec<String> {
-    ids.iter().map(|t| t.key().to_string()).collect()
 }
 
 impl TouchScreen {
@@ -203,7 +169,7 @@ impl TouchScreen {
         match p.phase {
             Phase::Down => {}
             Phase::Move => self.dnd_move(p, window),
-            Phase::Up => self.dnd_release(p, window),
+            Phase::Up => self.dnd_release(p, window, cx),
             Phase::Cancel => self.dnd_cancel(),
         }
         cx.notify();
@@ -229,7 +195,7 @@ impl TouchScreen {
         }
     }
 
-    fn dnd_release(&mut self, p: &Pointer, window: &Window) {
+    fn dnd_release(&mut self, p: &Pointer, window: &Window, cx: &mut App) {
         let Some(key) = self.dnd.source else {
             return;
         };
@@ -242,7 +208,7 @@ impl TouchScreen {
             GateState::Dragging => {
                 let target = self.dnd.last_target.take();
                 self.dnd.shifts.clear();
-                self.drop_on(key, target.as_ref());
+                self.drop_on(key, target.as_ref(), cx);
                 self.land(key, window);
             }
             GateState::Pending => {
@@ -372,25 +338,16 @@ impl TouchScreen {
         })
     }
 
-    fn drop_on(&mut self, (zone, tab): Key, target: Option<&Target<TabId>>) {
+    fn drop_on(&mut self, (zone, tab): Key, target: Option<&Target<TabId>>, cx: &mut App) {
         let res = rules::apply_drop(&self.state.rail, &self.state.dock, zone, &tab, target);
         if res.changed {
-            self.set_lists(res.rail, res.dock);
+            self.set_lists(res.rail, res.dock, cx);
         }
     }
 
-    pub(super) fn set_lists(&mut self, rail: Vec<TabId>, dock: Vec<TabId>) {
-        if !self.state.set_lists(&rail, &dock) {
-            return;
-        }
-        if let Some(path) = &self.dnd.layout_path {
-            let layout = layout_store::Layout {
-                rail: keys(&self.state.rail),
-                dock: keys(&self.state.dock),
-            };
-            if let Err(e) = layout_store::save(path, &layout) {
-                eprintln!("comp-gpui: cannot save {}: {e}", path.display());
-            }
+    pub(super) fn set_lists(&mut self, rail: Vec<TabId>, dock: Vec<TabId>, cx: &mut App) {
+        if self.state.set_lists(&rail, &dock) {
+            crate::settings::set_layout(&self.state.layout(), cx);
         }
     }
 

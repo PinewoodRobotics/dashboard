@@ -197,7 +197,6 @@ pub struct Tiler {
     design_px: bool,
     open: Vec<(ScreenKind, AnyWindowHandle, Placement)>,
     display_count: usize,
-    layout_path: Option<std::path::PathBuf>,
 }
 
 impl Global for Tiler {}
@@ -223,7 +222,6 @@ pub fn open_all(
         design_px: opts.design_px,
         open: Vec::new(),
         display_count: displays.len(),
-        layout_path: opts.touch.layout_path.clone(),
     };
     let mut opened = Vec::new();
     for (index, (kind, placement)) in planned.into_iter().enumerate() {
@@ -310,13 +308,10 @@ pub fn tiling_text(cx: &App) -> String {
 /// Re-plans every open window and replaces the ones whose placement changed;
 /// a replaced touchscreen window starts at `touch`. Deferred, so the window
 /// whose button asked for it is not removed in the middle of its own event.
-pub fn retile(mut touch: TouchStart, cx: &mut App) {
+pub fn retile(touch: TouchStart, cx: &mut App) {
     cx.defer(move |cx| {
         if !cx.has_global::<Tiler>() {
             return;
-        }
-        if touch.layout_path.is_none() {
-            touch.layout_path = cx.global::<Tiler>().layout_path.clone();
         }
         let displays = displays(cx);
         let overrides = settings::windows(cx);

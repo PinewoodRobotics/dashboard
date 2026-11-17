@@ -371,14 +371,17 @@ pub const FILE_NAME: &str = "settings.json";
 /// `%APPDATA%` on Windows, `~/Library/Application Support` on macOS,
 /// `$XDG_DATA_HOME` or `~/.local/share` elsewhere.
 pub fn default_app_settings_path() -> Option<PathBuf> {
-    let os = if cfg!(windows) {
+    app_settings_path_for(current_os(), |k| std::env::var_os(k).map(PathBuf::from))
+}
+
+fn current_os() -> &'static str {
+    if cfg!(windows) {
         "windows"
     } else if cfg!(target_os = "macos") {
         "macos"
     } else {
         "linux"
-    };
-    app_settings_path_for(os, |k| std::env::var_os(k).map(PathBuf::from))
+    }
 }
 
 pub fn app_settings_path_for(os: &str, env: impl Fn(&str) -> Option<PathBuf>) -> Option<PathBuf> {
@@ -389,6 +392,24 @@ pub fn app_settings_path_for(os: &str, env: impl Fn(&str) -> Option<PathBuf>) ->
         _ => nonempty("XDG_DATA_HOME").or_else(|| nonempty("HOME").map(|h| h.join(".local").join("share"))),
     }?;
     Some(base.join(APP_DIR[0]).join(APP_DIR[1]).join(FILE_NAME))
+}
+
+/// Where earlier builds kept the rail and dock on their own, before the
+/// layout became a section of the settings file: `comp-gpui/layout.json`
+/// under `%APPDATA%`, `~/Library/Application Support`, or `$XDG_CONFIG_HOME`
+/// (`~/.config`).
+pub fn legacy_layout_path() -> Option<PathBuf> {
+    legacy_layout_path_for(current_os(), |k| std::env::var_os(k).map(PathBuf::from))
+}
+
+pub fn legacy_layout_path_for(os: &str, env: impl Fn(&str) -> Option<PathBuf>) -> Option<PathBuf> {
+    let nonempty = |k: &str| env(k).filter(|p| !p.as_os_str().is_empty());
+    let base = match os {
+        "windows" => nonempty("APPDATA"),
+        "macos" => nonempty("HOME").map(|h| h.join("Library").join("Application Support")),
+        _ => nonempty("XDG_CONFIG_HOME").or_else(|| nonempty("HOME").map(|h| h.join(".config"))),
+    }?;
+    Some(base.join("comp-gpui").join("layout.json"))
 }
 
 #[cfg(test)]
@@ -486,5 +507,8 @@ mod tests {
         assert_eq!(app_settings_path_for("macos", env), Some(PathBuf::from("/home/d/Library/Application Support/PWRUP/CompGpui/settings.json")));
         assert_eq!(app_settings_path_for("linux", env), Some(PathBuf::from("/home/d/.local/share/PWRUP/CompGpui/settings.json")));
         assert_eq!(app_settings_path_for("windows", |_| None), None);
+        assert_eq!(legacy_layout_path_for("macos", env), Some(PathBuf::from("/home/d/Library/Application Support/comp-gpui/layout.json")));
+        assert_eq!(legacy_layout_path_for("linux", env), Some(PathBuf::from("/home/d/.config/comp-gpui/layout.json")));
+        assert_eq!(legacy_layout_path_for("windows", env), Some(PathBuf::from("C:/Users/d/AppData/Roaming/comp-gpui/layout.json")));
     }
 }
