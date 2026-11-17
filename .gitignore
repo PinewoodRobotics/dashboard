@@ -45,3 +45,4 @@ dist-electron/
 .next/
 
 dist-electron-comp/
+.claude/worktrees/
